@@ -253,6 +253,24 @@ right, click anything to change its words, drag the order about, switch themes.
 **Save writes it back out as Plain sentences** — the same file you would have
 typed by hand, so you can keep working either way.
 
+Plain writes the markup for you, and gets out of the way when you want your
+own:
+
+```plain
+set the page background to "#0f1020"
+set the font to "Georgia, serif"
+
+add style '.badge { border-radius: 999px; background: linear-gradient(90deg, #ff7a59, #ffd166) }'
+add html '<p><span class="badge">your own markup</span> sits here.</p>'
+
+add a title "Handmade" named crown
+style crown with 'color: #ffd166'
+```
+
+Single quotes are taken exactly as typed, which is what CSS and HTML need.
+Your style comes after Plain's, so it wins — in built pages, the live
+preview and the designer alike. See `examples/styled-site.plain`.
+
 `plain build` writes ordinary HTML files, one per page, styled and responsive.
 The page content is in the HTML itself, so it reads fine with JavaScript off.
 The interactive parts need the folder to be *served* (any host, or `plain
@@ -478,7 +496,7 @@ engines/learn/        the course: lessons, projects and their checks
 tests/fake-dom.js      a small stand-in browser, so the pages can be tested
 engines/net/          fetching, and answering as a web server
 bin/parts.js          fetching and recording parts other people wrote
-tests/run-tests.js     305 checks, no framework, nine languages executed
+tests/run-tests.js     310 checks, no framework, nine languages executed
 ```
 
 ## Tests

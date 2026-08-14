@@ -1,0 +1,39 @@
+# A page with your own HTML and CSS mixed into Plain's.
+# See it with:  plain play examples/styled-site.plain
+# Design it with: plain edit examples/styled-site.plain
+
+make a website called "Handmade"
+set the theme to "dark"
+
+# Styling written as sentences...
+set the page background to "#0f1020"
+set the font to "Georgia, 'Times New Roman', serif"
+set the page width to 720
+
+# ...or as the CSS you already know. Single quotes keep it exactly as typed.
+add style '
+.badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #ff7a59, #ffd166);
+    color: #2a0f18;
+    font: 600 13px ui-sans-serif, system-ui, sans-serif;
+}
+.tilt { transform: rotate(-1.5deg); }
+'
+
+add a title "Handmade" named crown
+style crown with 'letter-spacing: -0.03em; color: #ffd166'
+
+add html '<p class="tilt"><span class="badge">your own markup</span> sits here, exactly as typed.</p>'
+
+add text "The sentences above and the CSS below build one page."
+
+add a card called "Both at once"
+    add text "Plain writes the ordinary parts. You write the unusual ones."
+end
+
+add html '<hr style="border:0;height:1px;background:linear-gradient(90deg,transparent,#ffd166,transparent)">'
+
+add a footer "Made with Plain."

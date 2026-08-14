@@ -540,6 +540,62 @@ check('HTML is escaped', () => {
   assert.match(html, /&lt;script&gt;/);
 });
 
+check('a page can carry your own markup', () => {
+  const { site } = runtimeFor("make a website called \"S\"\nadd html '<div class=\"card\"><b>mine</b></div>'");
+  const node = site.pages[0].nodes[0];
+  assert.equal(node.kind, 'html');
+  const html = documentToHTML(site, site.pages[0], {});
+  // It goes in as written, not escaped like ordinary words.
+  assert.match(html, /<div class="card"><b>mine<\/b><\/div>/);
+});
+
+check('a page can carry your own style', () => {
+  const { site } = runtimeFor([
+    'make a website called "S"',
+    "add style '.card { color: hotpink }'",
+    'set the page background to "#fffaf0"',
+    'set the font to "Georgia, serif"',
+    'set the page width to 900'
+  ].join('\n'));
+  const html = documentToHTML(site, site.pages[0], {});
+  assert.match(html, /\.card \{ color: hotpink \}/);
+  assert.match(html, /body \{ background: #fffaf0; \}/);
+  assert.match(html, /font-family: Georgia, serif/);
+  assert.match(html, /max-width: 900px/);
+});
+
+check('anything named can be styled by that name', () => {
+  const { site } = runtimeFor([
+    'make a website called "S"',
+    'add text "loud" named shouty',
+    "style shouty with 'color: crimson'"
+  ].join('\n'));
+  const html = documentToHTML(site, site.pages[0], {});
+  assert.match(html, /\[data-plain-name="shouty"\] \{ color: crimson \}/);
+  assert.match(html, /data-plain-name="shouty"/);
+});
+
+check('a style cannot break out of the style block', () => {
+  const { site } = runtimeFor("make a website called \"S\"\nadd style '</style><script>bad()</script>'");
+  const html = documentToHTML(site, site.pages[0], {});
+  assert.ok(!html.includes('</style><script>'), 'the style block was closed early');
+});
+
+check('markup and style survive being written back', () => {
+  const source = [
+    'make a website called "S"',
+    "add style '.card { border: 1px solid red; }'",
+    'add a title "Hi"',
+    "add html '<div class=\"card\">it\\'s mine</div>'"
+  ].join('\n');
+  const { site } = runtimeFor(source);
+  const written = site.toPlainSource();
+  const again = runtimeFor(written);
+  assert.equal(again.site.styles[0], '.card { border: 1px solid red; }');
+  const node = again.site.pages[0].nodes.find(one => one.kind === 'html');
+  assert.equal(node.props.text, '<div class="card">it\'s mine</div>');
+});
+
 check('an unknown theme is explained', () => {
   const error = broken('make a website called "S"\nset the theme to "banana"');
   assert.match(error.plainMessage, /not a theme/);

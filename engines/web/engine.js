@@ -28,6 +28,7 @@ export class Site {
     this.title = 'A Plain website';
     this.theme = 'light';
     this.pages = [];
+    this.styles = [];              // CSS the program added itself
     this.byName = new Map();
     this.onLoad = [];
     this.host = {};
@@ -69,6 +70,7 @@ export class Site {
   toPlainSource() {
     const lines = [`make a website called ${quote(this.title)}`];
     if (this.theme !== 'light') lines.push(`set the theme to ${quote(this.theme)}`);
+    for (const css of this.styles) lines.push(`add style ${literal(css)}`);
 
     this.pages.forEach((page, index) => {
       lines.push('');
@@ -98,6 +100,7 @@ function nodeToPlain(node, indent) {
 
   switch (node.kind) {
     case 'space': return [indent + 'add a space'];
+    case 'html': return [indent + 'add html ' + literal(props.text || '') + named];
     case 'link': return [indent + `add a link ${quote(props.text)} to ${quote(props.url)}`];
     case 'picture':
       return [indent + (props.alt
@@ -133,7 +136,19 @@ function nodeToPlain(node, indent) {
 }
 
 export function quote(text) {
-  return '"' + String(text ?? '').replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
+  // Braces are escaped too, or text written back out would be read as
+  // something to fill in.
+  return '"' + String(text ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/\{/g, '\\{')
+    .replace(/\}/g, '\\}') + '"';
+}
+
+// Style and markup go back in single quotes, which Plain takes exactly as
+// they are - much kinder to CSS, which is mostly braces.
+export function literal(text) {
+  return "'" + String(text ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
 }
 
 export function installWeb(rt, host = {}) {
@@ -191,6 +206,40 @@ export function installWeb(rt, host = {}) {
   rt.define('add a quote $text', (a) => void site.add('quote', { text: toText(a.text) }));
   rt.define('add code $text', (a) => void site.add('code', { text: toText(a.text) }));
   rt.define('add a space', () => void site.add('space'));
+
+  // ------------------------------------------- your own HTML and CSS
+  // Plain writes the page for you, but sometimes you already know the
+  // markup you want, or you have some styling to paste in.
+
+  rt.define('add html $text', (a) => void site.add('html', { text: toText(a.text) }));
+  rt.define('add html $text named #id', (a) => void site.add('html', { text: toText(a.text) }, a.id));
+
+  rt.define('add style $text', (a) => { site.styles.push(clean(toText(a.text))); });
+
+  rt.define('set the page background to $color', (a) => {
+    site.styles.push(`body { background: ${clean(toText(a.color))}; }`);
+  });
+
+  rt.define('set the text colour to $color', (a) => {
+    site.styles.push(`body { color: ${clean(toText(a.color))}; }`);
+  });
+
+  rt.define('set the text color to $color', (a) => {
+    site.styles.push(`body { color: ${clean(toText(a.color))}; }`);
+  });
+
+  rt.define('set the font to $font', (a) => {
+    site.styles.push(`body { font-family: ${clean(toText(a.font))}; }`);
+  });
+
+  rt.define('set the page width to $width', (a) => {
+    site.styles.push(`.plain-page { max-width: ${Math.round(toNumber(a.width))}px; }`);
+  });
+
+  // Anything on the page that was given a name can be styled by that name.
+  rt.define('style #id with $css', (a) => {
+    site.styles.push(`[data-plain-name="${clean(String(a.id))}"] { ${clean(toText(a.css))} }`);
+  });
   rt.define('add a footer $text', (a) => void site.add('footer', { text: toText(a.text) }));
 
   // ------------------------------------------------------------ list, media
@@ -288,3 +337,8 @@ function showToast(document, text) {
 }
 
 export { THEMES };
+
+// Nothing in a style may close the block it sits in.
+function clean(text) {
+  return String(text).replace(/<\/style/gi, '<\\/style');
+}

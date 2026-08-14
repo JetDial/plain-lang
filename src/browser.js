@@ -196,7 +196,9 @@ function startSite(site, doc, win) {
   site.current = site.pages.find(page => hrefFor(page.path) === asked) || site.pages[0];
 
   doc.title = site.current.name === site.title ? site.title : `${site.current.name} - ${site.title}`;
-  ensureStyle(doc, stylesheet(site.theme));
+  ensureStyle(doc, stylesheet(site.theme) + '
+' + (site.styles || []).join('
+'));
 
   let root = doc.getElementById('plain-app');
   if (!root) {

@@ -48,6 +48,7 @@ const BLOCKS = [
   ['Button', 'button', { text: 'Press me', source: 'show a message "Hello"' }],
   ['Card', 'card', {}],
   ['Row', 'row', {}],
+  ['HTML', 'html', { text: '<b>your own markup</b>' }],
   ['Space', 'space', {}],
   ['Footer', 'footer', { text: 'Made with Plain.' }]
 ];
@@ -118,8 +119,15 @@ export function startDesigner(site, doc, win) {
     buildTabs();
     const frame = preview.contentDocument;
     frame.open();
-    frame.write('<!doctype html><meta charset="utf-8"><style>' + stylesheet(site.theme) +
-      '\n.chosen-outline{outline:2px solid #4c8dff;outline-offset:2px;border-radius:4px}</style><body><main class="plain-page" id="app"></main>');
+    // The page's own style goes in after the built-in one, so what is seen
+    // here is what gets built.
+    const dressing = [
+      stylesheet(site.theme),
+      ...(site.styles || []),
+      '.chosen-outline{outline:2px solid #4c8dff;outline-offset:2px;border-radius:4px}'
+    ].join('\n');
+    frame.write(`<!doctype html><meta charset="utf-8"><style>${dressing}</style>` +
+      '<body><main class="plain-page" id="app"></main>');
     frame.close();
     const host = frame.getElementById('app');
     mountPage(state.page, host, frame);
@@ -194,7 +202,7 @@ export function startDesigner(site, doc, win) {
     }
     const props = node.props || {};
     const fields = [];
-    if ('text' in props) fields.push(field('Words', 'text', props.text));
+    if ('text' in props) fields.push(field(node.kind === 'html' ? 'Markup' : 'Words', 'text', props.text, node.kind === 'html'));
     if ('url' in props) fields.push(field('Address', 'url', props.url));
     if ('alt' in props) fields.push(field('Description', 'alt', props.alt));
     if ('label' in props) fields.push(field('Label', 'label', props.label));

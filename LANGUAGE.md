@@ -822,6 +822,53 @@ end
 any named piece of the page. `show a message` pops up a short note in the
 browser, and prints to the terminal when there is no browser.
 
+## Your own HTML and CSS
+
+Plain writes the page for you, but it does not stand in your way. Styling can
+be said as sentences:
+
+```plain
+set the page background to "#0f1020"
+set the text colour to "#e8ecf4"
+set the font to "Georgia, serif"
+set the page width to 720
+```
+
+or written as the CSS you already know. **Use single quotes** — they are
+taken exactly as typed, which matters because CSS is mostly braces:
+
+```plain
+add style '
+.badge {
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #ff7a59, #ffd166);
+}
+'
+```
+
+Markup goes in the same way, exactly as written rather than escaped:
+
+```plain
+add html '<p class="tilt"><span class="badge">your own markup</span></p>'
+```
+
+And anything you have named can be styled by that name:
+
+```plain
+add a title "Handmade" named crown
+style crown with 'letter-spacing: -0.03em; color: #ffd166'
+```
+
+Your style comes after Plain's, so it wins. It reaches the built pages, the
+live preview and the designer alike — `examples/styled-site.plain` uses all
+of it at once.
+
+Two things worth knowing. Markup you add is **not** escaped — that is the
+point of it, and it is your own page, but do not paste in markup you were
+sent by somebody else. And a style cannot close the style block early;
+Plain sees to that.
+
 ## The designer
 
 ```bash

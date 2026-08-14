@@ -101,6 +101,8 @@ export function toSpec(node) {
     case 'quote': return { tag: 'blockquote', className: 'plain-quote', text: p.text };
     case 'code': return { tag: 'pre', className: 'plain-code', text: p.text };
     case 'space': return { tag: 'hr', className: 'plain-space' };
+    // Written by the author, so it goes in as it stands rather than escaped.
+    case 'html': return { tag: 'div', className: 'plain-html', raw: p.text || '' };
     case 'link': return { tag: 'a', className: 'plain-link', text: p.text, attrs: { href: p.url } };
     case 'picture': return { tag: 'img', className: 'plain-picture', attrs: { src: p.url, alt: p.alt || '' }, empty: true };
     case 'button': return { tag: 'button', className: 'plain-button', text: p.text, attrs: { type: 'button' }, click: p.click };
@@ -147,6 +149,7 @@ export function specToHTML(spec, indent = '  ') {
   if (VOID_TAGS.has(spec.tag)) return `${indent}<${spec.tag}${attrText}>`;
 
   const inner = [];
+  if (spec.raw) inner.push('\n' + spec.raw + '\n' + indent);
   if (spec.text !== undefined && spec.text !== null && spec.text !== '') inner.push(escapeHTML(spec.text));
   const children = spec.children || [];
   if (children.length) {
@@ -192,6 +195,7 @@ ${pageToHTML(page)}
     <title>${escapeHTML(page.name === site.title ? site.title : `${page.name} - ${site.title}`)}</title>
     <style>
 ${stylesheet(site.theme)}
+${(site.styles || []).join('\n')}
     </style>
   </head>
   <body>
@@ -212,6 +216,7 @@ export function specToDOM(spec, document, page) {
     if (key === 'value') el.value = value;
     else el.setAttribute(key, value);
   }
+  if (spec.raw) el.innerHTML = spec.raw;
   if (spec.text !== undefined && spec.text !== null && spec.text !== '') el.textContent = spec.text;
   for (const child of spec.children || []) el.appendChild(specToDOM(child, document, page));
   if (spec.click) el.addEventListener('click', () => spec.click());
