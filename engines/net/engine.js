@@ -363,6 +363,15 @@ export function installNet(rt, host = {}) {
     host.tellAll(toText(a.value));
   });
 
+  // Telling one particular connection, named by the number it was given.
+  // "tell them" only knows who is talking, which is no use on a timer - and
+  // a server that sends each player only what is near them has to do exactly
+  // that, from a timer, to everybody in turn.
+  rt.define('tell connection $number $value', (a, ctx) => {
+    if (!host.tellOne) needTerminal(ctx, 'Talking to a connection');
+    host.tellOne(Math.round(toNumber(a.number)), toText(a.value));
+  });
+
   rt.define('tell everyone else $value', (a, ctx) => {
     if (!host.tellAll) needTerminal(ctx, 'Talking to a connection');
     host.tellAll(toText(a.value), server.who);
