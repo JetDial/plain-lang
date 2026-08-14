@@ -341,6 +341,11 @@ export function installNet(rt, host = {}) {
   rt.define('when someone disconnects ...', (a, ctx) => { server.onShut.push(ctx.block); });
 
   rt.defineValue('what they said', () => server.said);
+
+  // Which connection is talking. Everything a game needs to tell one player
+  // from another hangs off this, and it is given out here rather than sent
+  // by the browser - so nobody can claim to be somebody else.
+  rt.defineValue('who is talking', () => (host.whoIs ? host.whoIs(server.who) : 0));
   rt.defineValue('how many are connected', () => (host.connected ? host.connected() : 0));
 
   rt.define('tell them $value', (a, ctx) => {

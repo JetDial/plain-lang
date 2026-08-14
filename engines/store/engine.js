@@ -46,9 +46,15 @@ export function createStore(host = {}) {
   // Only one program at a time may keep things in a given file. Two would
   // each hold their own copy in memory and take it in turns to overwrite the
   // other, and whichever wrote last would win - which looks like data going
-  // missing for no reason. So the second one is told, rather than left to
-  // find out.
-  if (host.claim) {
+  // missing for no reason. So the second one is told.
+  //
+  // Asked at the first write, not when the program starts: reading a program
+  // to check it, or to write it out in another language, touches nothing and
+  // should never be refused because the real one happens to be running.
+  let claimed = false;
+  const claim = () => {
+    if (claimed || !host.claim) return;
+    claimed = true;
     const other = host.claim(file);
     if (other) {
       throw new Error(
@@ -57,7 +63,7 @@ export function createStore(host = {}) {
         'give this one a file of its own by putting it in another folder.'
       );
     }
-  }
+  };
 
   let held = null;
   const load = () => {
@@ -95,6 +101,7 @@ export function createStore(host = {}) {
   };
 
   const save = () => {
+    claim();
     owing = true;
     if (waiting) return;
     waiting = setTimeout(() => { waiting = null; if (owing) writeNow(); }, 0);

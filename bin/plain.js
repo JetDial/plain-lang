@@ -171,7 +171,8 @@ function buildRuntime(onOutput, baseFile = process.cwd()) {
     putFile: keeping.putFile,
     tell: (who, words) => (server.host ? server.host.tell(who, words) : null),
     tellAll: (words, except) => (server.host ? server.host.tellAll(words, except) : null),
-    connected: () => (server.host ? server.host.connected() : 0)
+    connected: () => (server.host ? server.host.connected() : 0),
+    whoIs: (who) => (server.host ? server.host.whoIs(who) : 0)
   });
   const mail = installMail(runtime, { sendMail });
   installParts(runtime);
@@ -415,7 +416,17 @@ function netHost(runtime) {
         });
       }
 
+      // Each connection gets a number of its own, once, so a program can
+      // tell them apart without trusting anything they say.
+      const numbers = new WeakMap();
+      let nextNumber = 0;
+
       server.host = {
+        whoIs: (socket) => {
+          if (!socket) return 0;
+          if (!numbers.has(socket)) numbers.set(socket, ++nextNumber);
+          return numbers.get(socket);
+        },
         tell: (socket, words) => { if (socket) speak(socket, words); },
         tellAll: (words, except) => {
           for (const one of talking) if (one !== except) speak(one, words);
