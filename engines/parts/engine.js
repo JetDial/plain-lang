@@ -17,7 +17,7 @@
 
 import { toText } from '../../src/values.js';
 
-export function installParts(rt) {
+export function installParts(rt, host = {}) {
   if (rt.libraries.has('parts')) return rt.part;
   rt.libraries.add('parts');
 
@@ -32,6 +32,46 @@ export function installParts(rt) {
   rt.define('this part needs $name version $version from $where', (a) => {
     part.needs.push({ name: toText(a.name), version: toText(a.version), where: toText(a.where) });
   });
+
+  // ------------------------------------------------------- other people's
+  //
+  // A part is Plain. A package is somebody else's JavaScript, off npm, and
+  // there is a great deal of it: dates, colours, spreadsheets, whatever you
+  // were about to write yourself. It is fetched by npm and used from here.
+  //
+  //     make dates be the package "dayjs"
+  //     show call dates with "2026-08-14"
+  //
+  // Only in a terminal: a page has no node_modules to look in.
+  rt.defineValue('the package $name', (a, ctx) => {
+    if (!host.usePackage) {
+      ctx.fail(
+        'Packages only work when Plain runs in a terminal',
+        'a page has nowhere to look for them'
+      );
+    }
+    return host.usePackage(toText(a.name), ctx);
+  });
+
+  // Somebody else's code keeps its workings on the thing itself, so calling
+  // one of its actions has to be done *through* that thing - otherwise it
+  // gets handed the action with no idea what it belongs to.
+  const doing = (thing, named, args, ctx) => {
+    const found = thing === null || thing === undefined ? undefined : thing[named];
+    if (typeof found !== 'function') {
+      ctx.fail(`That has nothing called "${named}" that can be done`);
+    }
+    return found.apply(thing, args);
+  };
+
+  rt.defineValue('call $method of $thing', (a, ctx) =>
+    doing(a.thing, toText(a.method), [], ctx));
+
+  rt.defineValue('call $method of $thing with $one', (a, ctx) =>
+    doing(a.thing, toText(a.method), [a.one], ctx));
+
+  rt.defineValue('call $method of $thing with $one and $other', (a, ctx) =>
+    doing(a.thing, toText(a.method), [a.one, a.other], ctx));
 
   return part;
 }

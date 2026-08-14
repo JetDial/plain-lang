@@ -16,6 +16,7 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { spawn, execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
+import { createRequire } from 'node:module';
 
 import { createRuntime } from '../src/runtime.js';
 import { PlainError } from '../src/errors.js';
@@ -46,6 +47,7 @@ const VERSION = '0.4.0';
 // Everything owing a write when the program ends, in one list. One program
 // has one store, but the test suite makes hundreds, and one listener each
 // would have Node warning about a leak it was right to notice.
+const packages = new Map();
 const owed = new Set();
 let listening = false;
 
@@ -175,7 +177,7 @@ function buildRuntime(onOutput, baseFile = process.cwd()) {
     whoIs: (who) => (server.host ? server.host.whoIs(who) : 0)
   });
   const mail = installMail(runtime, { sendMail });
-  installParts(runtime);
+  installParts(runtime, { usePackage });
   return { runtime, game, site, world, studio, store, server, tables, mail };
 }
 
@@ -581,6 +583,37 @@ function sendMail(settings, message, ctx) {
     ctx.fail(`The mail server would not take that message: ${answer.said}`);
   }
   return answer.said;
+}
+
+// Somebody else's JavaScript, off npm. Loaded the old way rather than the
+// new one because the interpreter does not wait for anything, and half of
+// npm still ships the old way anyway. A package that only ships the new way
+// says so rather than failing strangely.
+
+function usePackage(name, ctx) {
+  if (packages.has(name)) return packages.get(name);
+  if (!/^[@a-z0-9][\w.@/-]*$/i.test(name)) ctx.fail(`"${name}" is not a package name`);
+
+  const asking = createRequire(path.join(process.cwd(), 'plain.js'));
+  let found;
+  try {
+    found = asking(name);
+  } catch (problem) {
+    if (String(problem.code) === 'ERR_REQUIRE_ESM') {
+      ctx.fail(
+        `The package "${name}" is written the new way, which Plain cannot wait for`,
+        'try an older one that does the same job'
+      );
+    }
+    ctx.fail(
+      `I cannot find the package "${name}"`,
+      `fetch it first:  npm install ${name}`
+    );
+  }
+  // Most packages of the old sort hang everything off one value.
+  const held = found && found.__esModule && found.default !== undefined ? found.default : found;
+  packages.set(name, held);
+  return held;
 }
 
 // Is anybody actually running under that number? Signal 0 asks without
