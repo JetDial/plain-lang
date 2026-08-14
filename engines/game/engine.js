@@ -623,6 +623,18 @@ export function installGame(rt, host = {}) {
 
   rt.define('stop the game', () => { game.over = true; });
 
+  // A terminal program ends when its last line is read. This keeps the
+  // clock running instead, so "every 2 seconds" goes on happening.
+  rt.define('keep going', (a, ctx) => {
+    if (!host.keepGoing) {
+      ctx.fail(
+        '"keep going" needs a terminal',
+        'a page keeps going on its own, so it is not needed there'
+      );
+    }
+    host.keepGoing(game);
+  });
+
   rt.define('play a beep', () => beep(host, 440));
   rt.define('play a beep at $pitch', (a) => beep(host, toNumber(a.pitch)));
 

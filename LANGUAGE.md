@@ -284,6 +284,28 @@ is ready before the rest of your program runs. A file is only pulled in once,
 however many times it is used, and line numbers in error messages stay
 pointing at the file you actually typed.
 
+### Parts written by other people
+
+```bash
+plain get https://example.com/dates.plain      # fetch it, once, because you asked
+plain get https://example.com/x.plain as dates # under a name of your choosing
+plain parts                                    # what this folder uses
+plain get                                      # fetch them all again, and check
+```
+
+A part lands in `plain-parts/` and is written down in `plain-parts.json` with
+its size and fingerprint, so `plain parts` can tell you when one has changed.
+Then:
+
+```plain
+use "dates"
+```
+
+Two things keep this small and safe. A part is **Plain source**, read by
+Plain's own interpreter — it cannot run a program of its own, reach outside
+its folder, or install anything. And nothing is ever fetched behind your
+back: a part arrives only when you type `plain get`.
+
 ## 15. Keeping things after the program stops
 
 Everything is forgotten when a program ends, unless you say otherwise.
@@ -385,6 +407,13 @@ when someone visits anything else
 end
 
 start serving on port 3000
+```
+
+Several at once, which is much quicker than one after another:
+
+```plain
+fetch all of "https://a.example", "https://b.example" into answers
+show length of answers
 ```
 
 Also: `what was asked for`, `asked for $name`, `what they sent`,
@@ -556,6 +585,21 @@ end
 That waits without stopping anything else — the game keeps running in the
 meantime. In a terminal program, where there is nothing else to keep running,
 `wait 2 seconds` stops and waits properly.
+
+A terminal program ends when its last line is read, so a program that wants
+its timers to go on happening says so:
+
+```plain
+every 5 seconds
+    fetch "https://api.github.com/zen" into wisdom
+    show wisdom
+end
+
+keep going
+```
+
+`stop the game` ends it. On a page nothing is needed: the page keeps going
+on its own.
 
 Key names: `left`, `right`, `up`, `down`, `space`, `enter`, `escape`, `shift`,
 and any letter or digit as itself (`"a"`, `"7"`).

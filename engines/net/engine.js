@@ -77,6 +77,16 @@ export function installNet(rt, host = {}) {
     ctx.exists(a.name) ? ctx.assign(a.name, got.text) : ctx.define(a.name, got.text);
   });
 
+  // Several at once. One at a time would wait for each in turn; these are
+  // all asked together and the answers come back in the order given.
+  rt.define('fetch all of $*urls into #name', (a, ctx) => {
+    if (!host.fetchAll) needTerminal(ctx, 'Fetching');
+    let urls = Array.isArray(a.urls) ? a.urls : [a.urls];
+    if (urls.length === 1 && Array.isArray(urls[0])) urls = urls[0];
+    const got = host.fetchAll(urls.map(one => toText(one)), ctx);
+    ctx.exists(a.name) ? ctx.assign(a.name, got) : ctx.define(a.name, got);
+  });
+
   rt.defineValue('what came back', () => (host.lastFetch ? host.lastFetch() : null));
 
   // ------------------------------------------------------------- serving

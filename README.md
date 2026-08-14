@@ -58,6 +58,7 @@ plain edit <file>    open the designer or the video studio
 plain build <file>   write HTML you can publish        (--out folder)
 plain translate <f>  write it in eight other languages   (--to go)
 plain fmt <file>     tidy the indenting                (--check to just look)
+plain get <url>      fetch a part into this folder     (plain parts to list)
 plain check <file>   look for mistakes without running
 plain words          list every sentence Plain understands
 ```
@@ -425,6 +426,8 @@ writing something that half works.
   language knows, including the ones the engines add.
 - **Mistakes come all at once.** `plain check` lists every problem in the
   file, not just the first one.
+- **Sharing is small and safe.** A part is Plain source in one file, fetched
+  only when you ask for it, and fingerprinted so you can see when it changes.
 - **It is not a dead end.** `plain translate` writes your program out in
   JavaScript, Python, C# or Lua, so what you learn here carries over.
 - **The tools write the language.** The designer and the studio save Plain
@@ -474,7 +477,8 @@ engines/store/        remembering things, and reading and writing files
 engines/learn/        the course: lessons, projects and their checks
 tests/fake-dom.js      a small stand-in browser, so the pages can be tested
 engines/net/          fetching, and answering as a web server
-tests/run-tests.js     297 checks, no framework, eight languages executed
+bin/parts.js          fetching and recording parts other people wrote
+tests/run-tests.js     305 checks, no framework, eight languages executed
 ```
 
 ## Tests

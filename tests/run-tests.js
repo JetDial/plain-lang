@@ -17,6 +17,7 @@ import { installWeb } from '../engines/web/engine.js';
 import { installVideo } from '../engines/video/engine.js';
 import { installStore } from '../engines/store/engine.js';
 import { installNet } from '../engines/net/engine.js';
+import { readList, save, checkPart, fingerprint, nameFrom } from '../bin/parts.js';
 import { format } from '../src/format.js';
 import { documentToHTML } from '../engines/web/render.js';
 import { cubeMesh, sphereMesh, perspective, lookAt, multiply, toRGB } from '../engines/world/render.js';
@@ -1798,6 +1799,94 @@ check('something that is not a thing is explained', () => {
   try { runNet('fetch "https://x.example" as a thing into repo', host); }
   catch (e) { error = e; }
   assert.match(error.plainMessage, /not a thing I can read/);
+});
+
+// ----------------------------------------------------------------- parts
+
+check('a part gets a sensible name from its address', () => {
+  assert.equal(nameFrom('https://example.com/dates.plain'), 'dates');
+  assert.equal(nameFrom('https://example.com/a/b/Nice Things.plain'), 'nice-things');
+  assert.equal(nameFrom('https://example.com/'), 'example-com');
+});
+
+check('a part has to look like a part', () => {
+  assert.equal(checkPart('show "hi"\n', 'x'), null);
+  assert.match(checkPart('<!doctype html><html>', 'x'), /web page/);
+  assert.match(checkPart('binary' + String.fromCharCode(0) + 'stuff', 'x'), /not text/);
+  assert.match(checkPart('x'.repeat(2 * 1024 * 1024), 'x'), /small file/);
+});
+
+check('a fetched part is written down and can be used', () => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'plain-parts-'));
+  const source = 'to greet with who\n    give back "hi " joined with who\nend\n';
+  const file = save(folder, 'greetings', source, 'https://example.com/greetings.plain');
+  assert.ok(fs.existsSync(file));
+
+  const list = readList(folder);
+  assert.equal(list.parts.greetings.url, 'https://example.com/greetings.plain');
+  assert.equal(list.parts.greetings.fingerprint, fingerprint(source));
+
+  // And a program can use it by name.
+  const rt = createRuntime({
+    onOutput: () => {},
+    resolve: (used) => {
+      const one = path.join(folder, 'plain-parts', used + '.plain');
+      return fs.existsSync(one) ? fs.readFileSync(one, 'utf8') : null;
+    }
+  });
+  rt.run('use "greetings"\nshow greet with "world"', 'main.plain');
+  assert.equal(rt.lines[0], 'hi world');
+  fs.rmSync(folder, { recursive: true, force: true });
+});
+
+check('a part that has changed since it was fetched can be spotted', () => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'plain-parts-'));
+  save(folder, 'thing', 'show "one"\n', 'https://example.com/thing.plain');
+  const before = readList(folder).parts.thing.fingerprint;
+  fs.writeFileSync(path.join(folder, 'plain-parts', 'thing.plain'), 'show "two"\n', 'utf8');
+  const after = fingerprint(fs.readFileSync(path.join(folder, 'plain-parts', 'thing.plain'), 'utf8'));
+  assert.notEqual(before, after);
+  fs.rmSync(folder, { recursive: true, force: true });
+});
+
+// ------------------------------------------------- several things at once
+
+check('several addresses can be asked at once', () => {
+  const asked = [];
+  const host = {
+    fetchAll: (urls) => { asked.push(...urls); return urls.map(url => `answer from ${url}`); }
+  };
+  const rt = createRuntime({ onOutput: () => {} });
+  installGame(rt, {});
+  installNet(rt, host);
+  rt.run('fetch all of "https://a.example", "https://b.example" into answers\nshow length of answers\nshow item 1 of answers', 'net.plain');
+  assert.deepEqual(asked, ['https://a.example', 'https://b.example']);
+  assert.equal(rt.lines[0], '2');
+  assert.equal(rt.lines[1], 'answer from https://a.example');
+});
+
+check('a list of addresses works too', () => {
+  const host = { fetchAll: (urls) => urls.map(() => 'ok') };
+  const rt = createRuntime({ onOutput: () => {} });
+  installGame(rt, {});
+  installNet(rt, host);
+  rt.run('make sites be ["https://a.example", "https://b.example"]\nfetch all of sites into answers\nshow length of answers', 'net.plain');
+  assert.equal(rt.lines[0], '2');
+});
+
+check('a program can be told to keep going', () => {
+  let kept = null;
+  const rt = createRuntime({ onOutput: () => {} });
+  const game = installGame(rt, { keepGoing: (which) => { kept = which; } });
+  rt.run('make n be 0\nevery 1 seconds\n    add 1 to n\nend\nkeep going', 'watch.plain');
+  assert.equal(kept, game, 'the clock was never started');
+  game.simulate(180, 1 / 60);
+  assert.equal(rt.interpreter.globals.get('n'), 3);
+});
+
+check('keeping going says it needs a terminal', () => {
+  const error = broken('every 1 seconds\n    show "tick"\nend\nkeep going');
+  assert.match(error.plainMessage, /needs a terminal/);
 });
 
 // --------------------------------------------------------------- tidying

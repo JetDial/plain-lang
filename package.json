@@ -1,6 +1,6 @@
 {
   "name": "plainlang",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Plain - a programming language you write like a normal sentence, with 2D and 3D game engines, a website designer and a video editor.",
   "type": "module",
   "bin": {

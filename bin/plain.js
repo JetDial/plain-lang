@@ -28,12 +28,13 @@ import { TEMPLATES, templateNames } from './templates.js';
 import { translate, targetNames, findTarget } from '../src/translate/index.js';
 import { syllabus, totalSteps } from '../engines/learn/course.js';
 import { format } from '../src/format.js';
+import { readList, save, peek, checkPart, fingerprint, nameFrom, FOLDER } from './parts.js';
 
 globalThis.__plainFS = fs;
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
-const VERSION = '0.3.0';
+const VERSION = '0.4.0';
 
 // Declared up here because the command switch below runs as the file loads.
 const STARTER = `# A new Plain program. Run it with: plain run this-file.plain
@@ -70,6 +71,8 @@ try {
     case 'make': commandMake(rest[0], rest[1]); break;
     case 'translate': commandTranslate(target); break;
     case 'learn': case 'teach': await commandLearn(); break;
+    case 'get': commandGet(rest[0], rest[2]); break;
+    case 'parts': commandParts(); break;
     case 'fmt': case 'tidy': commandTidy(rest.filter(a => !a.startsWith('-'))); break;
     case 'version': case '--version': case '-v': console.log(`Plain ${VERSION}`); break;
     default: commandHelp();
@@ -115,13 +118,23 @@ function buildRuntime(onOutput, baseFile = process.cwd()) {
   const runtime = createRuntime({
     onOutput,
     // `use "helpers.plain"` looks next to the program that used it.
+    // helpers.plain next door, or dates from the parts folder.
     resolve: (used, fromFile) => {
       const from = fromFile && fs.existsSync(fromFile) ? fromFile : baseFile;
-      const full = path.resolve(path.dirname(path.resolve(from)), used);
-      return fs.existsSync(full) ? fs.readFileSync(full, 'utf8') : null;
+      const beside = path.dirname(path.resolve(from));
+      const tries = [
+        path.resolve(beside, used),
+        path.resolve(beside, used + '.plain'),
+        path.resolve(beside, FOLDER, used + '.plain'),
+        path.resolve(process.cwd(), FOLDER, used + '.plain')
+      ];
+      for (const one of tries) {
+        if (fs.existsSync(one) && fs.statSync(one).isFile()) return fs.readFileSync(one, 'utf8');
+      }
+      return null;
     }
   });
-  const game = installGame(runtime, {});
+  const game = installGame(runtime, { keepGoing });
   const site = installWeb(runtime, {});
   const world = installWorld(runtime, {});
   const studio = installVideo(runtime, {});
@@ -171,6 +184,30 @@ function netHost(runtime) {
       if (answer.problem) ctx.fail(`I could not reach ${url}: ${answer.problem}`);
       last = { ok: answer.ok, status: answer.status, text: answer.text };
       return last;
+    },
+
+    // All of them asked at once, which is the whole point of asking for
+    // several: two seconds each becomes two seconds altogether.
+    fetchAll(urls, ctx) {
+      if (!urls.length) return [];
+      for (const url of urls) {
+        if (!/^https?:\/\//i.test(url)) ctx.fail(`"${url}" is not a web address`);
+      }
+      const together = `
+        const urls = process.argv.slice(1);
+        Promise.all(urls.map(one =>
+          fetch(one).then(answer => answer.text()).catch(problem => '')
+        )).then(all => process.stdout.write(JSON.stringify(all)));
+      `;
+      let raw;
+      try {
+        raw = execFileSync(process.execPath, ['-e', together, ...urls], {
+          encoding: 'utf8', timeout: 60000, maxBuffer: 64 * 1024 * 1024
+        });
+      } catch {
+        ctx.fail('I could not reach some of those addresses');
+      }
+      try { return JSON.parse(raw); } catch { return urls.map(() => ''); }
     },
 
     lastFetch: () => last,
@@ -236,6 +273,30 @@ function netHost(runtime) {
       server.running = listener;
     }
   };
+}
+
+// "keep going" holds the program open and keeps its clock ticking, so
+// timers written with "every N seconds" carry on happening.
+function keepGoing(game) {
+  console.log('\nKeeping going. Press Ctrl+C to stop.\n');
+  let last = Date.now();
+  const beat = setInterval(() => {
+    const now = Date.now();
+    const seconds = (now - last) / 1000;
+    last = now;
+    try {
+      game.step(seconds);
+    } catch (error) {
+      console.error('\n' + (error instanceof PlainError ? error.report('') : error.message) + '\n');
+      clearInterval(beat);
+      process.exitCode = 1;
+      return;
+    }
+    if (game.over) {
+      clearInterval(beat);
+      if (game.overMessage) console.log(game.overMessage);
+    }
+  }, 50);
 }
 
 // Remembered values live in one small file beside the program, and files a
@@ -409,6 +470,81 @@ function commandNew(name) {
   if (fs.existsSync(full)) fail(`"${file}" already exists.`);
   fs.writeFileSync(full, STARTER, 'utf8');
   console.log(`Made ${file}. Run it with:\n\n    plain run ${file}\n`);
+}
+
+// -------------------------------------------------------------------- parts
+
+function partsFolder() {
+  return process.cwd();
+}
+
+// One part, fetched and written down. Nothing is fetched unless asked for.
+function commandGet(url, asName) {
+  const folder = partsFolder();
+  const list = readList(folder);
+
+  if (!url) {
+    const names = Object.keys(list.parts);
+    if (!names.length) {
+      console.log('\nNothing to fetch. To add a part:\n');
+      console.log('    plain get https://example.com/dates.plain\n');
+      return;
+    }
+    console.log(`\nFetching ${names.length} part${names.length === 1 ? '' : 's'} again.\n`);
+    for (const name of names) getOne(folder, list.parts[name].url, name, list.parts[name].fingerprint);
+    return;
+  }
+
+  getOne(folder, url, asName || nameFrom(url), null);
+}
+
+function getOne(folder, url, name, expected) {
+  if (!/^https?:\/\//i.test(url)) fail(`"${url}" is not a web address. It should start with http:// or https://`);
+
+  const host = netHost(createRuntime({}));
+  let got;
+  try {
+    got = host.fetchText(url, { fail: (message) => fail(message) });
+  } catch (error) {
+    fail(error.plainMessage || error.message);
+  }
+  if (!got.ok) fail(`${url} answered ${got.status || 'nothing'}`);
+
+  const wrong = checkPart(got.text, url);
+  if (wrong) fail(wrong);
+
+  const mark = fingerprint(got.text);
+  if (expected && mark !== expected) {
+    console.log(`  ${name}: CHANGED since you last fetched it`);
+    console.log(`    was ${expected}, is now ${mark}`);
+  }
+
+  const file = save(folder, name, got.text, url);
+  console.log(`  ${name}  ${got.text.length} letters  ${mark}`);
+  console.log(`    from ${url}`);
+  console.log(`    into ${path.relative(process.cwd(), file)}`);
+  for (const line of peek(got.text)) console.log(`    | ${line}`);
+  console.log(`\nUse it with:  use "${name}"\n`);
+}
+
+function commandParts() {
+  const list = readList(partsFolder());
+  const names = Object.keys(list.parts);
+  if (!names.length) {
+    console.log('\nThis folder uses no parts.\n\n    plain get https://example.com/dates.plain\n');
+    return;
+  }
+  console.log(`\n${names.length} part${names.length === 1 ? '' : 's'} in ${path.basename(process.cwd())}:\n`);
+  for (const name of names) {
+    const one = list.parts[name];
+    const file = path.join(partsFolder(), FOLDER, name + '.plain');
+    const here = fs.existsSync(file);
+    const same = here && fingerprint(fs.readFileSync(file, 'utf8')) === one.fingerprint;
+    const state = !here ? 'missing - run plain get' : same ? 'as fetched' : 'changed since it was fetched';
+    console.log(`  ${name.padEnd(16)} ${state}`);
+    console.log(`  ${''.padEnd(16)} ${one.url}`);
+  }
+  console.log('');
 }
 
 // --------------------------------------------------------------------- tidy
@@ -797,6 +933,8 @@ Plain ${VERSION} - a language you write like a normal sentence.
   plain learn                 lessons and projects, in your browser
   plain translate <file>      write it in eight other languages     (--to go)
   plain fmt <file|folder>     tidy the indenting                    (--check)
+  plain get <url> [as name]   fetch a part into this folder
+  plain parts                 what this folder is using
   plain new <name>            start a blank program
   plain make <kind> <name>    start a finished one: ${templateNames().join(', ')}
 
