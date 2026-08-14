@@ -280,12 +280,14 @@ plain edit examples/video.plain          # the studio
 
 The studio gives a preview, a scrubber, and a timeline you can drag: pull a
 clip's edge to change how long it lasts, reorder, retitle, set fades, delete.
-Save writes the timeline back as Plain sentences. Export writes a `.webm` with
-the music and the clips' own sound **mixed in** — place music with `starting
-at 4 seconds`, quieten it `at volume 0.3`, or `silence the last clip`.
+Save writes the timeline back as Plain sentences. Words and pictures can also
+be laid over the clips on a second track, at whatever time you like.
 
-Honest limit: export uses the browser's own recorder, so it runs in real time
-— a two minute film takes two minutes. Clips are laid end to end on one track.
+Two ways out: **Export** plays the film into the browser's recorder with the
+music and clip sound **mixed in** (takes as long as the film), and **Export
+fast** encodes every frame itself and writes the `.webm` by hand — much
+quicker, no sound. The muxer is `engines/video/webm.js`, about 200 lines, no
+library.
 
 ---
 
@@ -356,12 +358,10 @@ def double(n):
 print(plain_text(plain_changed_by([1, 2, 3], double)))
 ```
 
-The test suite runs ten programs three ways — in Plain, in the generated
-JavaScript, and in the generated Python — and insists all three print exactly
-the same thing. C# and Lua are generated and checked by their shape, but there
-is no compiler for either here, so they are a very good first draft rather
-than a guarantee. That distinction is in the docs and in `TARGETS`, not
-buried.
+The test suite takes ten programs, translates each into **all four**
+languages, runs every result, and insists they all print exactly what Plain
+printed. If a language's tool is missing from the machine, that language is
+skipped and the run says so rather than pretending.
 
 Sentences that belong to an engine (games, worlds, websites, videos) do not
 translate, and the translator says so with the line numbers rather than
@@ -429,7 +429,7 @@ src/format.js         plain fmt
 engines/store/        remembering things, and reading and writing files
 engines/learn/        the course: lessons, projects and their checks
 tests/fake-dom.js      a small stand-in browser, so the pages can be tested
-tests/run-tests.js     272 checks, no framework
+tests/run-tests.js     279 checks, no framework
 ```
 
 ## Tests

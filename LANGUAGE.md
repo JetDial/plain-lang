@@ -613,10 +613,17 @@ set the volume to 0.8
 ```
 
 In the studio, dragging the right edge of a clip changes how long it lasts,
-and **Save writes the whole timeline back out as the sentences above**. Export
-records to a `.webm` file using the browser's own recorder, mixing the music
-and the clips' own sound into one track. It records in real time, so a two
-minute film takes two minutes to export.
+and **Save writes the whole timeline back out as the sentences above**.
+
+There are two ways out:
+
+| Button | What it does |
+|---|---|
+| **Export** | Plays the film into the browser's recorder, mixing the music and the clips' own sound in. Takes as long as the film. |
+| **Export fast** | Encodes every frame itself and writes the `.webm` by hand. Much quicker — no sound. |
+
+Both write `.webm`. Fast export needs a browser with WebCodecs (Chrome and
+Edge have it) and says so plainly when there is none.
 
 ---
 
@@ -825,8 +832,8 @@ helpers for the places where Plain means something particular: lists count
 from 1, text joins with anything, `yes`/`no` decide truth, and dividing by
 zero is refused rather than becoming infinity.
 
-JavaScript and Python are checked by **running** them: Plain's own test suite
-runs ten programs three ways and insists all three print the same thing. C#
-and Lua are written and read but not executed by that suite, because there is
-no compiler for either in the box — treat those two as a very good first
-draft rather than a guarantee.
+All four are checked by **running** them. Plain's test suite takes ten
+programs, translates each one, runs the results, and insists every language
+prints exactly the same thing as Plain did. If a language's tool is not on
+the machine (no `python`, no `lua`, no dotnet SDK) that language is skipped
+and the run says which ones it could not check.

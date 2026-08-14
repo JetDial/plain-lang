@@ -65,6 +65,13 @@ export class CSharpEmitter extends Emitter {
     return this.helper('setField', [object, JSON.stringify(field), value]);
   }
 
+  // Every action is declared `dynamic`, and C# will not accept a way out
+  // that returns nothing at all.
+  finishFunctionBody(block) {
+    const last = block && block.body.length ? block.body[block.body.length - 1] : null;
+    if (!last || last.type !== 'Return') this.writeLine('return null');
+  }
+
   emitConstructor(node) {
     this.write('');
     // A value the kind above already has is not declared again, or it would
@@ -327,10 +334,13 @@ const HELPERS = {
   highest: { code: `    public static dynamic Highest(dynamic collection) { dynamic best = null; foreach (var item in Items(collection)) if (best == null || Number(item) > Number(best)) best = item; return best; }`, needs: ['items', 'number'] },
   lowest: { code: `    public static dynamic Lowest(dynamic collection) { dynamic best = null; foreach (var item in Items(collection)) if (best == null || Number(item) < Number(best)) best = item; return best; }`, needs: ['items', 'number'] },
 
+  // Plain loops, not LINQ: a lambda over `dynamic` cannot be compiled
+  // (CS1977), so every list helper here is written out longhand.
   sorted: {
     code: `    public static List<dynamic> Sorted(dynamic collection) {
         var all = Items(collection);
-        bool numbers = all.All(item => item != null && !(item is string));
+        bool numbers = true;
+        foreach (var item in all) if (item == null || item is string) numbers = false;
         var copy = new List<dynamic>(all);
         if (numbers) copy.Sort((a, b) => Number(a).CompareTo(Number(b)));
         else copy.Sort((a, b) => string.CompareOrdinal(Text(a), Text(b)));
@@ -341,7 +351,14 @@ const HELPERS = {
 
   reversed: { code: `    public static List<dynamic> Reversed(dynamic collection) { var copy = new List<dynamic>(Items(collection)); copy.Reverse(); return copy; }`, needs: ['items'] },
   copy: { code: `    public static dynamic Copy(dynamic value) { if (value is IList list) return new List<dynamic>(Items(list)); return value; }`, needs: ['items'] },
-  joinWith: { code: `    public static string JoinWith(dynamic collection, dynamic separator) { return string.Join(Text(separator), Items(collection).Select(item => Text(item))); }`, needs: ['items', 'text'] },
+  joinWith: {
+    code: `    public static string JoinWith(dynamic collection, dynamic separator) {
+        var parts = new List<string>();
+        foreach (var item in Items(collection)) parts.Add(Text(item));
+        return string.Join(Text(separator), parts);
+    }`,
+    needs: ['items', 'text']
+  },
   position: {
     code: `    public static int Position(dynamic collection, dynamic value) {
         if (collection is string text) return text.IndexOf(Text(value)) + 1;
@@ -440,12 +457,31 @@ const HELPERS = {
   values: { code: `    public static List<dynamic> Values(dynamic thing) { var out_ = new List<dynamic>(); if (thing is IDictionary map) { foreach (var item in map.Values) out_.Add(item); } else if (thing != null) { foreach (var field in ((object)thing).GetType().GetFields()) out_.Add(field.GetValue(thing)); } return out_; }` },
   value: { code: `    public static dynamic Value(dynamic thing, dynamic key) { return Field(thing, Text(key)); }`, needs: ['field', 'text'] },
   setValue: { code: `    public static void SetValue(dynamic thing, dynamic key, dynamic value) { SetField(thing, Text(key), value); }`, needs: ['setField', 'text'] },
-  hasKey: { code: `    public static bool HasKey(dynamic thing, dynamic key) { return Keys(thing).Any(name => string.Equals(Text(name), Text(key), StringComparison.OrdinalIgnoreCase)); }`, needs: ['keys', 'text'] },
+  hasKey: {
+    code: `    public static bool HasKey(dynamic thing, dynamic key) {
+        foreach (var name in Keys(thing)) {
+            if (string.Equals(Text(name), Text(key), StringComparison.OrdinalIgnoreCase)) return true;
+        }
+        return false;
+    }`,
+    needs: ['keys', 'text']
+  },
 
   upper: { code: `    public static string Upper(dynamic text) { return Text(text).ToUpper(); }`, needs: ['text'] },
   lower: { code: `    public static string Lower(dynamic text) { return Text(text).ToLower(); }`, needs: ['text'] },
   trimmed: { code: `    public static string Trimmed(dynamic text) { return Text(text).Trim(); }`, needs: ['text'] },
-  split: { code: `    public static List<dynamic> Split(dynamic text, dynamic separator) { return Text(text).Split(new string[] { Text(separator) }, StringSplitOptions.None).Select(part => (dynamic)part).ToList(); }`, needs: ['text'] },
+  // Anything called with a dynamic argument gives back dynamic, so the
+  // result is pinned to a string first and the loop is written out.
+  split: {
+    code: `    public static List<dynamic> Split(dynamic text, dynamic separator) {
+        string whole = Text(text);
+        string mark = Text(separator);
+        var out_ = new List<dynamic>();
+        foreach (var part in whole.Split(new string[] { mark }, StringSplitOptions.None)) out_.Add(part);
+        return out_;
+    }`,
+    needs: ['text']
+  },
   part: { code: `    public static string Part(dynamic text, dynamic start, dynamic finish) { string whole = Text(text); int from = Math.Max(0, (int)Number(start) - 1); int to = Math.Min(whole.Length, (int)Number(finish)); return from >= to ? "" : whole.Substring(from, to - from); }`, needs: ['text', 'number'] },
   replace: { code: `    public static string Replace(dynamic text, dynamic find, dynamic replacement) { return Text(text).Replace(Text(find), Text(replacement)); }`, needs: ['text'] },
   startsWith: { code: `    public static bool StartsWith(dynamic text, dynamic prefix) { return Text(text).StartsWith(Text(prefix)); }`, needs: ['text'] },
@@ -483,8 +519,22 @@ const HELPERS = {
     needs: ['same']
   },
 
-  changedBy: { code: `    public static List<dynamic> ChangedBy(dynamic collection, dynamic action) { return Items(collection).Select(item => (dynamic)action(item)).ToList(); }`, needs: ['items'] },
-  keptWhere: { code: `    public static List<dynamic> KeptWhere(dynamic collection, dynamic action) { return Items(collection).Where(item => Truthy(action(item))).ToList(); }`, needs: ['items', 'truthy'] },
+  changedBy: {
+    code: `    public static List<dynamic> ChangedBy(dynamic collection, dynamic action) {
+        var out_ = new List<dynamic>();
+        foreach (var item in Items(collection)) out_.Add(action(item));
+        return out_;
+    }`,
+    needs: ['items']
+  },
+  keptWhere: {
+    code: `    public static List<dynamic> KeptWhere(dynamic collection, dynamic action) {
+        var out_ = new List<dynamic>();
+        foreach (var item in Items(collection)) if (Truthy(action(item))) out_.Add(item);
+        return out_;
+    }`,
+    needs: ['items', 'truthy']
+  },
   addedUpBy: { code: `    public static double AddedUpBy(dynamic collection, dynamic action) { double sum = 0; foreach (var item in Items(collection)) sum += Number(action(item)); return sum; }`, needs: ['items', 'number'] },
 
   ask: {

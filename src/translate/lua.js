@@ -44,9 +44,14 @@ export class LuaEmitter extends Emitter {
   raiseProblem(message) { return `error(${message}, 0)`; }
   power(left, right) { return `(${this.helper('number', [left])} ^ ${this.helper('number', [right])})`; }
   listLiteral(items) { return `{ ${items.join(', ')} }`; }
+  // A Lua table forgets the order its keys went in, and Plain does not, so
+  // the order is carried alongside as __order.
   recordLiteral(pairs) {
     if (!pairs.length) return '{}';
-    return `{ ${pairs.map(([key, value]) => `[${JSON.stringify(key)}] = ${value}`).join(', ')} }`;
+    this.used.add('keys');
+    const values = pairs.map(([key, value]) => `[${JSON.stringify(key)}] = ${value}`);
+    const order = pairs.map(([key]) => JSON.stringify(key));
+    return `{ ${values.join(', ')}, __order = { ${order.join(', ')} } }`;
   }
   fieldAccess(object, field) { return this.helper('field', [object, JSON.stringify(field)]); }
   assignField(object, field, value) { return this.helper('setField', [object, JSON.stringify(field), value]); }
@@ -82,15 +87,21 @@ export class LuaEmitter extends Emitter {
     this.open(`function ${name}.fill(into)`);
     if (node.base) this.writeLine(`${this.kindName(node.base)}.fill(into)`);
     for (const field of node.fields) {
-      this.writeLine(`into[${JSON.stringify(this.fieldName(field.name))}] = ${field.value ? this.expression(field.value) : 'nil'}`);
+      this.writeLine(this.helper('own', [
+        'into',
+        JSON.stringify(this.fieldName(field.name)),
+        field.value ? this.expression(field.value) : 'nil'
+      ]));
     }
     this.close();
 
     this.open(`function ${name}.new(values)`);
     this.writeLine(`local thing = setmetatable({}, ${name})`);
     this.writeLine(`${name}.fill(thing)`);
-    this.open('for key, value in pairs(values or {}) do');
-    this.writeLine('thing[key] = value');
+    // Copied one at a time, so the kind's own order of values is kept and
+    // the bookkeeping key is not copied over the top of it.
+    this.open(`for _, key in ipairs(${this.helper('keys', ['values or {}'])}) do`);
+    this.writeLine(this.helper('setField', ['thing', 'key', 'values[key]']));
     this.close();
     this.writeLine('return thing');
     this.close();
@@ -129,6 +140,28 @@ export class LuaEmitter extends Emitter {
 
   emitWhile(node) {
     this.open(this.whileHeader(this.truth(node.condition)));
+    this.block(node.block);
+    if (usesNext(node.block)) this.write('::continue::');
+    this.close();
+  }
+
+  // Counting loops need the label too, or "next" has nowhere to jump.
+  emitRepeat(node) {
+    const times = this.expression(node.count);
+    this.open(this.countHeader('count', '1', times, '1'));
+    this.remember('count');
+    this.block(node.block);
+    if (usesNext(node.block)) this.write('::continue::');
+    this.close();
+  }
+
+  emitCount(node) {
+    const name = this.identifier(node.name);
+    const from = this.expression(node.from);
+    const to = this.expression(node.to);
+    const step = node.step ? this.expression(node.step) : '1';
+    this.open(this.countHeader(name, from, to, step));
+    this.remember(name);
     this.block(node.block);
     if (usesNext(node.block)) this.write('::continue::');
     this.close();
@@ -189,7 +222,7 @@ function plain.text(value, depth)
       parts[#parts + 1] = tostring(key) .. ": " .. plain.text(value[key], depth + 1)
     end
     local kind = plain.kindName(value)
-    if kind ~= "a thing" then return "a " .. kind .. " (" .. table.concat(parts, ", ") .. ")" end
+    if kind ~= "thing" then return "a " .. kind .. " (" .. table.concat(parts, ", ") .. ")" end
     return "{" .. table.concat(parts, ", ") .. "}"
   end
   return tostring(value)
@@ -348,14 +381,48 @@ end`,
   },
 
   keys: {
-    code: `function plain.keys(thing)
+    code: `-- The names a thing holds, in the order they were given.
+function plain.keys(thing)
   local out = {}
   if type(thing) ~= "table" then return out end
+  local order = plain.orderOf(thing)
+  if order then
+    for _, key in ipairs(order) do out[#out + 1] = key end
+    return out
+  end
   for key in pairs(thing) do
-    if type(key) == "string" then out[#out + 1] = key end
+    if type(key) == "string" and key ~= "__order" then out[#out + 1] = key end
   end
   table.sort(out)
   return out
+end`,
+    needs: ['orderOf']
+  },
+
+  orderOf: {
+    code: `function plain.orderOf(thing)
+  local order = rawget(thing, "__order")
+  if order then return order end
+  local holder = getmetatable(thing)
+  while holder do
+    local found = rawget(holder, "__order")
+    if found then return found end
+    holder = holder.__index ~= holder and holder.__index or nil
+    if type(holder) ~= "table" then return nil end
+  end
+  return nil
+end`
+  },
+
+  own: {
+    code: `-- Give a thing a value, remembering where it came in the order.
+function plain.own(thing, key, value)
+  local order = rawget(thing, "__order")
+  if not order then order = {} rawset(thing, "__order", order) end
+  local seen = false
+  for _, name in ipairs(order) do if name == key then seen = true break end end
+  if not seen then order[#order + 1] = key end
+  rawset(thing, key, value)
 end`
   },
 
@@ -380,11 +447,12 @@ end`,
 
   setField: {
     code: `function plain.setField(thing, name, value)
-  for key in pairs(thing) do
-    if type(key) == "string" and key:lower() == name:lower() then thing[key] = value return end
+  for _, key in ipairs(plain.keys(thing)) do
+    if key:lower() == name:lower() then rawset(thing, key, value) return end
   end
-  thing[name] = value
-end`
+  plain.own(thing, name, value)
+end`,
+    needs: ['keys', 'own']
   },
 
   value: { code: `function plain.value(thing, key)\n  return plain.field(thing, plain.text(key))\nend`, needs: ['field', 'text'] },

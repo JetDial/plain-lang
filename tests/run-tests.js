@@ -19,6 +19,7 @@ import { installStore } from '../engines/store/engine.js';
 import { format } from '../src/format.js';
 import { documentToHTML } from '../engines/web/render.js';
 import { cubeMesh, sphereMesh, perspective, lookAt, multiply, toRGB } from '../engines/world/render.js';
+import { buildWebM, sizeBytes, element, whole } from '../engines/video/webm.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -742,6 +743,63 @@ check('a timeline writes itself back as Plain', () => {
   assert.equal(again.studio.clips[1].overlay, 'the sea');
 });
 
+// ---------------------------------------------------- writing a .webm file
+
+check('a length is written the way Matroska wants it', () => {
+  assert.deepEqual([...sizeBytes(1)], [0x81]);
+  assert.deepEqual([...sizeBytes(127)], [0x40, 0x7F]);      // 127 needs two bytes
+  assert.deepEqual([...sizeBytes(126)], [0xFE]);
+  assert.deepEqual([...sizeBytes(300)], [0x41, 0x2C]);
+});
+
+check('an element is an id, a length and its contents', () => {
+  const made = element(0xE7, whole(5));                      // Timecode = 5
+  assert.deepEqual([...made], [0xE7, 0x81, 0x05]);
+});
+
+check('a whole number takes as few bytes as it needs', () => {
+  assert.deepEqual([...whole(0)], [0]);
+  assert.deepEqual([...whole(255)], [255]);
+  assert.deepEqual([...whole(256)], [1, 0]);
+  assert.deepEqual([...whole(1000000)], [0x0F, 0x42, 0x40]);
+});
+
+check('a film becomes a file a player can read', () => {
+  const frames = [];
+  for (let at = 0; at < 30; at++) {
+    frames.push({ data: Uint8Array.from([at, 1, 2, 3]), keyframe: at % 10 === 0, at: at * 33.3 });
+  }
+  const file = buildWebM({ width: 640, height: 360, frames, milliseconds: 1000, framesASecond: 30 });
+
+  // The four bytes every WebM starts with.
+  assert.deepEqual([...file.slice(0, 4)], [0x1A, 0x45, 0xDF, 0xA3]);
+  const text = Buffer.from(file).toString('latin1');
+  assert.ok(text.includes('webm'), 'it should say what kind of file it is');
+  assert.ok(text.includes('V_VP8'), 'the track should name its codec');
+  assert.ok(text.includes('Plain'), 'it should say what wrote it');
+
+  // Every frame we handed over should be in there.
+  for (const frame of frames) {
+    assert.ok(Buffer.from(file).includes(Buffer.from(frame.data)), 'a frame went missing');
+  }
+  assert.ok(file.length > 200, 'the file is suspiciously small');
+});
+
+check('frames are grouped into clusters', () => {
+  const frames = [];
+  for (let at = 0; at < 200; at++) {
+    frames.push({ data: Uint8Array.from([1]), keyframe: at % 60 === 0, at: at * 500 });   // 100 seconds
+  }
+  const file = buildWebM({ width: 320, height: 240, frames, milliseconds: 100000 });
+  // A cluster id appears once per group, and 100 seconds cannot be one group
+  // because a time inside a cluster only has 16 bits.
+  let clusters = 0;
+  for (let at = 0; at < file.length - 3; at++) {
+    if (file[at] === 0x1F && file[at + 1] === 0x43 && file[at + 2] === 0xB6 && file[at + 3] === 0x75) clusters++;
+  }
+  assert.ok(clusters > 1, `expected several clusters, found ${clusters}`);
+});
+
 // ------------------------------------------------------- the designer path
 
 check('a page writes itself back as Plain', () => {
@@ -888,7 +946,15 @@ function runCSharp(code, folder) {
   return execFileSync(DOTNET, ['run', '--project', folder, '--verbosity', 'quiet', '--nologo'], {
     encoding: 'utf8',
     cwd: folder,
-    stdio: ['ignore', 'pipe', 'pipe']
+    stdio: ['ignore', 'pipe', 'pipe'],
+    // Without these, a machine running dotnet for the first time greets us
+    // on stdout and the comparison fails for a silly reason.
+    env: {
+      ...process.env,
+      DOTNET_NOLOGO: '1',
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1',
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1'
+    }
   });
 }
 

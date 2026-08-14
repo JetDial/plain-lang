@@ -2,6 +2,8 @@
 // Preview, scrub, drag clips around, and export. When the page was opened
 // with `plain edit`, Save writes the timeline back out as Plain sentences.
 
+import { buildWebM } from './webm.js';
+
 const STYLE = `
 body { margin: 0; background: #0c0d12; color: #e9ecf3;
        font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
@@ -56,6 +58,7 @@ export function startStudio(studio, doc, win) {
       <span class="time" data-time>0.0 / 0.0 s</span>
       <input type="range" data-scrub min="0" max="1000" value="0">
       <button data-export>Export</button>
+      <button data-fast>Export fast</button>
       ${editable ? '<button data-save>Save</button>' : ''}
     </div>
     <div class="timeline" data-timeline></div>
@@ -450,6 +453,112 @@ export function startStudio(studio, doc, win) {
     });
   }
 
+  // --------------------------------------------------- export, quickly
+
+  // Encode every frame ourselves instead of playing the film into a
+  // recorder. A two minute film then takes seconds rather than two minutes.
+  // It has no sound: mixing that in needs the slower way.
+  async function exportFast(button) {
+    if (typeof win.VideoEncoder === 'undefined') {
+      note.textContent = 'This browser cannot encode on its own, so use Export instead.';
+      return;
+    }
+    const wasPlaying = state.playing;
+    setPlaying(false);
+    button.disabled = true;
+
+    const frames = [];
+    const perFrame = 1 / studio.fps;
+    const total = Math.max(1, Math.round(studio.length * studio.fps));
+    let codec = 'V_VP8';
+
+    const encoder = new win.VideoEncoder({
+      output: (chunk) => {
+        const data = new Uint8Array(chunk.byteLength);
+        chunk.copyTo(data);
+        frames.push({ data, keyframe: chunk.type === 'key', at: chunk.timestamp / 1000 });
+      },
+      error: (error) => { note.textContent = 'The encoder stopped: ' + error.message; }
+    });
+
+    const settings = {
+      codec: 'vp8',
+      width: studio.width,
+      height: studio.height,
+      bitrate: 4_000_000,
+      framerate: studio.fps
+    };
+    try {
+      const supported = await win.VideoEncoder.isConfigSupported({ ...settings, codec: 'vp09.00.10.08' });
+      if (supported && supported.supported) { settings.codec = 'vp09.00.10.08'; codec = 'V_VP9'; }
+    } catch { /* vp8 it is */ }
+    encoder.configure(settings);
+
+    const wasAt = state.time;
+    for (let number = 0; number < total; number++) {
+      state.time = number * perFrame;
+      await readyForFrame();
+      draw();
+      const picture = new win.VideoFrame(canvas, {
+        timestamp: Math.round(number * perFrame * 1_000_000),
+        duration: Math.round(perFrame * 1_000_000)
+      });
+      encoder.encode(picture, { keyFrame: number % Math.round(studio.fps * 2) === 0 });
+      picture.close();
+      if (number % 10 === 0) {
+        button.textContent = `${Math.round((number / total) * 100)}%`;
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+    }
+    await encoder.flush();
+    encoder.close();
+
+    const file = buildWebM({
+      width: studio.width,
+      height: studio.height,
+      codec,
+      frames,
+      milliseconds: studio.length * 1000,
+      framesASecond: studio.fps
+    });
+    saveFile(new Blob([file], { type: 'video/webm' }));
+
+    state.time = wasAt;
+    refreshTime();
+    draw();
+    button.disabled = false;
+    button.textContent = 'Export fast';
+    note.textContent = `Wrote ${total} frames without playing them. This way has no sound - use Export for that.`;
+    if (wasPlaying) setPlaying(true);
+  }
+
+  // A video clip has to be seeked before its frame can be drawn.
+  function readyForFrame() {
+    const placed = studio.clipAt(state.time);
+    if (!placed || placed.clip.kind !== 'video') return Promise.resolve();
+    const element = mediaFor(placed.clip);
+    if (!element || element.failed || !element.duration) return Promise.resolve();
+    const wanted = Math.min(placed.clip.from + (state.time - placed.start), element.duration - 0.01);
+    if (Math.abs(element.currentTime - wanted) < 0.005) return Promise.resolve();
+    return new Promise(resolve => {
+      const done = () => { element.removeEventListener('seeked', done); resolve(); };
+      element.addEventListener('seeked', done);
+      element.currentTime = wanted;
+      setTimeout(done, 200);            // never hang on a file that will not seek
+    });
+  }
+
+  // Hand the finished file to the person. Named apart from the Save that
+  // writes the timeline back to disk - they are different jobs.
+  function saveFile(blob) {
+    const link = doc.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${studio.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.webm`;
+    doc.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+
   // -------------------------------------------------------------- export
 
   async function exportVideo(button) {
@@ -490,13 +599,7 @@ export function startStudio(studio, doc, win) {
     recorder.stop();
     await done;
 
-    const blob = new Blob(chunks, { type: kind });
-    const link = doc.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `${studio.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.webm`;
-    doc.body.appendChild(link);
-    link.click();
-    link.remove();
+    saveFile(new Blob(chunks, { type: kind }));
     button.disabled = false;
     button.textContent = 'Export';
     note.textContent = mixed
@@ -528,6 +631,7 @@ export function startStudio(studio, doc, win) {
   playButton.addEventListener('click', () => setPlaying(!state.playing));
   scrub.addEventListener('input', () => seek((Number(scrub.value) / 1000) * studio.length));
   root.querySelector('[data-export]').addEventListener('click', event => exportVideo(event.currentTarget));
+  root.querySelector('[data-fast]').addEventListener('click', event => exportFast(event.currentTarget));
   const saveButton = root.querySelector('[data-save]');
   if (saveButton) saveButton.addEventListener('click', event => save(event.currentTarget));
   win.addEventListener('keydown', event => {

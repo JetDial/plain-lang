@@ -132,6 +132,21 @@ export function runPageChecks(check) {
     assert.equal(doc.querySelector('[data-save]'), null, 'Save should only appear when editing');
   });
 
+  check('page: the studio offers both ways of exporting', () => {
+    const { win, doc, studio } = build(FILM);
+    startStudio(studio, doc, win);
+    assert.ok(doc.querySelector('[data-export]'), 'no Export button');
+    assert.ok(doc.querySelector('[data-fast]'), 'no fast Export button');
+  });
+
+  check('page: exporting fast says so when the browser cannot encode', () => {
+    const { win, doc, studio } = build(FILM);
+    startStudio(studio, doc, win);
+    const fast = doc.querySelector('[data-fast]');
+    fast.dispatchEvent({ type: 'click', currentTarget: fast });
+    assert.match(doc.querySelector('[data-note]').textContent, /cannot encode/);
+  });
+
   check('page: the studio shows Save when opened for editing', () => {
     const { win, doc, studio } = build(FILM);
     win.__plainEditable = true;

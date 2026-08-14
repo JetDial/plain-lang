@@ -340,9 +340,14 @@ export class Emitter {
   emitFunction(node) {
     this.write('');
     this.open(this.functionHeader(this.identifier(node.name.replace(/\s+/g, '_')), node.params.map(p => this.identifier(p))));
+    for (const param of node.params) this.remember(this.identifier(param));
     this.block(node.block);
+    this.finishFunctionBody(node.block);
     this.close();
   }
+
+  // Some languages insist that every way out of an action returns something.
+  finishFunctionBody() {}
 
   emitKind(node) {
     this.write('');
@@ -351,7 +356,9 @@ export class Emitter {
     for (const action of node.actions) {
       this.write('');
       this.open(this.methodHeader(this.identifier(action.name.replace(/\s+/g, '_')), action.params.map(p => this.identifier(p))));
+      for (const param of action.params) this.remember(this.identifier(param));
       this.block(action.block);
+      this.finishFunctionBody(action.block);
       this.close();
     }
     this.close();
