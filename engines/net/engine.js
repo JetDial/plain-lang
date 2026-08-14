@@ -32,6 +32,11 @@ export class Server {
     this.onSay = [];
     this.onShut = [];
     this.who = null;           // the connection being talked to right now
+    this.onHear = [];          // being one of the people, rather than the server
+    this.onJoined = [];
+    this.onLost = [];
+    this.heard = '';
+    this.joined = false;
     this.said = '';            // what it just said
   }
 
@@ -361,6 +366,32 @@ export function installNet(rt, host = {}) {
   rt.define('tell everyone else $value', (a, ctx) => {
     if (!host.tellAll) needTerminal(ctx, 'Talking to a connection');
     host.tellAll(toText(a.value), server.who);
+  });
+
+  // ------------------------------------------------- joining somebody else
+  //
+  // Plain can be a server that people stay connected to. This is the other
+  // half: being one of the people. It works in a browser, where the page can
+  // keep a line open without freezing, and nowhere else.
+
+  rt.define('connect to $where', (a) => {
+    server.joining = toText(a.where);
+    // Nothing to connect to in a terminal, and that is not a mistake: the
+    // same program is read once here to see what kind of thing it is, and
+    // then run properly on a page. A game does the same with its canvas.
+    if (host.connect) host.connect(server.joining, server);
+  });
+
+  rt.define('when the server says something ...', (a, ctx) => { server.onHear.push(ctx.block); });
+  rt.define('when the server is there ...', (a, ctx) => { server.onJoined.push(ctx.block); });
+  rt.define('when the server goes away ...', (a, ctx) => { server.onLost.push(ctx.block); });
+
+  rt.defineValue('what the server said', () => server.heard);
+  rt.defineValue('the server is there', () => Boolean(server.joined));
+
+  rt.define('send $value to the server', (a, ctx) => {
+    if (!host.sendUp) ctx.fail('There is no server to send to yet');
+    host.sendUp(toText(a.value));
   });
 
   rt.define('start serving on port $port', (a, ctx) => {

@@ -11,6 +11,7 @@ import { installWeb, THEMES } from '../engines/web/engine.js';
 import { installVideo } from '../engines/video/engine.js';
 import { installStore } from '../engines/store/engine.js';
 import { installData } from '../engines/data/engine.js';
+import { installNet } from '../engines/net/engine.js';
 import { installParts } from '../engines/parts/engine.js';
 import { startStudio } from '../engines/video/player.js';
 import { startDesigner } from '../engines/web/designer.js';
@@ -47,6 +48,30 @@ export function startPlain(source, options = {}) {
   installStore(runtime, host);
   installData(runtime, {});
   installParts(runtime);
+
+  // A page cannot open a port, but it can keep a line open to somebody who
+  // has. That is what a game's browser half is: one of the people.
+  let line = null;
+  const server = installNet(runtime, {
+    connect(where, net) {
+      line = new win.WebSocket(where);
+      line.addEventListener('open', () => {
+        net.joined = true;
+        for (const run of net.onJoined) safely(runtime, doc, source, run);
+      });
+      line.addEventListener('message', event => {
+        net.heard = String(event.data);
+        for (const run of net.onHear) safely(runtime, doc, source, run);
+      });
+      line.addEventListener('close', () => {
+        net.joined = false;
+        for (const run of net.onLost) safely(runtime, doc, source, run);
+      });
+    },
+    sendUp(words) {
+      if (line && line.readyState === 1) line.send(words);
+    }
+  });
 
   try {
     runtime.run(source, options.file || 'program.plain');
@@ -289,6 +314,13 @@ export function showError(doc, error, source) {
   box.className = 'plain-error';
   box.textContent = message;
   doc.body.appendChild(box);
+}
+
+// A problem inside something the server said should be shown, not swallowed,
+// and should not stop everything that comes after it.
+function safely(runtime, doc, source, run) {
+  try { run(); }
+  catch (error) { showError(doc, error, source); }
 }
 
 function ensureStyle(doc, css) {
