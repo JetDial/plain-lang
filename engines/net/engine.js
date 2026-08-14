@@ -19,18 +19,86 @@ import { toText, toNumber } from '../../src/values.js';
 
 export class Server {
   constructor() {
-    this.routes = [];          // { path, run }
+    this.routes = [];          // { path, parts, method, run }
     this.notFound = null;
     this.port = null;
     this.running = null;
-    this.asked = { path: '/', query: {}, sent: '', method: 'GET' };
+    this.asked = { path: '/', query: {}, sent: '', method: 'GET', parts: {}, cookies: {} };
     this.answer = null;
+    this.folder = null;        // files handed out as they are, if asked for
+    this.visitors = new Map(); // what each visitor is carrying, by their tag
   }
 
-  routeFor(path) {
+  // "/notes/{id}" matches "/notes/7" and remembers that id is 7. Anything
+  // written plainly still matches exactly, and is preferred, so a fixed
+  // "/notes/new" wins over "/notes/{id}".
+  routeFor(path, method = 'GET') {
     const wanted = String(path).split('?')[0].replace(/\/+$/, '') || '/';
-    return this.routes.find(route => route.path === wanted) || null;
+
+    // A route that says how it is asked - "when someone sends to" - is
+    // meant for exactly that, so it is looked for first. Otherwise a page
+    // and the form it posts to could share an address and the page would
+    // always win, which is not what anybody wrote.
+    for (const named of [true, false]) {
+      const suits = (route) => (named ? route.method === method : !route.method);
+
+      const exact = this.routes.find(route => !route.parts.length && route.path === wanted && suits(route));
+      if (exact) return { route: exact, parts: {} };
+
+      for (const route of this.routes) {
+        if (!route.parts.length || !suits(route)) continue;
+        const found = matchPath(route.path, wanted);
+        if (found) return { route, parts: found };
+      }
+    }
+    return null;
   }
+}
+
+// The pieces of "/notes/{id}/edit" lined up against the address asked for.
+function matchPath(shape, wanted) {
+  const want = shape.split('/').filter(Boolean);
+  const got = wanted.split('/').filter(Boolean);
+  if (want.length !== got.length) return null;
+  const parts = {};
+  for (let at = 0; at < want.length; at++) {
+    const piece = want[at];
+    if (piece.startsWith('{') && piece.endsWith('}')) {
+      parts[piece.slice(1, -1)] = decodeURIComponent(got[at]);
+      continue;
+    }
+    if (piece !== got[at]) return null;
+  }
+  return parts;
+}
+
+// What a browser sends when a form is filled in, and what a program sends
+// when it has something to say. Either way it arrives as a thing.
+export function readSent(text, kind = '') {
+  const body = String(text ?? '');
+  if (!body.trim()) return {};
+  if (/json/i.test(kind) || /^[[{]/.test(body.trim())) {
+    try { return JSON.parse(body); } catch { /* fall through to a form */ }
+  }
+  const out = {};
+  for (const pair of body.split('&')) {
+    if (!pair) continue;
+    const at = pair.indexOf('=');
+    const name = decodeURIComponent((at < 0 ? pair : pair.slice(0, at)).replace(/\+/g, ' '));
+    const value = at < 0 ? '' : decodeURIComponent(pair.slice(at + 1).replace(/\+/g, ' '));
+    out[name] = value;
+  }
+  return out;
+}
+
+export function readCookies(header) {
+  const out = {};
+  for (const pair of String(header || '').split(';')) {
+    const at = pair.indexOf('=');
+    if (at < 0) continue;
+    out[pair.slice(0, at).trim()] = decodeURIComponent(pair.slice(at + 1).trim());
+  }
+  return out;
 }
 
 export function installNet(rt, host = {}) {
@@ -91,9 +159,24 @@ export function installNet(rt, host = {}) {
 
   // ------------------------------------------------------------- serving
 
+  const addRoute = (path, method, run) => {
+    const clean = normalise(path);
+    const parts = clean.split('/').filter(piece => piece.startsWith('{') && piece.endsWith('}'));
+    server.routes.push({ path: clean, parts, method, run });
+  };
+
   rt.define('when someone visits $path ...', (a, ctx) => {
-    const path = normalise(toText(a.path));
-    server.routes.push({ path, run: ctx.block });
+    addRoute(toText(a.path), null, ctx.block);
+  });
+
+  // A form arriving is a different thing from a page being looked at, and a
+  // program should be able to say which one it means.
+  rt.define('when someone sends to $path ...', (a, ctx) => {
+    addRoute(toText(a.path), 'POST', ctx.block);
+  });
+
+  rt.define('when someone asks for $path ...', (a, ctx) => {
+    addRoute(toText(a.path), 'GET', ctx.block);
   });
 
   rt.define('when someone visits anything else ...', (a, ctx) => {
@@ -127,6 +210,91 @@ export function installNet(rt, host = {}) {
     const found = server.asked.query[toText(a.name)];
     return found === undefined ? '' : found;
   });
+
+  // ------------------------------------------------- what the visitor sent
+  //
+  // A filled-in form and a program sending JSON arrive differently on the
+  // wire and identically here: as a thing with named values.
+
+  rt.defineValue('the form', () => readSent(server.asked.sent, server.asked.kind));
+
+  rt.defineValue('the form field $name', (a) => {
+    const found = readSent(server.asked.sent, server.asked.kind)[toText(a.name)];
+    return found === undefined ? '' : found;
+  });
+
+  // The pieces of the address itself: "/notes/{id}" hands back the id.
+  rt.defineValue('the address part $name', (a) => {
+    const found = server.asked.parts[toText(a.name)];
+    return found === undefined ? '' : found;
+  });
+
+  // ----------------------------------------------------------- answering
+
+  rt.define('send them to $path', (a) => {
+    server.answer = { body: '', kind: 'text/plain; charset=utf-8', code: 303, goTo: toText(a.path) };
+  });
+
+  rt.define('answer with $value and code $code', (a) => {
+    server.answer = { body: toText(a.value), kind: guessKind(toText(a.value)), code: Math.round(toNumber(a.code)) };
+  });
+
+  rt.define('answer that nothing is there', () => {
+    server.answer = { body: 'Nothing is there', kind: 'text/plain; charset=utf-8', code: 404 };
+  });
+
+  // A folder of files - pictures, stylesheets, whatever a page asks for -
+  // handed out as they are, for anything no route claimed.
+  rt.define('hand out the files in $folder', (a) => {
+    server.folder = toText(a.folder);
+  });
+
+  // ------------------------------------------------------- the visitor
+  //
+  // Something has to remember who is who between one page and the next. The
+  // browser is given a tag, and what belongs to that tag is kept here, so
+  // nothing private ever leaves the machine the program runs on.
+
+  const carrying = () => {
+    const tag = server.asked.tag;
+    if (!tag) return {};
+    if (!server.visitors.has(tag)) server.visitors.set(tag, {});
+    return server.visitors.get(tag);
+  };
+
+  rt.define('keep $value as $key for this visitor', (a) => {
+    carrying()[toText(a.key)] = a.value;
+  });
+
+  // Not "this visitor's $key": an apostrophe is how text in single quotes
+  // begins, so a phrase with one in it would be read as the start of a
+  // string every time somebody used it.
+  rt.defineValue('what this visitor has as $key', (a) => {
+    const found = carrying()[toText(a.key)];
+    return found === undefined ? null : found;
+  });
+
+  rt.defineValue('this visitor has $key', (a) => carrying()[toText(a.key)] !== undefined);
+
+  rt.define('forget everything about this visitor', () => {
+    if (server.asked.tag) server.visitors.set(server.asked.tag, {});
+  });
+
+  // Signing in is what nearly every program wants this for, so it says so.
+  rt.define('sign this visitor in as $who', (a) => {
+    carrying().signedIn = a.who;
+  });
+
+  rt.define('sign this visitor out', () => {
+    delete carrying().signedIn;
+  });
+
+  rt.defineValue('who is signed in', () => {
+    const found = carrying().signedIn;
+    return found === undefined ? null : found;
+  });
+
+  rt.defineValue('somebody is signed in', () => carrying().signedIn !== undefined);
 
   return server;
 }

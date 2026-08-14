@@ -1,0 +1,128 @@
+# A whole small web application: pages, a form, a table that keeps what you
+# typed, and a visitor the server can tell apart from anybody else.
+#
+#     plain run examples/notes-app.plain
+#     then open http://localhost:3010
+#
+# Everything below is the same language the games and the websites are
+# written in. There is no database to install and no framework to learn.
+
+make notes be a table called "notes"
+
+# ---------------------------------------------------------------- the page
+#
+# The stylesheet is in single quotes, which are taken exactly as typed. CSS
+# is mostly braces, and braces inside "double quotes" are where Plain puts
+# values in - so single quotes are what you want for anything like this.
+
+to dressing
+    give back '<style>
+  body { margin: 0; background: #0f1117; color: #eef0f6;
+         font: 16px/1.6 ui-sans-serif, system-ui, sans-serif; }
+  main { max-width: 680px; margin: 0 auto; padding: 40px 22px 80px; }
+  h1 { font-size: 30px; margin: 0 0 4px; }
+  .who { color: #a3a9b8; margin: 0 0 26px; }
+  .who a { color: #8fb3ff; }
+  form { display: flex; gap: 8px; margin: 0 0 26px; }
+  input, button { font: inherit; border-radius: 9px; border: 1px solid #2b3243; padding: 10px 13px; }
+  input { flex: 1; background: #171a22; color: #eef0f6; }
+  button { background: #6c8cff; border-color: #6c8cff; color: #0f1117; font-weight: 600; cursor: pointer; }
+  .note { background: #171a22; border: 1px solid #272b36; border-radius: 12px;
+          padding: 14px 16px; margin-bottom: 10px; display: flex; gap: 12px; align-items: center; }
+  .note span { flex: 1; }
+  .note a { color: #ff8fa3; text-decoration: none; font-size: 14px; }
+  .empty { color: #7f8698; }
+</style>'
+end
+
+to page with body
+    make top be "<!doctype html><meta charset='utf-8'>"
+    set top to top joined with "<meta name='viewport' content='width=device-width, initial-scale=1'>"
+    set top to top joined with "<title>Notes</title>"
+    set top to top joined with dressing
+    give back top joined with "<main>{body}</main>"
+end
+
+# Anything a visitor typed goes back out as words, never as markup.
+to escaped with words
+    make out be text of words
+    set out to replace "&" with "&amp;" in out
+    set out to replace "<" with "&lt;" in out
+    set out to replace ">" with "&gt;" in out
+    give back out
+end
+
+to shown with row
+    make out be "<div class='note'><span>"
+    set out to out joined with escaped with title of row
+    set out to out joined with "</span><a href='/notes/{id of row}/remove'>remove</a></div>"
+    give back out
+end
+
+# ---------------------------------------------------------------- the list
+
+when someone visits "/"
+    make caller be who is signed in
+    if caller is nothing
+        set caller to "nobody yet"
+    end
+
+    make listed be ""
+    for each row in rows of notes sorted by "id"
+        set listed to listed joined with shown with row
+    end
+    if listed is ""
+        set listed to "<p class='empty'>No notes yet. Write the first one.</p>"
+    end
+
+    make body be "<h1>Notes</h1><p class='who'>Signed in as {escaped with caller}"
+    set body to body joined with " &middot; {number of rows in notes} kept"
+    set body to body joined with " &middot; <a href='/name'>change name</a></p>"
+    set body to body joined with "<form method='post' action='/notes'>"
+    set body to body joined with "<input name='title' placeholder='Write a note' autofocus><button>Add</button></form>"
+    set body to body joined with listed
+
+    answer with the page page with body
+end
+
+# ------------------------------------------------------------- adding one
+
+when someone sends to "/notes"
+    make typed be trimmed the form field "title"
+    if typed is not ""
+        save { title: typed, by: who is signed in } in notes
+    end
+    send them to "/"
+end
+
+# A part of the address in curly braces arrives as something you can read.
+# Single quotes again: the braces here are part of the address, not a value
+# for Plain to fill in.
+when someone visits '/notes/{id}/remove'
+    remove row the address part "id" from notes
+    send them to "/"
+end
+
+# ------------------------------------------------------------- who you are
+
+when someone visits "/name"
+    make body be "<h1>Your name</h1><p class='who'>The server keeps this for your browser only.</p>"
+    set body to body joined with "<form method='post' action='/name'>"
+    set body to body joined with "<input name='who' placeholder='What shall I call you?' autofocus><button>Save</button></form>"
+    set body to body joined with "<p class='who'><a href='/'>back to the notes</a></p>"
+    answer with the page page with body
+end
+
+when someone sends to "/name"
+    make named be trimmed the form field "who"
+    if named is not ""
+        sign this visitor in as named
+    end
+    send them to "/"
+end
+
+when someone visits anything else
+    answer that nothing is there
+end
+
+start serving on port 3010

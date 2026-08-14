@@ -16,7 +16,8 @@ import { installWorld } from '../engines/world/engine.js';
 import { installWeb } from '../engines/web/engine.js';
 import { installVideo } from '../engines/video/engine.js';
 import { installStore } from '../engines/store/engine.js';
-import { installNet } from '../engines/net/engine.js';
+import { installNet, readSent, readCookies } from '../engines/net/engine.js';
+import { installData } from '../engines/data/engine.js';
 import { readList, save, checkPart, fingerprint, nameFrom } from '../bin/parts.js';
 import { format } from '../src/format.js';
 import { documentToHTML } from '../engines/web/render.js';
@@ -48,6 +49,7 @@ function runtimeFor(source, options = {}) {
   const site = installWeb(rt, {});
   const studio = installVideo(rt, {});
   installStore(rt, {});
+  installData(rt, {});
   installNet(rt, {});
   rt.run(source, 'test.plain');
   return { rt, game, world, site, studio };
@@ -1793,6 +1795,7 @@ function runWith(source, host) {
   installGame(rt, {});
   installWeb(rt, {});
   installStore(rt, host);
+  installData(rt, {});
   rt.run(source, 'test.plain');
   return rt.lines;
 }
@@ -2002,16 +2005,201 @@ check('the bits of a number', () => {
   ].join('\n')), ['8', '14', '6', '-1', '256', '16']);
 });
 
+// --------------------------------------------------------------- tables
+
+check('a table keeps rows, and gives each one an id', () => {
+  const said = run([
+    'make notes be a table called "notes"',
+    'save { title: "one" } in notes',
+    'save { title: "two" } in notes',
+    'show number of rows in notes',
+    'show title of row 2 of notes',
+    'show id of first row of notes where "title" is "one"'
+  ].join('\n'));
+  assert.deepEqual(said, ['2', 'two', '1']);
+});
+
+check('rows can be looked through, changed and dropped', () => {
+  const said = run([
+    'make people be a table called "people"',
+    'save { name: "Ada", town: "Bath" } in people',
+    'save { name: "Bob", town: "Bath" } in people',
+    'save { name: "Cy", town: "Hull" } in people',
+    'show number of items in rows of people where "town" is "Bath"',
+    'change row 2 of people to { name: "Bob", town: "Hull" }',
+    'show number of items in rows of people where "town" is "Hull"',
+    'remove row 1 from people',
+    'show number of rows in people',
+    'show name of item 1 of rows of people sorted by "name"',
+    'show number of items in rows of people where "name" contains "b"'
+  ].join('\n'));
+  assert.deepEqual(said, ['2', '2', '2', 'Bob', '1']);
+});
+
+check('a table is kept between runs, the way remembering is', () => {
+  const map = new Map();
+  const host = fakeStore(map);
+  runWith('make notes be a table called "notes"\nsave { title: "kept" } in notes', host);
+  assert.equal(firstWith('make notes be a table called "notes"\nshow title of row 1 of notes', host), 'kept');
+  // Two tables in one program do not tread on each other.
+  runWith('make other be a table called "other"\nsave { title: "elsewhere" } in other', host);
+  assert.equal(firstWith('make notes be a table called "notes"\nshow number of rows in notes', host), '1');
+});
+
+check('asking a table for a row that is not there says nothing, not nonsense', () => {
+  const said = run([
+    'make notes be a table called "notes"',
+    'show row 99 of notes',
+    'show number of items in rows of notes where "title" is "nope"'
+  ].join('\n'));
+  assert.deepEqual(said, ['nothing', '0']);
+});
+
+check('using something that is not a table is explained', () => {
+  const error = broken('make notes be a list of 1, 2\nsave { a: 1 } in notes');
+  assert.match(error.plainMessage, /needs a table/);
+});
+
 // ----------------------------------------------------------- the internet
 
 function runNet(source, host = {}) {
   const rt = createRuntime({ onOutput: () => {} });
   installGame(rt, {});
   installWeb(rt, {});
+  installStore(rt, {});
+  installData(rt, {});
   const server = installNet(rt, host);
   rt.run(source, 'net.plain');
   return { rt, server };
 }
+
+check('an address can have a part in it', () => {
+  const { server } = runNet([
+    "when someone visits '/notes/{id}/remove'",
+    '    answer with "gone {the address part \\"id\\"}"',
+    'end'
+  ].join('\n'));
+  const found = server.routeFor('/notes/7/remove');
+  assert.ok(found, 'the route should have matched');
+  assert.deepEqual(found.parts, { id: '7' });
+  server.asked = { ...server.asked, parts: found.parts };
+  found.route.run();
+  assert.equal(server.answer.body, 'gone 7');
+  assert.equal(server.routeFor('/notes/7/keep'), null);
+  assert.equal(server.routeFor('/notes/7'), null, 'a shorter address should not match');
+});
+
+check('a plain address wins over one with a part in it', () => {
+  const { server } = runNet([
+    "when someone visits '/notes/{id}'",
+    '    answer with "one note"',
+    'end',
+    'when someone visits "/notes/new"',
+    '    answer with "a new one"',
+    'end'
+  ].join('\n'));
+  server.routeFor('/notes/new').route.run();
+  assert.equal(server.answer.body, 'a new one');
+  server.routeFor('/notes/12').route.run();
+  assert.equal(server.answer.body, 'one note');
+});
+
+check('a page and the form it sends to can share an address', () => {
+  const { server } = runNet([
+    'when someone visits "/name"',
+    '    answer with "the form"',
+    'end',
+    'when someone sends to "/name"',
+    '    answer with "taken"',
+    'end'
+  ].join('\n'));
+  server.routeFor('/name', 'GET').route.run();
+  assert.equal(server.answer.body, 'the form');
+  server.routeFor('/name', 'POST').route.run();
+  assert.equal(server.answer.body, 'taken');
+});
+
+check('a filled-in form arrives as a thing', () => {
+  assert.deepEqual(readSent('who=Ada&town=Bath'), { who: 'Ada', town: 'Bath' });
+  assert.deepEqual(readSent('note=two+words'), { note: 'two words' });
+  assert.deepEqual(readSent('note=%3Cb%3E'), { note: '<b>' });
+  assert.deepEqual(readSent('{"who":"Ada"}', 'application/json'), { who: 'Ada' });
+  assert.deepEqual(readSent(''), {});
+  // A form that is not JSON is not read as JSON, whatever it looks like.
+  assert.deepEqual(readSent('a=1&b=2', 'application/x-www-form-urlencoded'), { a: '1', b: '2' });
+});
+
+check('a program can read what was filled in', () => {
+  const { server } = runNet([
+    'when someone sends to "/save"',
+    '    answer with "hello {the form field \\"who\\"}"',
+    'end'
+  ].join('\n'));
+  server.asked = { ...server.asked, sent: 'who=Ada', kind: 'application/x-www-form-urlencoded' };
+  server.routes[0].run();
+  assert.equal(server.answer.body, 'hello Ada');
+});
+
+check('a visitor can be told apart, and signed in', () => {
+  const { server } = runNet([
+    'when someone visits "/in"',
+    '    sign this visitor in as "Ada"',
+    '    keep 3 as "basket" for this visitor',
+    'end',
+    'when someone visits "/who"',
+    '    make basket be what this visitor has as "basket"',
+    '    answer with "{who is signed in} has {basket}"',
+    'end',
+    'when someone visits "/out"',
+    '    sign this visitor out',
+    'end'
+  ].join('\n'));
+
+  server.asked = { ...server.asked, tag: 'aaa' };
+  server.routes[0].run();
+  server.routes[1].run();
+  assert.equal(server.answer.body, 'Ada has 3');
+
+  // Somebody else's browser is somebody else.
+  server.asked = { ...server.asked, tag: 'bbb' };
+  server.routes[1].run();
+  assert.equal(server.answer.body, 'nothing has nothing');
+
+  server.asked = { ...server.asked, tag: 'aaa' };
+  server.routes[2].run();
+  server.routes[1].run();
+  assert.equal(server.answer.body, 'nothing has 3');
+});
+
+check('cookies are read, and rubbish in them is ignored', () => {
+  assert.deepEqual(readCookies('a=1; b=two'), { a: '1', b: 'two' });
+  assert.deepEqual(readCookies('plain-visitor=x%20y'), { 'plain-visitor': 'x y' });
+  assert.deepEqual(readCookies(''), {});
+  assert.deepEqual(readCookies('nonsense'), {});
+});
+
+check('a program can send someone somewhere else', () => {
+  const { server } = runNet('when someone visits "/old"\n    send them to "/new"\nend');
+  server.routes[0].run();
+  assert.equal(server.answer.code, 303);
+  assert.equal(server.answer.goTo, '/new');
+});
+
+check('a program can say nothing is there, or pick its own code', () => {
+  const { server } = runNet([
+    'when someone visits "/gone"',
+    '    answer that nothing is there',
+    'end',
+    'when someone visits "/teapot"',
+    '    answer with "no tea" and code 418',
+    'end'
+  ].join('\n'));
+  server.routes[0].run();
+  assert.equal(server.answer.code, 404);
+  server.routes[1].run();
+  assert.equal(server.answer.code, 418);
+  assert.equal(server.answer.body, 'no tea');
+});
 
 check('routes are collected in the order they are written', () => {
   const { server } = runNet([
@@ -2305,16 +2493,17 @@ check('every example still runs', () => {
   for (const file of fs.readdirSync(path.join(ROOT, 'examples'))) {
     if (!file.endsWith('.plain') || file === 'guess.plain') continue;
     const source = fs.readFileSync(path.join(ROOT, 'examples', file), 'utf8');
-    if (file === 'website-server.plain') {
-      // This one waits for visitors, which a test run has none of. Its
-      // routes are checked above; here we only insist it reads and builds.
+    if (file === 'website-server.plain' || file === 'notes-app.plain') {
+      // These wait for visitors, which a test run has none of. Their routes
+      // are checked above; here we only insist they read and build.
       const rt = createRuntime({ onOutput: () => {} });
       installGame(rt, {});
       installWeb(rt, {});
       installStore(rt, {});
+      installData(rt, {});
       const server = installNet(rt, { serve: () => {} });
       rt.run(source, file);
-      assert.ok(server.routes.length >= 3, 'the example should set up several routes');
+      assert.ok(server.routes.length >= 3, `${file} should set up several routes`);
       continue;
     }
     if (file === 'remember.plain') {

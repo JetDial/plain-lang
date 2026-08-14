@@ -440,10 +440,94 @@ Also: `what was asked for`, `asked for $name`, `what they sent`,
 `how they asked`, and `answer with the website` to hand over a website built
 in the same program.
 
+## 19. A whole application
+
+Four things turn the server above into something people can actually use:
+addresses with a piece in them, forms arriving, somewhere to keep what was
+typed, and a way to tell one visitor from another.
+
+**Part of the address.** Use single quotes — the braces belong to the
+address, and Plain fills in braces inside "double quotes":
+
+```plain
+when someone visits '/notes/{id}/remove'
+    remove row the address part "id" from notes
+    send them to "/"
+end
+```
+
+**Forms.** A page being looked at and a form being sent are different things,
+so they are written differently. What arrives is a thing either way, whether
+the browser sent a form or a program sent JSON:
+
+```plain
+when someone visits "/name"        # somebody looking
+    answer with the page ...
+end
+
+when someone sends to "/name"      # somebody sending
+    show the form field "who"
+    show the form                  # all of it at once
+    send them to "/"
+end
+```
+
+**A table** keeps rows between runs, with an id each — the small piece
+between a list, which is forgotten when the program stops, and a database,
+which you would have to install:
+
+```plain
+make notes be a table called "notes"
+
+save { title: "Buy bread", done: no } in notes
+
+show number of rows in notes
+show title of row 3 of notes
+show every row of notes
+show rows of notes where "done" is no
+show rows of notes where "title" contains "bread"
+show rows of notes sorted by "title"
+show first row of notes where "title" is "Buy bread"
+
+change row 3 of notes to { title: "Buy two loaves", done: no }
+remove row 3 from notes
+empty the table notes
+```
+
+Rows are ordinary things, so `title of note` and `value "title" of note` both
+work. It is kept the same way `remember` keeps things: a file beside the
+program in a terminal, the browser's own store on a page.
+
+**Who is asking.** Every browser is given a tag, and what belongs to that tag
+stays on the machine the program runs on:
+
+```plain
+sign this visitor in as "Ada"
+show who is signed in
+sign this visitor out
+
+keep 3 as "basket" for this visitor
+show what this visitor has as "basket"
+forget everything about this visitor
+```
+
+And the rest of what a server needs:
+
+```plain
+send them to "/"                       # go and look over there instead
+answer that nothing is there           # 404
+answer with "no tea" and code 418      # any code you like
+hand out the files in "public"         # pictures, stylesheets, downloads
+```
+
+`examples/notes-app.plain` is all of it in one file: a list, a form that adds
+to it, a link that removes one, a name the server remembers for your browser,
+and everything kept when the program stops.
+
 Both of these need a terminal. A page cannot be made to wait, and cannot open
 a port of its own, so in a browser Plain says so rather than half-working.
 
-## 19. Talking to the person running the program
+## 20. Talking to the person running the program
 
 ```plain
 show "hello"                 # print a line
@@ -451,7 +535,7 @@ ask "Your name? " into name  # read a line (a number if it looks like one)
 stop the program
 ```
 
-## 20. Built-in values
+## 21. Built-in values
 
 **Numbers** — `round $n`, `round $n to $places places`, `floor of`,
 `ceiling of`, `absolute of`, `square root of`, `sine of`, `cosine of`,

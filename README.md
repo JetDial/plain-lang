@@ -352,6 +352,80 @@ plain run examples/website-server.plain     # then open localhost:3000
 Both need a terminal: a page cannot be made to wait, nor open a port of its
 own, so in a browser Plain says so instead of half-working.
 
+## A whole application, front to back
+
+The page, the form, the thing that keeps what was typed, and the bit that
+knows who is asking — all in one file, in one language, with nothing to
+install.
+
+```plain
+make notes be a table called "notes"
+
+when someone visits "/"
+    answer with the page page with everything in notes
+end
+
+when someone sends to "/notes"                 # a form arriving
+    save { title: the form field "title", by: who is signed in } in notes
+    send them to "/"
+end
+
+when someone visits '/notes/{id}/remove'       # a piece of the address
+    remove row the address part "id" from notes
+    send them to "/"
+end
+
+when someone sends to "/name"
+    sign this visitor in as the form field "who"
+    send them to "/"
+end
+
+start serving on port 3000
+```
+
+A **table** is the piece between a list, which is forgotten the moment the
+program stops, and a database, which you would have to install and learn. It
+keeps rows with an id each, and answers the four questions people actually
+ask:
+
+```plain
+save { title: "Buy bread", done: no } in notes
+show rows of notes where "done" is no
+show rows of notes where "title" contains "bread"
+show rows of notes sorted by "title"
+change row 3 of notes to { title: "Buy two loaves", done: no }
+remove row 3 from notes
+```
+
+Rows are ordinary things, so `title of note` works. They are kept the way
+`remember` keeps things: a file beside the program, or the browser's own
+store on a page.
+
+Every browser gets a tag, so the server can tell one visitor from another
+without anything about them leaving your machine:
+
+```plain
+sign this visitor in as "Ada"
+show who is signed in
+keep 3 as "basket" for this visitor
+show what this visitor has as "basket"
+```
+
+Plus `send them to "/"`, `answer that nothing is there`, `answer with ... and
+code 418`, and `hand out the files in "public"` for pictures and stylesheets.
+
+```bash
+plain run examples/notes-app.plain     # then open localhost:3010
+```
+
+That example is a real one: write a note, it is there after a restart; remove
+one, it is gone; tell it your name, and the browser next to yours still says
+nobody. What a visitor types is escaped before it goes back out, and a folder
+handed out cannot be walked out of with `..`.
+
+Sessions live in the server's memory, so a restart signs everybody out. The
+notes themselves are on disk and survive.
+
 ## Going faster
 
 ```bash
@@ -537,11 +611,13 @@ runtime/rust/         the Value type Rust programs are built on
 runtime/c/            the same for C, with the counting and the sweep
 src/format.js         plain fmt
 engines/store/        remembering things, files, JSON and CSV
+engines/data/         tables: rows with ids, kept between runs
 engines/learn/        the course: lessons, projects and their checks
 tests/fake-dom.js      a small stand-in browser, so the pages can be tested
-engines/net/          fetching, and answering as a web server
+engines/net/          fetching, and answering as a web server: routes,
+                      forms, visitors, files
 bin/parts.js          fetching and recording parts other people wrote
-tests/run-tests.js     326 checks, no framework, 11 languages executed
+tests/run-tests.js     347 checks, no framework, 11 languages executed
 ```
 
 ## Tests

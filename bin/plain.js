@@ -14,6 +14,7 @@ import http from 'node:http';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { spawn, execFileSync } from 'node:child_process';
+import crypto from 'node:crypto';
 
 import { createRuntime } from '../src/runtime.js';
 import { PlainError } from '../src/errors.js';
@@ -22,7 +23,8 @@ import { installWorld } from '../engines/world/engine.js';
 import { installWeb } from '../engines/web/engine.js';
 import { installVideo } from '../engines/video/engine.js';
 import { installStore } from '../engines/store/engine.js';
-import { installNet } from '../engines/net/engine.js';
+import { installNet, readCookies } from '../engines/net/engine.js';
+import { installData } from '../engines/data/engine.js';
 import { documentToHTML, hrefFor } from '../engines/web/render.js';
 import { TEMPLATES, templateNames } from './templates.js';
 import { translate, targetNames, findTarget } from '../src/translate/index.js';
@@ -139,8 +141,9 @@ function buildRuntime(onOutput, baseFile = process.cwd()) {
   const world = installWorld(runtime, {});
   const studio = installVideo(runtime, {});
   const store = installStore(runtime, storeHost(baseFile));
+  const tables = installData(runtime, {});
   const server = installNet(runtime, netHost(runtime));
-  return { runtime, game, site, world, studio, store, server };
+  return { runtime, game, site, world, studio, store, server, tables };
 }
 
 // Fetching has to finish before the next line runs, and the interpreter does
@@ -227,18 +230,39 @@ function netHost(runtime) {
         const chunks = [];
         request.on('data', piece => chunks.push(piece));
         request.on('end', () => {
+          // Every visitor carries a tag, so the program can tell one from
+          // another. It is a random name and nothing more: what belongs to
+          // it never leaves this machine.
+          const cookies = readCookies(request.headers.cookie);
+          let tag = cookies['plain-visitor'];
+          let fresh = false;
+          if (!tag || !/^[A-Za-z0-9]{8,}$/.test(tag)) {
+            tag = crypto.randomBytes(18).toString('base64url');
+            fresh = true;
+          }
+
+          const found = server.routeFor(url.pathname, request.method);
           server.asked = {
             path: url.pathname,
             query: Object.fromEntries(url.searchParams.entries()),
             sent: Buffer.concat(chunks).toString('utf8'),
-            method: request.method
+            kind: request.headers['content-type'] || '',
+            method: request.method,
+            parts: found ? found.parts : {},
+            cookies,
+            tag
           };
           server.answer = null;
 
-          const route = server.routeFor(url.pathname);
-          const run = route ? route.run : server.notFound;
+          const setTag = fresh
+            ? { 'set-cookie': `plain-visitor=${tag}; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800` }
+            : {};
+
+          const run = found ? found.route.run : server.notFound;
           if (!run) {
-            response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+            // Nothing claimed it: try the folder of files, if there is one.
+            if (server.folder && handOut(server, url.pathname, response, setTag)) return;
+            response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8', ...setTag });
             response.end(`Nothing is at ${url.pathname}`);
             return;
           }
@@ -248,15 +272,18 @@ function netHost(runtime) {
           } catch (error) {
             const message = error instanceof PlainError ? error.report(runtime.source) : String(error.message || error);
             console.error('\n' + message + '\n');
-            response.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
+            response.writeHead(500, { 'content-type': 'text/plain; charset=utf-8', ...setTag });
             response.end(message);
             return;
           }
 
           const answer = server.answer || { body: '', kind: 'text/plain; charset=utf-8' };
-          response.writeHead(200, { 'content-type': answer.kind });
+          const code = answer.code || 200;
+          const headers = { 'content-type': answer.kind, ...setTag };
+          if (answer.goTo) headers.location = answer.goTo;
+          response.writeHead(code, headers);
           response.end(answer.body);
-          console.log(`  ${request.method} ${url.pathname} -> ${answer.body.length} bytes`);
+          console.log(`  ${request.method} ${url.pathname} -> ${code}${answer.goTo ? ' ' + answer.goTo : ` ${answer.body.length} bytes`}`);
         });
       });
 
@@ -889,6 +916,19 @@ const MIME = {
   '.svg': 'image/svg+xml', '.webp': 'image/webp', '.ico': 'image/x-icon',
   '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.plain': 'text/plain'
 };
+
+// A folder of files handed out as they are. Fenced to that folder, so an
+// address with ".." in it cannot walk out of it and read the rest of a disk.
+function handOut(server, asked, response, extra = {}) {
+  const folder = path.resolve(process.cwd(), server.folder);
+  const wanted = path.resolve(folder, '.' + decodeURIComponent(asked));
+  if (wanted !== folder && !wanted.startsWith(folder + path.sep)) return false;
+  if (!fs.existsSync(wanted) || !fs.statSync(wanted).isFile()) return false;
+  const type = MIME[path.extname(wanted).toLowerCase()] || 'application/octet-stream';
+  response.writeHead(200, { 'content-type': type, ...extra });
+  fs.createReadStream(wanted).pipe(response);
+  return true;
+}
 
 function sendFile(response, file) {
   if (!fs.existsSync(file) || !fs.statSync(file).isFile()) {
