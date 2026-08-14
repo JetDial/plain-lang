@@ -17,7 +17,9 @@ const NOTHING = new Set(['nothing', 'none']);
 // Words that can never be used as a variable name.
 export const RESERVED = new Set([
   'if', 'otherwise', 'else', 'end', 'repeat', 'while', 'for', 'each', 'every',
-  'to', 'give', 'back', 'return', 'stop', 'next', 'skip', 'make', 'let', 'set',
+  // "back" is not reserved: "give back" reads it directly, and "move x back
+  // by 1" needs it as a direction.
+  'to', 'give', 'return', 'stop', 'next', 'skip', 'make', 'let', 'set',
   'show', 'with', 'and', 'or', 'not', 'is', 'in', 'of', 'be', 'then', 'times',
   'plus', 'minus', 'joined', 'divided', 'by', 'from', 'note', 'the'
 ]);
@@ -125,19 +127,32 @@ export class Parser {
 
   // ------------------------------------------------------------- statements
 
+  // A terminator is a word ("end") or a run of words (["if","it","fails"]).
   parseBlock(terminators) {
     const body = [];
     this.skipNewlines();
+    const startLine = this.line;
     while (true) {
       const t = this.peek();
       if (t.type === 'end') {
         this.error(`This block was never closed. Add "end" on its own line.`);
       }
-      if (t.type === 'word' && terminators.includes(t.value.toLowerCase())) break;
+      if (this.atTerminator(terminators)) break;
       body.push(this.parseStatement());
       this.skipNewlines();
     }
-    return { type: 'Block', body };
+    // The lines this block covers, so tools can show and rewrite the code
+    // the way it was actually typed.
+    return { type: 'Block', body, startLine, endLine: this.line - 1 };
+  }
+
+  atTerminator(terminators) {
+    if (this.peek().type !== 'word') return false;
+    for (const terminator of terminators) {
+      const words = Array.isArray(terminator) ? terminator : [terminator];
+      if (words.every((word, offset) => this.isWord(word, offset))) return true;
+    }
+    return false;
   }
 
   parseStatement() {
@@ -150,7 +165,11 @@ export class Parser {
       case 'while': return this.parseWhile();
       case 'for': return this.parseForEach();
       case 'to': return this.parseFunctionDefinition();
+      case 'try': return this.parseTry();
       case 'give': case 'return': return this.parseReturn();
+      case 'a': case 'an':
+        if (this.isWord('kind', 1)) return this.parseKind();
+        break;
       case 'end': case 'otherwise': case 'else':
         this.error(`"${t.value}" does not belong here. It closes a block that was never opened.`);
     }
@@ -325,6 +344,93 @@ export class Parser {
     this.expectWord('end', 'to close this "for each"');
     this.endOfStatement();
     return { type: 'ForEach', name, list, block, line };
+  }
+
+  // try
+  //     ...
+  // if it fails
+  //     show the problem
+  // end
+  parseTry() {
+    const line = this.line;
+    this.i++; // try
+    this.endOfStatement();
+    const block = this.parseBlock([['if', 'it', 'fails'], 'end']);
+    let rescue = null;
+    if (this.isWord('if')) {
+      this.i += 3; // if it fails
+      this.endOfStatement();
+      rescue = this.parseBlock(['end']);
+    }
+    this.expectWord('end', 'to close this "try"');
+    this.endOfStatement();
+    return { type: 'Try', block, rescue, line };
+  }
+
+  // a kind called Dog based on Animal
+  //     has name
+  //     has sound be "woof"
+  //     to speak
+  //         show "{name of me} says {sound of me}"
+  //     end
+  // end
+  parseKind() {
+    const line = this.line;
+    this.i++; // a
+    this.expectWord('kind', 'to describe a new kind of thing');
+    if (!this.eatWord('called') && !this.eatWord('of')) {
+      this.error('Write it as: a kind called Dog', line);
+    }
+    const name = this.parseName('after "a kind called"');
+    let base = null;
+    if (this.eatWord('based')) {
+      this.expectWord('on', 'after "based"');
+      base = this.parseName('after "based on"');
+    }
+    this.endOfStatement();
+
+    const fields = [];
+    const actions = [];
+    this.skipNewlines();
+    while (!this.isWord('end')) {
+      if (this.peek().type === 'end') this.error(`The kind "${name}" was never closed. Add "end".`, line);
+      if (this.eatWord('has')) {
+        const field = this.parseName(`in the kind "${name}"`);
+        let value = null;
+        if (this.eatWord('be') || this.eatSym('=')) value = this.parseExpression();
+        this.endOfStatement();
+        fields.push({ name: field, value });
+      } else if (this.isWord('to')) {
+        actions.push(this.parseMethod(name));
+      } else {
+        this.error(`Inside a kind I expected "has something" or "to do something"`, this.line);
+      }
+      this.skipNewlines();
+    }
+    this.expectWord('end', `to close the kind "${name}"`);
+    this.endOfStatement();
+    return { type: 'Kind', name, base, fields, actions, line };
+  }
+
+  parseMethod(kindName) {
+    const line = this.line;
+    this.i++; // to
+    const words = [];
+    while (this.peek().type === 'word' && !this.isWord('with')) words.push(this.take().value.toLowerCase());
+    if (!words.length) this.error(`Give this action of "${kindName}" a name`, line);
+    const params = [];
+    if (this.eatWord('with')) {
+      while (true) {
+        params.push(this.parseName('in the list of inputs'));
+        if (this.eatWord('and') || this.eatSym(',')) continue;
+        break;
+      }
+    }
+    this.endOfStatement();
+    const block = this.parseBlock(['end']);
+    this.expectWord('end', 'to close this action');
+    this.endOfStatement();
+    return { name: words.join(' '), params, block, line };
   }
 
   parseReturn() {
@@ -661,12 +767,35 @@ export class Parser {
     if (t.type === 'word') {
       const w = t.value.toLowerCase();
 
+      // "a new Dog with name "Rex" and age 3"
+      if ((w === 'a' || w === 'an') && this.isWord('new', 1)) {
+        this.i += 2;
+        const kind = this.parseName('after "a new"');
+        const pairs = [];
+        if (this.eatWord('with')) {
+          const inner = union(stops, new Set([',', 'and']));
+          while (true) {
+            const field = this.parseName(`in the values for a new ${kind}`);
+            pairs.push({ key: field, value: this.parseExpression(inner) });
+            if (this.eatSym(',')) continue;
+            if (!stops.has('and') && this.eatWord('and')) continue;
+            break;
+          }
+        }
+        return { type: 'New', kind, pairs, line };
+      }
+
       // "a list of 1, 2, 3"
       if ((w === 'a' || w === 'an') && this.isWord('list', 1) && this.isWord('of', 2)) {
         this.i += 3;
         return this.parseListItems(stops, line);
       }
       if (w === 'a' && this.isWord('list', 1)) { this.i += 2; return { type: 'List', items: [], line }; }
+
+      // Sentences come first, so "the action double" is not mistaken for the
+      // decorative "the" in front of a name.
+      const phrase = this.tryPhrase(this.phrases.value, stops, line);
+      if (phrase) return { ...phrase, type: 'PhraseValue' };
 
       // Articles read nicely and mean nothing: "the score" is "score".
       if (ARTICLES.has(w) && this.peek(1).type === 'word') { this.i++; return this.parsePrimary(stops); }
@@ -675,16 +804,14 @@ export class Parser {
       if (BOOL_FALSE.has(w)) { this.i++; return { type: 'Bool', value: false, line }; }
       if (NOTHING.has(w)) { this.i++; return { type: 'Nothing', line }; }
 
-      const phrase = this.tryPhrase(this.phrases.value, stops, line);
-      if (phrase) return { ...phrase, type: 'PhraseValue' };
-
       if (RESERVED.has(w)) {
         this.error(`I found "${t.value}" where I expected a value`, line);
       }
 
       this.i++;
-      // "hp of player" reads as a field of a thing.
-      if (this.isWord('of')) {
+      // "hp of player" reads as a field of a thing - unless the sentence
+      // around us is waiting for that "of", as in "value key of settings".
+      if (this.isWord('of') && !stops.has('of')) {
         this.i++;
         const object = this.parsePrimary(stops);
         return { type: 'Field', name: t.value, object, line };

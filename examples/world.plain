@@ -1,0 +1,55 @@
+# A 3D world, in Plain.
+# Play it with:  plain play examples/world.plain
+# Turn with left and right, walk with up and down, jump with space.
+
+start a world called "Moon Walk" sized 900 by 600
+set the sky to "#0b1020"
+set world gravity to 0.02
+
+make ground be a floor at 0 , 0 , 0 sized 80 by 80 colored "#2c3a4f"
+make hero be a cube at 0 , 1 , 0 sized 1.6 colored "#ffd166"
+make prize be a ball at -6 , 1 , -8 sized 1.4 colored "#ef476f"
+
+# A few things to walk around.
+make tower be a post at 9 , 3 , -7 sized 2 by 6 colored "#7ee787"
+make spike be a cone at -10 , 2 , 4 sized 3 by 4 colored "#79c0ff"
+make block be a block at 5 , 1 , 6 sized 3 by 2 by 3 colored "#a970ff"
+
+follow hero with the camera
+set the camera distance to 9
+set the camera height to 4
+
+make score be 0
+
+every frame
+    if key "left" is held
+        turn hero left by 3
+    end
+    if key "right" is held
+        turn hero right by 3
+    end
+    if key "up" is held
+        move hero forward by 0.2
+    end
+    if key "down" is held
+        move hero back by 0.15
+    end
+
+    # A slow spin, so you can tell the prize apart from the scenery.
+    turn prize left by 2
+
+    draw "collected {score}" at 20 , 18
+end
+
+when key "space" is pressed
+    if hero is resting
+        push hero up by 0.35
+        play a beep at 440
+    end
+end
+
+when hero touches prize
+    add 1 to score
+    move prize to random -25 to 25 , 1 , random -25 to 25
+    play a beep at 880
+end

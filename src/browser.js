@@ -5,7 +5,12 @@
 import { createRuntime } from './runtime.js';
 import { PlainError } from './errors.js';
 import { installGame } from '../engines/game/engine.js';
+import { installWorld } from '../engines/world/engine.js';
+import { createRenderer } from '../engines/world/render.js';
 import { installWeb, THEMES } from '../engines/web/engine.js';
+import { installVideo } from '../engines/video/engine.js';
+import { startStudio } from '../engines/video/player.js';
+import { startDesigner } from '../engines/web/designer.js';
 import { mountPage, stylesheet, hrefFor } from '../engines/web/render.js';
 
 const KEY_NAMES = {
@@ -26,22 +31,58 @@ export function startPlain(source, options = {}) {
   const win = options.window || window;
   const host = { window: win, document: doc };
 
-  const runtime = createRuntime({ onOutput: text => console.log(text) });
+  const runtime = createRuntime({
+    onOutput: text => console.log(text),
+    files: options.files || {}
+  });
   const game = installGame(runtime, host);
+  const world = installWorld(runtime, host);
   const site = installWeb(runtime, host);
+  const studio = installVideo(runtime, host);
 
   try {
     runtime.run(source, options.file || 'program.plain');
   } catch (error) {
     showError(doc, error, source);
-    return { runtime, game, site, ok: false };
+    return { runtime, game, world, site, studio, ok: false };
   }
 
   if (game.started) startGame(game, doc, win, source);
+  else if (studio.started) startStudio(studio, doc, win);
   else startSite(site, doc, win);
 
-  const running = { runtime, game, site, ok: true };
+  const running = { runtime, game, world, site, studio, ok: true };
   // Handy when poking at a program from the browser console.
+  win.plain = running;
+  return running;
+}
+
+// Opened by `plain edit`: the same program, but with the tool that fits it -
+// the designer for a website, the studio for a video, the game as it is.
+export function editPlain(source, options = {}) {
+  const win = options.window || window;
+  const doc = options.document || document;
+  win.__plainEditable = true;
+
+  const host = { window: win, document: doc };
+  const runtime = createRuntime({ onOutput: text => console.log(text), files: options.files || {} });
+  const game = installGame(runtime, host);
+  const world = installWorld(runtime, host);
+  const site = installWeb(runtime, host);
+  const studio = installVideo(runtime, host);
+
+  try {
+    runtime.run(source, options.file || 'program.plain');
+  } catch (error) {
+    showError(doc, error, source);
+    return { runtime, game, world, site, studio, ok: false };
+  }
+
+  if (studio.started) startStudio(studio, doc, win);
+  else if (game.started) startGame(game, doc, win, source);
+  else startDesigner(site, doc, win);
+
+  const running = { runtime, game, world, site, studio, ok: true, editing: true };
   win.plain = running;
   return running;
 }
@@ -52,18 +93,39 @@ function startGame(game, doc, win, source) {
   doc.title = game.title;
   ensureStyle(doc, gameStyle());
 
+  const world = game.world && game.world.started ? game.world : null;
+
   let canvas = doc.getElementById('plain-canvas');
+  let stage = canvas ? canvas.parentNode : null;
   if (!canvas) {
     canvas = doc.createElement('canvas');
     canvas.id = 'plain-canvas';
-    const stage = doc.createElement('div');
+    stage = doc.createElement('div');
     stage.className = 'plain-stage';
     stage.appendChild(canvas);
     doc.body.appendChild(stage);
   }
   canvas.width = game.width;
   canvas.height = game.height;
-  const ctx = canvas.getContext('2d');
+
+  // In 3D the world is drawn first on its own canvas, and the flat things
+  // sit on a see-through canvas on top of it.
+  let renderer = null;
+  let hud = null;
+  if (world) {
+    stage.classList.add('plain-stage-3d');
+    hud = doc.createElement('canvas');
+    hud.id = 'plain-hud';
+    hud.width = game.width;
+    hud.height = game.height;
+    stage.appendChild(hud);
+    renderer = createRenderer(canvas);
+    if (!renderer) {
+      showError(doc, new Error('This browser cannot show 3D (no WebGL).'), source);
+      return;
+    }
+  }
+  const ctx = (hud || canvas).getContext('2d');
 
   game.onError = error => showError(doc, error, source);
 
@@ -95,7 +157,8 @@ function startGame(game, doc, win, source) {
     const seconds = last === null ? 1 / 60 : Math.min(0.1, (now - last) / 1000);
     last = now;
     game.step(seconds);
-    game.draw(ctx);
+    if (renderer) { renderer.draw(world); game.drawHud(ctx); }
+    else game.draw(ctx);
     win.requestAnimationFrame(frame);
   };
   game.running = true;
@@ -106,7 +169,9 @@ function gameStyle() {
   return `
 body { margin: 0; background: #0b0c10; display: grid; place-items: center; min-height: 100vh;
        font: 16px ui-sans-serif, system-ui, sans-serif; color: #e8ecf4; }
-.plain-stage { padding: 18px; }
+.plain-stage { padding: 18px; position: relative; }
+.plain-stage-3d { line-height: 0; }
+.plain-stage-3d #plain-hud { position: absolute; left: 18px; top: 18px; pointer-events: none; }
 #plain-canvas { max-width: 100vw; max-height: 100vh; border-radius: 10px; box-shadow: 0 18px 60px rgba(0,0,0,.55); }
 `.trim();
 }

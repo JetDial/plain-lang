@@ -155,6 +155,78 @@ export function installCore(rt) {
 
   rt.define('stop the program', () => { throw new StopProgram(); });
 
+  // ------------------------------------------------- kinds of your own
+
+  const tell = (a, ctx, args) =>
+    ctx.interpreter.callMethod(a.thing, a.action, args, ctx.line);
+
+  rt.define('tell $thing to #action', (a, ctx) => tell(a, ctx, []));
+  rt.define('tell $thing to #action with $one', (a, ctx) => tell(a, ctx, [a.one]));
+  rt.define('tell $thing to #action with $one and $other', (a, ctx) => tell(a, ctx, [a.one, a.other]));
+
+  rt.defineValue('ask $thing to #action', (a, ctx) => tell(a, ctx, []));
+  rt.defineValue('ask $thing to #action with $one', (a, ctx) => tell(a, ctx, [a.one]));
+  rt.defineValue('ask $thing to #action with $one and $other', (a, ctx) => tell(a, ctx, [a.one, a.other]));
+
+  rt.defineValue('kind name of $thing', (a) =>
+    (a.thing && a.thing._kind ? a.thing._kind.name : typeName(a.thing)));
+
+  // "if rex is a kind of Animal" - true for the kind itself and anything
+  // built on top of it.
+  rt.defineInfix('$thing is a kind of #kind', (a, ctx) => {
+    if (!a.thing || !a.thing._kind) return false;
+    return ctx.interpreter.kindNames(a.thing._kind).includes(String(a.kind).toLowerCase());
+  });
+
+  // ------------------------------------------------ actions as values
+
+  rt.defineValue('the action #name', (a, ctx) => ctx.interpreter.actionValue(a.name, ctx.line));
+
+  const invoke = (action, args, ctx) => {
+    if (typeof action !== 'function') ctx.fail(`That is not an action, so I cannot run it`);
+    return action(...args);
+  };
+
+  rt.defineBoth('call $action', (a, ctx) => invoke(a.action, [], ctx));
+  rt.defineBoth('call $action with $one', (a, ctx) => invoke(a.action, [a.one], ctx));
+  rt.defineBoth('call $action with $one and $other', (a, ctx) => invoke(a.action, [a.one, a.other], ctx));
+
+  rt.defineInfix('$list changed by $action', (a, ctx) =>
+    list(a.list).map(item => invoke(a.action, [item], ctx)));
+
+  rt.defineInfix('$list kept where $action', (a, ctx) =>
+    list(a.list).filter(item => truthy(invoke(a.action, [item], ctx))));
+
+  rt.defineInfix('$list added up by $action', (a, ctx) =>
+    list(a.list).reduce((sum, item) => sum + toNumber(invoke(a.action, [item], ctx)), 0));
+
+  // --------------------------------------------------------- problems
+
+  rt.define('report a problem saying $message', (a, ctx) => {
+    ctx.fail(toText(a.message));
+  });
+
+  // --------------------------------- things used as a bag of named values
+
+  rt.defineValue('value $key of $thing', (a) => {
+    if (!isThing(a.thing)) return null;
+    const key = Object.keys(a.thing).find(k => k.toLowerCase() === toText(a.key).toLowerCase());
+    return key === undefined ? null : a.thing[key];
+  });
+
+  rt.define('set value $key of $thing to $value', (a, ctx) => {
+    if (!isThing(a.thing)) ctx.fail('I can only put named values into a thing');
+    const key = Object.keys(a.thing).find(k => k.toLowerCase() === toText(a.key).toLowerCase());
+    a.thing[key ?? toText(a.key)] = a.value;
+  });
+
+  rt.defineInfix('$thing has $key', (a) => {
+    if (!isThing(a.thing)) return false;
+    return Object.keys(a.thing).some(k => k.toLowerCase() === toText(a.key).toLowerCase());
+  });
+
+  rt.defineValue('values of $thing', (a) => (isThing(a.thing) ? Object.values(a.thing) : []));
+
   return rt;
 }
 

@@ -62,6 +62,78 @@ export class Site {
   refresh() {
     if (this.host.document && this.host.root) mountPage(this.current, this.host.root, this.host.document);
   }
+
+  // The whole site written back out as Plain sentences. The designer saves
+  // this, so a site built by dragging and a site typed by hand are the same
+  // kind of file.
+  toPlainSource() {
+    const lines = [`make a website called ${quote(this.title)}`];
+    if (this.theme !== 'light') lines.push(`set the theme to ${quote(this.theme)}`);
+
+    this.pages.forEach((page, index) => {
+      lines.push('');
+      if (index > 0) lines.push(`make a page called ${quote(page.name)} at ${quote(page.path)}`);
+      for (const node of page.nodes) lines.push(...nodeToPlain(node, ''));
+    });
+    return lines.join('\n').replace(/\n{3,}/g, '\n\n') + '\n';
+  }
+}
+
+const KIND_SENTENCE = {
+  title: text => `add a title ${quote(text)}`,
+  heading: text => `add a heading ${quote(text)}`,
+  'small-heading': text => `add a small heading ${quote(text)}`,
+  text: text => `add text ${quote(text)}`,
+  note: text => `add a note ${quote(text)}`,
+  quote: text => `add a quote ${quote(text)}`,
+  code: text => `add code ${quote(text)}`,
+  footer: text => `add a footer ${quote(text)}`
+};
+
+function nodeToPlain(node, indent) {
+  const props = node.props || {};
+  const named = node.name ? ` named ${node.name}` : '';
+  const simple = KIND_SENTENCE[node.kind];
+  if (simple) return [indent + simple(props.text ?? '') + named];
+
+  switch (node.kind) {
+    case 'space': return [indent + 'add a space'];
+    case 'link': return [indent + `add a link ${quote(props.text)} to ${quote(props.url)}`];
+    case 'picture':
+      return [indent + (props.alt
+        ? `add a picture ${quote(props.url)} with words ${quote(props.alt)}`
+        : `add a picture ${quote(props.url)}`)];
+    case 'list':
+      return [indent + `add a list of ${(props.items || []).map(quote).join(', ')}`];
+    case 'field':
+      return [indent + `add a ${props.big ? 'big ' : ''}text box named ${node.name || 'answer'} with label ${quote(props.label || '')}`];
+    case 'button': {
+      const body = String(props.source || 'show a message "Hello"')
+        .split('\n')
+        .map(line => indent + '    ' + line.trim())
+        .filter(line => line.trim());
+      return [indent + `add a button ${quote(props.text)}`, ...body, indent + 'end'];
+    }
+    case 'card': {
+      const [first, ...rest] = node.children || [];
+      const titled = first && first.kind === 'small-heading';
+      const open = titled
+        ? indent + `add a card called ${quote(first.props.text)}`
+        : indent + 'add a card';
+      const inside = (titled ? rest : node.children || []).flatMap(child => nodeToPlain(child, indent + '    '));
+      return [open, ...inside, indent + 'end'];
+    }
+    case 'row': {
+      const inside = (node.children || []).flatMap(child => nodeToPlain(child, indent + '    '));
+      return [indent + 'add a row', ...inside, indent + 'end'];
+    }
+    default:
+      return [indent + `add text ${quote(props.text || '')}`];
+  }
+}
+
+export function quote(text) {
+  return '"' + String(text ?? '').replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
 }
 
 export function installWeb(rt, host = {}) {
@@ -141,7 +213,12 @@ export function installWeb(rt, host = {}) {
 
   rt.define('add a button $text ...', (a, ctx) => {
     const run = ctx.block;
-    site.add('button', { text: toText(a.text), click: () => { run(); site.refresh(); } });
+    site.add('button', {
+      text: toText(a.text),
+      click: () => { run(); site.refresh(); },
+      // Kept so the designer can write the button back out unchanged.
+      source: ctx.blockSource ? ctx.blockSource() : ''
+    });
   });
 
   rt.define('add a text box named #id with label $label', (a) =>

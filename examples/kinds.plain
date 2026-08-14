@@ -1,0 +1,94 @@
+# The bigger parts of the language: kinds of your own, catching problems,
+# and actions used as values.
+# Run it with:  plain run examples/kinds.plain
+
+show "--- kinds of thing ---"
+
+a kind called Animal
+    has name
+    has sound be "..."
+    has legs be 4
+
+    to speak
+        show "{name of me} says {sound of me}"
+    end
+
+    to describe
+        give back "{name of me}, {legs of me} legs"
+    end
+end
+
+a kind called Dog based on Animal
+    has sound be "woof"
+
+    to fetch with item
+        give back "{name of me} fetched the {item}"
+    end
+end
+
+a kind called Bird based on Animal
+    has sound be "tweet"
+    has legs be 2
+end
+
+make rex be a new Dog with name "Rex"
+make pip be a new Bird with name "Pip"
+
+tell rex to speak
+tell pip to speak
+show ask rex to fetch with "ball"
+show ask pip to describe
+
+if rex is a kind of Animal
+    show "a dog is an animal too"
+end
+
+make pets be a list of rex, pip
+for each pet in pets
+    tell pet to speak
+end
+
+show "--- when things go wrong ---"
+
+to share with sweets and people
+    if people is 0
+        report a problem saying "there is nobody to share with"
+    end
+    give back sweets divided by people
+end
+
+try
+    show share with 12 and 4
+    show share with 12 and 0
+    show "this line never runs"
+if it fails
+    show "I could not do that: {the problem}"
+end
+
+show "the program carries on"
+
+show "--- actions as values ---"
+
+to double with n
+    give back n times 2
+end
+
+to is_big with n
+    give back n is above 10
+end
+
+make numbers be a list of 3, 8, 12
+show numbers changed by the action double
+show numbers kept where the action is_big
+show numbers added up by the action double
+
+make what_to_do be the action double
+show call what_to_do with 50
+
+show "--- named values by key ---"
+
+make settings be { theme: "dark", size: 14 }
+set value "size" of settings to 16
+for each key in keys of settings
+    show "{key} is {value key of settings}"
+end

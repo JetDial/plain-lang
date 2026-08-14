@@ -11,6 +11,20 @@ class ReturnSignal { constructor(value) { this.value = value; } }
 class BreakSignal {}
 class ContinueSignal {}
 
+// A thing built from "a kind called Dog". Fields live on the object itself so
+// "name of rex" works; the kind is kept aside for its actions.
+export class PlainThing {
+  constructor(kind, fields) {
+    Object.defineProperty(this, '_kind', { value: kind, enumerable: false, writable: true });
+    Object.assign(this, fields);
+  }
+
+  toPlainText() {
+    const entries = Object.entries(this).map(([k, v]) => `${k}: ${v === null ? 'nothing' : typeof v === 'string' ? `"${v}"` : v}`);
+    return `a ${this._kind.name} (${entries.join(', ')})`;
+  }
+}
+
 export class Environment {
   constructor(parent = null) {
     this.values = new Map();
@@ -55,6 +69,7 @@ export class Interpreter {
     this.runtime = runtime;
     this.globals = new Environment();
     this.functions = new Map();
+    this.kinds = new Map();
     this.file = '<input>';
     this.loopLimit = runtime.loopLimit ?? 20_000_000;
   }
@@ -65,12 +80,12 @@ export class Interpreter {
 
   run(program, env = this.globals) {
     this.file = program.file || this.file;
-    // Actions are hoisted so a program can read top-down.
+    // Actions and kinds are hoisted so a program can read top-down.
     for (const node of program.body) {
-      if (node.type === 'Function') this.exec(node, env);
+      if (node.type === 'Function' || node.type === 'Kind') this.exec(node, env);
     }
     for (const node of program.body) {
-      if (node.type === 'Function') continue;
+      if (node.type === 'Function' || node.type === 'Kind') continue;
       this.exec(node, env);
     }
   }
@@ -179,6 +194,27 @@ export class Interpreter {
         this.functions.set(node.id, { ...node, env });
         return;
       }
+      case 'Kind': {
+        const key = String(node.name).toLowerCase();
+        if (node.base && !this.kinds.has(String(node.base).toLowerCase())) {
+          this.fail(`I do not know a kind called "${node.base}"`, node.line);
+        }
+        this.kinds.set(key, { ...node, env, base: node.base ? this.kinds.get(String(node.base).toLowerCase()) : null });
+        return;
+      }
+      case 'Try': {
+        try {
+          this.runBlock(node.block, new Environment(env));
+        } catch (error) {
+          if (error instanceof ReturnSignal || error instanceof BreakSignal || error instanceof ContinueSignal) throw error;
+          if (!(error instanceof PlainError)) throw error;
+          if (!node.rescue) return;
+          const scope = new Environment(env);
+          scope.define('problem', error.plainMessage || error.message);
+          this.runBlock(node.rescue, scope);
+        }
+        return;
+      }
       case 'Return': throw new ReturnSignal(node.value ? this.evaluate(node.value, env) : null);
       case 'Break': throw new BreakSignal();
       case 'Continue': throw new ContinueSignal();
@@ -219,7 +255,12 @@ export class Interpreter {
       const object = this.evaluate(target.object, env);
       if (!isThing(object)) this.fail(`I cannot set "${target.name}" on ${typeName(object)}`, target.line);
       if (typeof object.setPlainField === 'function') object.setPlainField(target.name, value);
-      else object[target.name] = value;
+      else {
+        // Keep the spelling the thing already uses, so "Health" and "health"
+        // stay one value.
+        const existing = Object.keys(object).find(k => k.toLowerCase() === target.name.toLowerCase());
+        object[existing ?? target.name] = value;
+      }
       return;
     }
     if (target.type === 'PhraseValue' && target.id === 'core:item') {
@@ -270,6 +311,7 @@ export class Interpreter {
       case 'Compare': return this.compare(node, env);
       case 'Math': return this.math(node, env);
       case 'PhraseValue': return this.callPhrase(node, env, 'value');
+      case 'New': return this.makeThing(node, env);
       default:
         this.fail(`I do not know how to work out "${node.type}"`, node.line);
     }
@@ -384,9 +426,114 @@ export class Interpreter {
       exists: (name) => env.has(name),
       assign: (name, value) => env.assign(name, value),
       output: (text) => this.runtime.output(text),
+      // The lines inside this sentence's block, exactly as they were typed.
+      blockSource: () => this.sourceOfBlock(node.block),
       fail: (message, hint) => self.fail(message, node.line, hint),
       call: (fn, ...args) => (typeof fn === 'function' ? fn(...args) : null)
     };
+  }
+
+  // ------------------------------------------------------------------ kinds
+
+  makeThing(node, env) {
+    const kind = this.kinds.get(String(node.kind).toLowerCase());
+    if (!kind) {
+      this.fail(
+        `I do not know a kind called "${node.kind}"`,
+        node.line,
+        `describe it first with: a kind called ${node.kind}`
+      );
+    }
+    const fields = {};
+    for (const level of kindChain(kind).reverse()) {
+      for (const field of level.fields) {
+        fields[field.name] = field.value ? this.evaluate(field.value, level.env || env) : null;
+      }
+    }
+    for (const pair of node.pairs) {
+      const known = Object.keys(fields).find(k => k.toLowerCase() === pair.key.toLowerCase());
+      if (!known) {
+        this.fail(
+          `A ${kind.name} has no "${pair.key}"`,
+          node.line,
+          `it has: ${Object.keys(fields).join(', ') || 'no values yet'}`
+        );
+      }
+      fields[known] = this.evaluate(pair.value, env);
+    }
+    return new PlainThing(kind, fields);
+  }
+
+  kindNames(kind) {
+    return kindChain(kind).map(level => String(level.name).toLowerCase());
+  }
+
+  findMethod(kind, name) {
+    const wanted = String(name).toLowerCase();
+    for (const level of kindChain(kind)) {
+      const hit = level.actions.find(action => action.name === wanted);
+      if (hit) return { action: hit, level };
+    }
+    return null;
+  }
+
+  callMethod(thing, name, args, line) {
+    if (!(thing instanceof PlainThing)) {
+      this.fail(`I can only tell one of your own kinds to do something`, line);
+    }
+    const found = this.findMethod(thing._kind, name);
+    if (!found) {
+      const known = kindChain(thing._kind).flatMap(level => level.actions.map(a => a.name));
+      this.fail(
+        `A ${thing._kind.name} does not know how to "${name}"`,
+        line,
+        known.length ? `it can: ${known.join(', ')}` : 'give the kind an action with "to ..."'
+      );
+    }
+    const scope = new Environment(found.level.env || this.globals);
+    scope.define('me', thing);
+    found.action.params.forEach((param, index) => scope.define(param, args[index] ?? null));
+    try {
+      this.runBlock(found.action.block, scope);
+    } catch (e) {
+      if (e instanceof ReturnSignal) return e.value;
+      throw e;
+    }
+    return null;
+  }
+
+  // The action named `name`, as a value that can be passed around.
+  actionValue(name, line) {
+    const wanted = String(name).toLowerCase();
+    for (const [id, fn] of this.functions) {
+      if (fn.name === wanted) return this.wrapFunction(id, fn);
+    }
+    this.fail(`I do not know an action called "${name}"`, line, `write it with: to ${name} ...`);
+  }
+
+  wrapFunction(id, fn) {
+    const self = this;
+    const wrapped = function (...args) {
+      const scope = new Environment(fn.env || self.globals);
+      fn.params.forEach((param, index) => scope.define(param, args[index] ?? null));
+      try {
+        self.runBlock(fn.block, scope);
+      } catch (e) {
+        if (e instanceof ReturnSignal) return e.value;
+        throw e;
+      }
+      return null;
+    };
+    wrapped.plainAction = fn.name;
+    wrapped.plainInputs = fn.params.length;
+    return wrapped;
+  }
+
+  sourceOfBlock(block) {
+    const source = this.runtime.source;
+    if (!block || !source || !block.startLine) return '';
+    const lines = String(source).replace(/\r\n?/g, '\n').split('\n');
+    return lines.slice(block.startLine - 1, block.endLine).join('\n');
   }
 
   callUserFunction(node, env) {
@@ -407,4 +554,12 @@ export class Interpreter {
   }
 }
 
-export { ReturnSignal, BreakSignal, ContinueSignal };
+// A kind and everything it is based on, nearest first.
+function kindChain(kind) {
+  const chain = [];
+  let level = kind;
+  while (level && !chain.includes(level)) { chain.push(level); level = level.base; }
+  return chain;
+}
+
+export { ReturnSignal, BreakSignal, ContinueSignal, kindChain };

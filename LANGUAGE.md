@@ -173,7 +173,117 @@ The name can be several words: `to add up with a and b` is called as
 `add up with 3 and 4`. `give back` returns a value and ends the action.
 Actions can be used before they are written.
 
-## 10. Talking to the person running the program
+## 10. Kinds of your own
+
+A kind is a sort of thing, with values it always has and actions it can do.
+
+```plain
+a kind called Animal
+    has name
+    has sound be "..."
+    has legs be 4
+
+    to speak
+        show "{name of me} says {sound of me}"
+    end
+
+    to describe
+        give back "{name of me}, {legs of me} legs"
+    end
+end
+
+a kind called Dog based on Animal
+    has sound be "woof"
+
+    to fetch with item
+        give back "{name of me} fetched the {item}"
+    end
+end
+```
+
+Making one, and using it:
+
+```plain
+make rex be a new Dog with name "Rex"
+
+tell rex to speak                       # do something
+show ask rex to fetch with "ball"       # do something and use the answer
+show name of rex                        # read a value
+set the name of rex to "Rexy"           # change a value
+
+if rex is a kind of Animal
+    show "a dog is an animal too"
+end
+
+show kind name of rex                   # Dog
+```
+
+Inside an action, `me` is the thing itself. `based on` means "everything that
+kind has, plus these" — values and actions both.
+
+## 11. When things go wrong
+
+```plain
+try
+    show 1 divided by 0
+if it fails
+    show "I could not do that: {the problem}"
+end
+```
+
+Anything that would stop the program is caught instead, and `the problem`
+holds the message. You can raise your own:
+
+```plain
+report a problem saying "there is nobody to share with"
+```
+
+## 12. Actions used as values
+
+```plain
+to double with n
+    give back n times 2
+end
+
+make f be the action double
+show call f with 21                       # 42
+
+show [1, 2, 3] changed by the action double        # [2, 4, 6]
+show [1, 2, 3, 4] kept where the action is_big     # the ones that pass
+show [1, 2, 3] added up by the action double       # 12
+```
+
+`call $action`, `call $action with $one`, and `call $action with $one and
+$other` all work.
+
+## 13. Things used as a bag of named values
+
+```plain
+make settings be { theme: "dark", size: 14 }
+
+show value "theme" of settings
+set value "size" of settings to 16
+if settings has "theme"
+    show "it has a theme"
+end
+show keys of settings                    # ["theme", "size"]
+show values of settings
+```
+
+## 14. Splitting a program across files
+
+```plain
+use "helpers.plain"
+
+show shout with "hello"
+```
+
+The used file is read first, so anything it writes — actions, kinds, names —
+is ready before the rest of your program runs. A file is only pulled in once,
+however many times it is used, and line numbers in error messages stay
+pointing at the file you actually typed.
+
+## 15. Talking to the person running the program
 
 ```plain
 show "hello"                 # print a line
@@ -181,7 +291,7 @@ ask "Your name? " into name  # read a line (a number if it looks like one)
 stop the program
 ```
 
-## 11. Built-in values
+## 16. Built-in values
 
 **Numbers** — `round $n`, `round $n to $places places`, `floor of`,
 `ceiling of`, `absolute of`, `square root of`, `sine of`, `cosine of`,
@@ -308,6 +418,115 @@ and any letter or digit as itself (`"a"`, `"7"`).
 
 ---
 
+# The 3D world engine
+
+A world begins with `start a world`. It shares the game engine's clock, keys,
+timers and `draw` sentences, so everything above still applies — `every frame`,
+`when a touches b`, `key "x" is held` and so on all work the same.
+
+Positions are `x` (right), `y` (up) and `z` (towards you).
+
+## Setting up
+
+```plain
+start a world called "Moon Walk" sized 900 by 600
+set the sky to "#0b1020"
+set world gravity to 0.02
+set the ground level to 0
+set the light to 0.4 , 1 , 0.6
+```
+
+## Making things
+
+```plain
+make ground be a floor at 0 , 0 , 0 sized 80 by 80 colored "#2c3a4f"
+make hero be a cube at 0 , 1 , 0 sized 1.6 colored "#ffd166"
+make crate be a block at 5 , 1 , 6 sized 3 by 2 by 3 colored "#a970ff"
+make prize be a ball at -6 , 1 , -8 sized 1.4 colored "#ef476f"
+make tower be a post at 9 , 3 , -7 sized 2 by 6 colored "#7ee787"
+make spike be a cone at -10 , 2 , 4 sized 3 by 4 colored "#79c0ff"
+```
+
+Values you can read and set: `x`, `y`, `z`, `width`, `height`, `depth`, `size`,
+`color`, `dx`, `dy`, `dz`, `speed`, `turn`, `top`, `bottom`, `hidden`, `heavy`.
+You can invent your own, the same as in 2D.
+
+## Moving
+
+```plain
+move hero by 1 , 0 , 0
+move hero to 0 , 1 , 0
+move hero forward by 0.2         # forward, back, left, right, up, down
+turn hero left by 3              # left, right, up, down, over
+set the speed of hero to 0 , 0 , -0.2
+push hero up by 0.35
+stop hero still
+let hero float
+let hero fall
+remove hero from the world
+```
+
+`forward` follows the way a thing is facing, so turn first and then walk.
+
+## The camera
+
+```plain
+move the camera to 0 , 8 , 14
+point the camera at hero
+point the camera at 0 , 0 , 0
+follow hero with the camera
+set the camera distance to 9
+set the camera height to 4
+```
+
+## Asking
+
+`hero is resting`, `distance from hero to prize`, `ground level`, `camera x`,
+`camera y`, `camera z` — plus everything the game engine already answers.
+
+Flat things (`make x be a box at ...`) and `draw` still work in a world: they
+are painted on top as a heads-up display.
+
+---
+
+# The video engine
+
+A video begins with `make a video`. It is a timeline of clips, one after
+another.
+
+```plain
+make a video called "How Plain Works" sized 1280 by 720
+set the frame rate to 30
+
+add a title "How Plain Works" for 3 seconds
+add a background "#1b2a41" for 2 seconds
+add a picture "beach.jpg" for 4 seconds
+add a clip "holiday.mp4" from 4 to 12 seconds
+add a clip "holiday.mp4" for 5 seconds
+
+put the words "the sea" on the last clip
+fade the last clip in over 1 seconds
+fade the last clip out over 1 seconds
+trim the last clip to 2 seconds
+
+add music "song.mp3"
+set the volume to 0.8
+```
+
+Asking: `video length`, `clip count`, `video width`, `video height`.
+
+```bash
+plain play video.plain     # watch it
+plain edit video.plain     # the studio: scrub, drag, trim, export, save
+```
+
+In the studio, dragging the right edge of a clip changes how long it lasts,
+and **Save writes the whole timeline back out as the sentences above**. Export
+records the picture track to a `.webm` file using the browser's own recorder;
+music is not mixed into that file yet.
+
+---
+
 # The website engine
 
 A website begins when you say `make a website`.
@@ -384,6 +603,18 @@ end
 `typed in #name` reads a text box. `set the words of #name to $value` changes
 any named piece of the page. `show a message` pops up a short note in the
 browser, and prints to the terminal when there is no browser.
+
+## The designer
+
+```bash
+plain edit site.plain
+```
+
+The live page sits on the left and a palette of blocks on the right. Click
+anything on the page to change its words, move it up or down, or remove it;
+add blocks from the palette; switch theme; add pages with `+`. **Save writes
+the page back out as the sentences above**, including the inside of a button,
+so a site you dragged and a site you typed are the same file.
 
 ---
 

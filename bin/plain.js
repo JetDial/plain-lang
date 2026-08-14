@@ -17,14 +17,17 @@ import { spawn } from 'node:child_process';
 import { createRuntime } from '../src/runtime.js';
 import { PlainError } from '../src/errors.js';
 import { installGame } from '../engines/game/engine.js';
+import { installWorld } from '../engines/world/engine.js';
 import { installWeb } from '../engines/web/engine.js';
+import { installVideo } from '../engines/video/engine.js';
 import { documentToHTML, hrefFor } from '../engines/web/render.js';
+import { TEMPLATES, templateNames } from './templates.js';
 
 globalThis.__plainFS = fs;
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
-const VERSION = '0.1.0';
+const VERSION = '0.2.0';
 
 // Declared up here because the command switch below runs as the file loads.
 const STARTER = `# A new Plain program. Run it with: plain run this-file.plain
@@ -52,11 +55,13 @@ const target = rest.find(a => !a.startsWith('-'));
 try {
   switch (command) {
     case 'run': await commandRun(target); break;
-    case 'play': case 'serve': await commandServe(target); break;
+    case 'play': case 'serve': await commandServe(target, 'play'); break;
+    case 'edit': case 'design': case 'studio': await commandServe(target, 'edit'); break;
     case 'build': await commandBuild(target); break;
     case 'check': await commandCheck(target); break;
     case 'words': commandWords(); break;
     case 'new': commandNew(target); break;
+    case 'make': commandMake(rest[0], rest[1]); break;
     case 'version': case '--version': case '-v': console.log(`Plain ${VERSION}`); break;
     default: commandHelp();
   }
@@ -97,11 +102,35 @@ function fail(message) {
   process.exit(1);
 }
 
-function buildRuntime(onOutput) {
-  const runtime = createRuntime({ onOutput });
+function buildRuntime(onOutput, baseFile = process.cwd()) {
+  const runtime = createRuntime({
+    onOutput,
+    // `use "helpers.plain"` looks next to the program that used it.
+    resolve: (used, fromFile) => {
+      const from = fromFile && fs.existsSync(fromFile) ? fromFile : baseFile;
+      const full = path.resolve(path.dirname(path.resolve(from)), used);
+      return fs.existsSync(full) ? fs.readFileSync(full, 'utf8') : null;
+    }
+  });
   const game = installGame(runtime, {});
   const site = installWeb(runtime, {});
-  return { runtime, game, site };
+  const world = installWorld(runtime, {});
+  const studio = installVideo(runtime, {});
+  return { runtime, game, site, world, studio };
+}
+
+// Every file a program pulls in with `use`, so a built page can carry them.
+function collectUsed(source, file, found = {}) {
+  const uses = [...String(source).matchAll(/^[ \t]*use[ \t]+["']([^"'\n]+)["'][ \t]*$/gm)].map(m => m[1]);
+  for (const used of uses) {
+    if (found[used] !== undefined) continue;
+    const full = path.resolve(path.dirname(path.resolve(file)), used);
+    if (!fs.existsSync(full)) continue;
+    const text = fs.readFileSync(full, 'utf8');
+    found[used] = text;
+    collectUsed(text, full, found);
+  }
+  return found;
 }
 
 function reportPlainError(error, source) {
@@ -117,7 +146,7 @@ function reportPlainError(error, source) {
 
 async function commandRun(file) {
   const program = readProgram(file);
-  const { runtime, game, site } = buildRuntime(text => console.log(text));
+  const { runtime, game, site, studio, world } = buildRuntime(text => console.log(text), program.full);
 
   try {
     runtime.run(program.source, path.basename(program.full));
@@ -130,10 +159,25 @@ async function commandRun(file) {
     const frames = Number(flags.frames || 0);
     if (frames > 0) {
       game.simulate(frames);
-      console.log(`\n(simulated ${frames} frames of "${game.title}" - ${game.things.length} things on screen)`);
+      const counted = world.started
+        ? `${world.bodies.length} things in the world`
+        : `${game.things.length} things on screen`;
+      console.log(`\n(simulated ${frames} frames of "${game.title}" - ${counted})`);
     } else {
       console.log(`\nThis is a game ("${game.title}"). To play it:\n\n    plain play ${file}\n`);
     }
+    return;
+  }
+
+  if (studio.started) {
+    const clips = studio.clips.length;
+    console.log(`\n"${studio.title}" - ${clips} clip${clips === 1 ? '' : 's'}, ${studio.length.toFixed(1)} seconds, ${studio.width}x${studio.height}`);
+    for (const placed of studio.layout()) {
+      const clip = placed.clip;
+      const what = clip.kind === 'title' ? `"${clip.text}"` : (clip.source || clip.color);
+      console.log(`  ${placed.start.toFixed(1)}s  ${clip.kind.padEnd(8)} ${what}`);
+    }
+    console.log(`\nTo watch it:\n\n    plain play ${file}\n\nTo edit the timeline:\n\n    plain edit ${file}\n`);
     return;
   }
 
@@ -183,12 +227,40 @@ function commandNew(name) {
   console.log(`Made ${file}. Run it with:\n\n    plain run ${file}\n`);
 }
 
+// --------------------------------------------------------------------- make
+
+function commandMake(kind, name) {
+  const key = String(kind || '').toLowerCase();
+  const template = TEMPLATES[key];
+  if (!template) {
+    console.log(`Make what? One of: ${templateNames().join(', ')}\n`);
+    console.log('  plain make game space-catch');
+    console.log('  plain make world moon-walk');
+    console.log('  plain make site my-notes');
+    console.log('  plain make video holiday\n');
+    process.exitCode = 1;
+    return;
+  }
+  const chosen = name || key;
+  const file = chosen.endsWith('.plain') ? chosen : chosen + '.plain';
+  const full = path.resolve(process.cwd(), file);
+  if (fs.existsSync(full)) fail(`"${file}" already exists.`);
+  fs.writeFileSync(full, template.source(prettyName(chosen)), 'utf8');
+  console.log(`Made ${file} - ${template.about}\n`);
+  console.log(`    plain ${template.command} ${file}\n`);
+}
+
+function prettyName(name) {
+  return String(name).replace(/\.plain$/, '').replace(/[-_]+/g, ' ')
+    .replace(/\b[a-z]/g, c => c.toUpperCase());
+}
+
 // -------------------------------------------------------------------- build
 
 async function commandBuild(file) {
   const program = readProgram(file);
   const out = path.resolve(process.cwd(), flags.out || flags.o || 'out');
-  const { runtime, game, site } = buildRuntime(text => console.log(text));
+  const { runtime, game, site, studio } = buildRuntime(text => console.log(text), program.full);
 
   try {
     runtime.run(program.source, path.basename(program.full));
@@ -251,16 +323,30 @@ ${script}
 
 // -------------------------------------------------------------------- serve
 
-async function commandServe(file) {
+async function commandServe(file, mode = 'play') {
   const program = readProgram(file);
   const port = Number(flags.port || flags.p || 4400);
   const folder = path.dirname(program.full);
+  const editing = mode === 'edit';
 
   const server = http.createServer((request, response) => {
     const url = new URL(request.url, `http://localhost:${port}`);
     const route = decodeURIComponent(url.pathname);
 
     try {
+      // The designer and the video studio save through here.
+      if (request.method === 'POST' && route === '/source') {
+        if (!editing) return sendText(response, 403, 'This page was not opened for editing', 'text/plain');
+        let body = '';
+        request.on('data', chunk => { body += chunk; });
+        request.on('end', () => {
+          fs.writeFileSync(program.full, body, 'utf8');
+          console.log(`  saved ${path.basename(program.full)} (${body.split('\n').length} lines)`);
+          sendText(response, 200, 'saved', 'text/plain');
+        });
+        return;
+      }
+
       // The runtime modules, straight from the Plain installation.
       if (route.startsWith('/plain/')) {
         return sendFile(response, path.join(ROOT, route.slice('/plain/'.length)));
@@ -268,25 +354,34 @@ async function commandServe(file) {
 
       // Every request re-reads the program, so a refresh shows your edits.
       const source = fs.readFileSync(program.full, 'utf8');
-      const { runtime, game, site } = buildRuntime(text => console.log('  ' + text));
+      const { runtime, game, site, studio } = buildRuntime(text => console.log('  ' + text), program.full);
       try {
         runtime.run(source, path.basename(program.full));
       } catch (error) {
         return sendText(response, 500, errorPage(error, source), 'text/html');
       }
 
+      const options = {
+        file: path.basename(program.full),
+        files: collectUsed(source, program.full)
+      };
+      const start = editing ? 'editPlain' : 'startPlain';
       const script = `    <script type="module">
-      import { startPlain } from '/plain/src/browser.js';
-      startPlain(${JSON.stringify(source)}, { file: ${JSON.stringify(path.basename(program.full))} });
+      import { ${start} } from '/plain/src/browser.js';
+      ${start}(${JSON.stringify(source)}, ${JSON.stringify(options)});
     </script>`;
 
-      if (game.started && (route === '/' || route === '/index.html')) {
-        return sendText(response, 200, gamePage(game.title, script), 'text/html');
+      if ((game.started || studio.started) && (route === '/' || route === '/index.html')) {
+        return sendText(response, 200, gamePage(game.started ? game.title : studio.title, script), 'text/html');
       }
 
       const page = site.pages.find(p => hrefFor(p.path) === route.replace(/^\//, '')) ||
                    (route === '/' ? site.pages[0] : null);
-      if (page) return sendText(response, 200, documentToHTML(site, page, { script }), 'text/html');
+      if (page) {
+        // The designer runs the program itself, so it only needs a shell.
+        if (editing) return sendText(response, 200, gamePage(`Designing ${site.title}`, script), 'text/html');
+        return sendText(response, 200, documentToHTML(site, page, { script }), 'text/html');
+      }
 
       // Anything else: a real file sitting next to the program (images, etc).
       const asset = path.join(folder, route.replace(/^\//, ''));
@@ -300,8 +395,11 @@ async function commandServe(file) {
 
   server.listen(port, () => {
     const address = `http://localhost:${port}`;
-    console.log(`\nPlain is serving ${path.basename(program.full)} at ${address}`);
-    console.log('Edit the file and refresh the page to see changes. Press Ctrl+C to stop.\n');
+    console.log(`\nPlain is ${editing ? 'editing' : 'serving'} ${path.basename(program.full)} at ${address}`);
+    console.log(editing
+      ? 'Change things on the page, then press Save to write them back as Plain sentences.'
+      : 'Edit the file and refresh the page to see changes.');
+    console.log('Press Ctrl+C to stop.\n');
     if (!flags['no-open']) openBrowser(address);
   });
 }
@@ -354,16 +452,25 @@ function commandHelp() {
 Plain ${VERSION} - a language you write like a normal sentence.
 
   plain run <file.plain>      run the program in this terminal
-  plain play <file.plain>     open a game or website in your browser
+  plain play <file.plain>     open a game, world, site or video in the browser
+  plain edit <file.plain>     open the designer (sites) or the studio (videos)
   plain build <file.plain>    write HTML files you can publish   (--out folder)
   plain check <file.plain>    look for mistakes without running it
   plain words                 list every sentence Plain understands
-  plain new <name>            start a new program
+  plain new <name>            start a blank program
+  plain make <kind> <name>    start a finished one: ${templateNames().join(', ')}
 
 A first program:
 
   make name be "world"
   show "Hello, {name}!"
+
+Something bigger, in one line each:
+
+  plain make game space        a 2D game with gravity, jumping and coins
+  plain make world moon        a 3D world you walk around
+  plain make site notes        a website you can design by dragging
+  plain make video holiday     a video timeline you can trim and export
 
 Read LANGUAGE.md for the whole language on one page.
 `);

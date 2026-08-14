@@ -12,13 +12,19 @@ import { fileURLToPath } from 'node:url';
 import { createRuntime } from '../src/runtime.js';
 import { PlainError } from '../src/errors.js';
 import { installGame } from '../engines/game/engine.js';
+import { installWorld } from '../engines/world/engine.js';
 import { installWeb } from '../engines/web/engine.js';
+import { installVideo } from '../engines/video/engine.js';
 import { documentToHTML } from '../engines/web/render.js';
+import { cubeMesh, sphereMesh, perspective, lookAt, multiply, toRGB } from '../engines/world/render.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 let passed = 0;
 const failures = [];
+
+// The `+ 0` turns -0 back into 0, which assert.strict cares about.
+function round(n) { return Math.round(n * 1000) / 1000 + 0 || 0; }
 
 function check(name, run) {
   try { run(); passed++; }
@@ -26,20 +32,18 @@ function check(name, run) {
 }
 
 // Run a program and return the lines it printed.
-function run(source) {
-  const rt = createRuntime({ onOutput: () => {} });
-  installGame(rt, {});
-  installWeb(rt, {});
-  rt.run(source, 'test.plain');
-  return rt.lines;
+function run(source, options) {
+  return runtimeFor(source, options).rt.lines;
 }
 
-function runtimeFor(source) {
-  const rt = createRuntime({ onOutput: () => {} });
+function runtimeFor(source, options = {}) {
+  const rt = createRuntime({ onOutput: () => {}, ...options });
   const game = installGame(rt, {});
+  const world = installWorld(rt, {});
   const site = installWeb(rt, {});
+  const studio = installVideo(rt, {});
   rt.run(source, 'test.plain');
-  return { rt, game, site };
+  return { rt, game, world, site, studio };
 }
 
 function first(source) { return run(source)[0]; }
@@ -355,6 +359,102 @@ check('a bad direction is explained', () => {
   assert.match(error.plainMessage, /not a direction/);
 });
 
+// -------------------------------------------------------- kinds of my own
+
+const ANIMALS = [
+  'a kind called Animal',
+  '    has name',
+  '    has sound be "..."',
+  '    to speak',
+  '        show "{name of me} says {sound of me}"',
+  '    end',
+  'end',
+  'a kind called Dog based on Animal',
+  '    has sound be "woof"',
+  '    to fetch with item',
+  '        give back "{name of me} fetched the {item}"',
+  '    end',
+  'end'
+].join('\n');
+
+check('a kind can be told to do something', () =>
+  assert.equal(first(`${ANIMALS}\nmake rex be a new Dog with name "Rex"\ntell rex to speak`), 'Rex says woof'));
+check('asking a kind gives a value', () =>
+  assert.equal(first(`${ANIMALS}\nmake rex be a new Dog with name "Rex"\nshow ask rex to fetch with "ball"`), 'Rex fetched the ball'));
+check('a kind inherits what it is based on', () =>
+  assert.equal(first(`${ANIMALS}\nmake rex be a new Dog with name "Rex"\nif rex is a kind of Animal\nshow "yes"\nend`), 'yes'));
+check('kind values can be read and set', () =>
+  assert.equal(first(`${ANIMALS}\nmake rex be a new Dog with name "Rex"\nset the name of rex to "Rexy"\nshow name of rex`), 'Rexy'));
+check('an unknown value on a kind is explained', () => {
+  const error = broken(`${ANIMALS}\nmake rex be a new Dog with colour "brown"`);
+  assert.match(error.plainMessage, /has no "colour"/);
+});
+check('an unknown action on a kind is explained', () => {
+  const error = broken(`${ANIMALS}\nmake rex be a new Dog with name "Rex"\ntell rex to fly`);
+  assert.match(error.plainMessage, /does not know how to "fly"/);
+});
+check('an unknown kind is explained', () => {
+  const error = broken('make x be a new Wombat');
+  assert.match(error.plainMessage, /kind called "Wombat"/);
+});
+
+// ----------------------------------------------------------- going wrong
+
+check('a problem can be caught', () =>
+  assert.equal(first('try\n    report a problem saying "oh no"\nif it fails\n    show "caught {the problem}"\nend'), 'caught oh no'));
+check('a caught problem does not stop the program', () =>
+  assert.deepEqual(run('try\n    show 1 divided by 0\nif it fails\n    show "no dividing"\nend\nshow "carried on"'), ['no dividing', 'carried on']));
+check('try with nothing to catch just runs', () =>
+  assert.equal(first('try\n    show "fine"\nif it fails\n    show "not reached"\nend'), 'fine'));
+check('give back still works through a try', () =>
+  assert.equal(first('to safe\n    try\n        give back "out"\n    if it fails\n        give back "caught"\n    end\nend\nshow safe'), 'out'));
+
+// ------------------------------------------------------- actions as values
+
+check('an action can be held in a name', () =>
+  assert.equal(first('to double with n\n give back n times 2\nend\nmake f be the action double\nshow call f with 21'), '42'));
+check('a list can be changed by an action', () =>
+  assert.equal(first('to double with n\n give back n times 2\nend\nshow [1, 2, 3] changed by the action double'), '[2, 4, 6]'));
+check('a list can be filtered by an action', () =>
+  assert.equal(first('to big with n\n give back n is above 2\nend\nshow [1, 2, 3, 4] kept where the action big'), '[3, 4]'));
+check('a list can be added up by an action', () =>
+  assert.equal(first('to double with n\n give back n times 2\nend\nshow [1, 2, 3] added up by the action double'), '12'));
+check('an unknown action is explained', () => {
+  const error = broken('make f be the action wibble');
+  assert.match(error.plainMessage, /action called "wibble"/);
+});
+
+// -------------------------------------------------------- things as bags
+
+check('named values can be read by key', () =>
+  assert.equal(first('make t be { a: 1 }\nshow value "a" of t'), '1'));
+check('named values can be set by key', () =>
+  assert.equal(first('make t be { a: 1 }\nset value "b" of t to 2\nshow value "b" of t'), '2'));
+check('a thing can be asked what it has', () =>
+  assert.equal(first('make t be { a: 1 }\nif t has "a"\nshow "yes"\nend'), 'yes'));
+check('values of a thing', () =>
+  assert.equal(first('make t be { a: 1, b: 2 }\nshow values of t'), '[1, 2]'));
+
+// ------------------------------------------------------------- other files
+
+check('another file can be used', () => {
+  const lines = run('use "helpers.plain"\nshow shout with "hi"', {
+    files: { 'helpers.plain': 'to shout with words\n    give back uppercase of words\nend\n' }
+  });
+  assert.equal(lines[0], 'HI');
+});
+check('using a file keeps line numbers right', () => {
+  let error = null;
+  try {
+    run('use "helpers.plain"\nshow "one"\nshow missing', { files: { 'helpers.plain': 'make ok be 1\n' } });
+  } catch (e) { error = e; }
+  assert.equal(error.line, 3);
+});
+check('a missing file is explained', () => {
+  const error = broken('use "nowhere.plain"');
+  assert.match(error.plainMessage, /cannot find the file/);
+});
+
 // ------------------------------------------------------- sentences of my own
 
 check('a new doing sentence', () => {
@@ -446,6 +546,196 @@ check('buttons keep their block', () => {
   assert.equal(rt.lines[0], 'pressed');
 });
 
+// ------------------------------------------------------------- 3D worlds
+
+const WORLD = [
+  'start a world called "W" sized 400 by 300',
+  'set world gravity to 0.5',
+  'make ground be a floor at 0 , 0 , 0 sized 20 by 20 colored "green"',
+  'make hero be a cube at 0 , 5 , 0 sized 2 colored "yellow"',
+  'make prize be a ball at 0 , 1 , -4 sized 1 colored "red"'
+].join('\n');
+
+check('a world can be started', () => {
+  const { world, game } = runtimeFor(WORLD);
+  assert.equal(world.started, true);
+  assert.equal(game.width, 400);
+  assert.equal(world.bodies.length, 3);
+});
+
+check('things fall to the ground', () => {
+  const { world } = runtimeFor(WORLD);
+  world.step(); world.step();
+  const hero = world.bodies[1];
+  assert.ok(hero.y < 5);
+  for (let i = 0; i < 60; i++) world.step();
+  assert.equal(round(hero.y), 1);            // half of its height, resting on 0
+});
+
+check('a floor does not fall', () => {
+  const { world } = runtimeFor(WORLD);
+  for (let i = 0; i < 20; i++) world.step();
+  assert.equal(world.bodies[0].y, 0);
+});
+
+check('forward follows the way a thing faces', () => {
+  const { world } = runtimeFor(`${WORLD}\nturn hero left by 90\nmove hero forward by 2`);
+  const hero = world.bodies[1];
+  assert.equal(round(hero.x), -2);
+  assert.equal(round(hero.z), 0);
+});
+
+check('moving forward without turning goes into the screen', () => {
+  const { world } = runtimeFor(`${WORLD}\nmove hero forward by 3`);
+  assert.equal(round(world.bodies[1].z), -3);
+});
+
+check('bodies can touch in three directions', () => {
+  const { rt, game } = runtimeFor([
+    WORLD,
+    'let hero float',
+    'let prize float',
+    'make hits be 0',
+    'when hero touches prize',
+    '    add 1 to hits',
+    'end',
+    'every frame',
+    '    move hero back by 0.5',
+    'end'
+  ].join('\n'));
+  game.simulate(20);
+  assert.equal(rt.interpreter.globals.get('hits'), 0);   // hero moves away
+  game.world.bodies[1].z = -4;                            // same spot as the prize
+  game.world.bodies[1].y = 1;
+  game.simulate(1);
+  assert.equal(rt.interpreter.globals.get('hits'), 1);
+});
+
+check('the camera can follow a thing', () => {
+  const { world } = runtimeFor(`${WORLD}\nfollow hero with the camera\nset the camera distance to 5`);
+  world.step();
+  assert.equal(round(world.camera.z), round(world.bodies[1].z + 5));
+});
+
+check('resting can be asked about', () => {
+  const { world, rt } = runtimeFor(`${WORLD}\nmake landed be no\nevery frame\n    if hero is resting\n        set landed to yes\n    end\nend`);
+  rt.game.simulate(80);
+  assert.equal(rt.interpreter.globals.get('landed'), true);
+  assert.ok(world.bodies.length);
+});
+
+check('the 3D shapes are built correctly', () => {
+  const cube = cubeMesh();
+  assert.equal(cube.positions.length, 36 * 3);          // 12 triangles
+  assert.equal(cube.normals.length, cube.positions.length);
+  const ball = sphereMesh(8, 6);
+  assert.equal(ball.positions.length / 3, 8 * 6 * 6);
+});
+
+check('the camera maths behaves', () => {
+  const view = lookAt([0, 0, 5], [0, 0, 0], [0, 1, 0]);
+  assert.equal(view[14], -5);                            // 5 units in front
+  const projection = perspective(Math.PI / 2, 1, 0.1, 100);
+  assert.equal(round(projection[0]), 1);
+  const both = multiply(projection, view);
+  assert.equal(both.length, 16);
+});
+
+check('colours are understood', () => {
+  assert.deepEqual(toRGB('#ff0000').map(round), [1, 0, 0]);
+  assert.deepEqual(toRGB('red').map(v => Math.round(v * 100) / 100)[0] > 0.8, true);
+});
+
+// --------------------------------------------------------------- videos
+
+const VIDEO = [
+  'make a video called "V" sized 640 by 480',
+  'add a title "Hello" for 3 seconds',
+  'fade the last clip in over 1 seconds',
+  'add a clip "beach.mp4" from 2 to 7 seconds',
+  'put the words "the sea" on the last clip'
+].join('\n');
+
+check('a video is a timeline', () => {
+  const { studio } = runtimeFor(VIDEO);
+  assert.equal(studio.started, true);
+  assert.equal(studio.clips.length, 2);
+  assert.equal(studio.length, 8);
+  assert.equal(studio.width, 640);
+});
+
+check('clips sit one after another', () => {
+  const { studio } = runtimeFor(VIDEO);
+  const layout = studio.layout();
+  assert.equal(layout[0].start, 0);
+  assert.equal(layout[1].start, 3);
+  assert.equal(studio.clipAt(4).clip.source, 'beach.mp4');
+});
+
+check('a clip remembers where to cut the file', () => {
+  const { studio } = runtimeFor(VIDEO);
+  assert.equal(studio.clips[1].from, 2);
+  assert.equal(studio.clips[1].length, 5);
+});
+
+check('fades and overlays are kept', () => {
+  const { studio } = runtimeFor(VIDEO);
+  assert.equal(studio.clips[0].fadeIn, 1);
+  assert.equal(studio.clips[1].overlay, 'the sea');
+});
+
+check('a backwards clip is refused', () => {
+  const error = broken('make a video called "V"\nadd a clip "x.mp4" from 8 to 2 seconds');
+  assert.match(error.plainMessage, /finish after it starts/);
+});
+
+check('a timeline writes itself back as Plain', () => {
+  const { studio } = runtimeFor(VIDEO);
+  const source = studio.toPlainSource();
+  assert.match(source, /add a title "Hello" for 3 seconds/);
+  assert.match(source, /add a clip "beach.mp4" from 2 to 7 seconds/);
+  // and reading it back gives the same timeline
+  const again = runtimeFor(source);
+  assert.equal(again.studio.length, studio.length);
+  assert.equal(again.studio.clips[1].overlay, 'the sea');
+});
+
+// ------------------------------------------------------- the designer path
+
+check('a page writes itself back as Plain', () => {
+  const source = [
+    'make a website called "S"',
+    'set the theme to "dark"',
+    'add a title "Hi"',
+    'add a card called "One"',
+    '    add text "inside"',
+    'end',
+    'add a button "Go"',
+    '    show a message "hello"',
+    'end',
+    'add a list of "a", "b"'
+  ].join('\n');
+  const { site } = runtimeFor(source);
+  const written = site.toPlainSource();
+  assert.match(written, /make a website called "S"/);
+  assert.match(written, /set the theme to "dark"/);
+  assert.match(written, /add a card called "One"/);
+  assert.match(written, /add a button "Go"/);
+  assert.match(written, /show a message "hello"/);      // the block came back
+  assert.match(written, /add a list of "a", "b"/);
+
+  const again = runtimeFor(written);
+  assert.equal(again.site.pages[0].nodes.length, site.pages[0].nodes.length);
+  assert.equal(again.site.theme, 'dark');
+});
+
+check('more than one page is written back', () => {
+  const { site } = runtimeFor('make a website called "S"\nadd a title "One"\nmake a page called "Two" at "/two"\nadd a title "Two"');
+  const written = site.toPlainSource();
+  assert.match(written, /make a page called "Two" at "\/two"/);
+  assert.equal(runtimeFor(written).site.pages.length, 2);
+});
+
 // ----------------------------------------------------------------- the tool
 
 check('the command line runs a program', () => {
@@ -496,10 +786,7 @@ check('a game builds to one page', () => {
 check('every example still runs', () => {
   for (const file of fs.readdirSync(path.join(ROOT, 'examples'))) {
     if (!file.endsWith('.plain') || file === 'guess.plain') continue;
-    const rt = createRuntime({ onOutput: () => {} });
-    installGame(rt, {});
-    installWeb(rt, {});
-    rt.run(fs.readFileSync(path.join(ROOT, 'examples', file), 'utf8'), file);
+    runtimeFor(fs.readFileSync(path.join(ROOT, 'examples', file), 'utf8'));
   }
 });
 

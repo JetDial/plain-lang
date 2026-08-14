@@ -63,13 +63,49 @@ export class Runtime {
     else if (typeof console !== 'undefined') console.log(text);
   }
 
-  parse(source, file = '<input>') {
-    const tokens = tokenize(source, file);
-    const parser = new Parser(tokens, this.phrases, file);
-    return parser.parseProgram();
+  // `use "helpers.plain"` pulls in another file. The used file is parsed
+  // first (so its sentences exist before anything calls them) and its line
+  // is blanked out, which keeps every line number honest.
+  parse(source, file = '<input>', seen = new Set()) {
+    const used = [];
+    const cleaned = String(source).replace(
+      /^[ \t]*use[ \t]+["']([^"'\n]+)["'][ \t]*$/gm,
+      (line, path) => { used.push(path); return ''; }
+    );
+
+    const before = [];
+    for (const path of used) {
+      const key = path.toLowerCase();
+      if (seen.has(key)) continue;             // already pulled in somewhere
+      seen.add(key);
+      const text = this.resolve(path, file);
+      if (text === null || text === undefined) {
+        throw new PlainError(`I cannot find the file "${path}"`, 1, file,
+          'check the name, and that it sits next to this program');
+      }
+      before.push(this.parse(text, path, seen));
+    }
+
+    const tokens = tokenize(cleaned, file);
+    const program = new Parser(tokens, this.phrases, file).parseProgram();
+    if (!before.length) return program;
+    return { type: 'Program', file, body: [...before.flatMap(p => p.body), ...program.body] };
+  }
+
+  // How `use` finds a file. The command line reads from disk; a built page
+  // is handed the files it needs. Returns null when there is no such file.
+  resolve(path, fromFile) {
+    if (typeof this.options.resolve === 'function') return this.options.resolve(path, fromFile);
+    const files = this.options.files;
+    if (files && typeof files === 'object') {
+      const key = Object.keys(files).find(k => k.toLowerCase() === String(path).toLowerCase());
+      if (key) return files[key];
+    }
+    return null;
   }
 
   run(source, file = '<input>') {
+    this.source = source;
     const program = this.parse(source, file);
     try {
       this.interpreter.run(program);

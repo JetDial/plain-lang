@@ -157,6 +157,9 @@ export class Game {
       thing.y += thing.dy;
     }
 
+    // The 3D world, when there is one, moves on the same clock.
+    if (this.world) this.world.step();
+
     for (const rule of this.collisions) {
       const hit = rule.a.touches(rule.b);
       // Fire once per contact, not once per frame of contact.
@@ -202,7 +205,17 @@ export class Game {
   draw(ctx) {
     ctx.fillStyle = this.background;
     ctx.fillRect(0, 0, this.width, this.height);
+    this.drawContents(ctx);
+  }
 
+  // Used when a 3D world is behind us: keep the background see-through so
+  // flat things and drawings act as a heads-up display.
+  drawHud(ctx) {
+    ctx.clearRect(0, 0, this.width, this.height);
+    this.drawContents(ctx);
+  }
+
+  drawContents(ctx) {
     for (const thing of this.things) {
       if (thing.hidden || thing.gone) continue;
       ctx.save();
@@ -267,10 +280,15 @@ export function installGame(rt, host = {}) {
   const game = new Game(host);
   rt.game = game;
 
+  // Anything that can be on screen: a flat Thing, or a Body from the 3D
+  // world engine. Both know how to move and how to touch each other.
   const thingOf = (value, ctx) => {
     if (value instanceof Thing) return value;
-    ctx.fail(`I expected a game thing here, but got ${toText(value, 1)}`);
+    if (value && typeof value.touches === 'function' && typeof value.x === 'number') return value;
+    ctx.fail(`I expected something on screen here, but got ${toText(value, 1)}`);
   };
+
+  const inWorld = (value) => value && typeof value.z === 'number' && typeof value.turnY === 'number';
 
   // ------------------------------------------------------------- the window
 
@@ -345,6 +363,9 @@ export function installGame(rt, host = {}) {
 
   rt.define('move $thing #direction by $amount', (a, ctx) => {
     const t = thingOf(a.thing, ctx);
+    if (inWorld(t) && game.moveBodyInDirection) {
+      return game.moveBodyInDirection(t, a.direction, toNumber(a.amount), ctx);
+    }
     const step = DIRECTIONS[String(a.direction).toLowerCase()];
     if (!step) ctx.fail(`"${a.direction}" is not a direction. Use left, right, up or down.`);
     t.x += step[0] * toNumber(a.amount);
@@ -418,7 +439,7 @@ export function installGame(rt, host = {}) {
   rt.defineValue('mouse is down', () => game.mouse.down);
 
   rt.defineInfix('$one touches $other', (a) =>
-    a.one instanceof Thing && a.other instanceof Thing ? a.one.touches(a.other) : false);
+    (a.one && typeof a.one.touches === 'function') ? a.one.touches(a.other) : false);
 
   rt.defineValue('distance from $one to $other', (a, ctx) =>
     thingOf(a.one, ctx).distanceTo(thingOf(a.other, ctx)));

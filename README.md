@@ -1,7 +1,7 @@
 # Plain
 
-A programming language you write the way you type a sentence — plus a game
-engine and a website engine built on top of it.
+A programming language you write the way you type a sentence — with a 2D and
+3D game engine, a website designer, and a video editor built on top of it.
 
 ```plain
 make score be 0
@@ -16,14 +16,16 @@ end
 ```
 
 No semicolons, no curly braces, no `public static void`. Lines start with a
-verb, blocks end with `end`, and indentation is yours to choose.
+verb, blocks end with `end`, and indentation is yours to choose. Underneath it
+has the things a grown-up language has: your own kinds of thing, actions used
+as values, catching problems, and files that pull in other files.
 
 ---
 
 ## Getting started
 
 You need [Node.js](https://nodejs.org) 18 or newer. Nothing else — Plain has
-no dependencies.
+no dependencies and no build step.
 
 ```bash
 node bin/plain.js run examples/hello.plain
@@ -35,20 +37,27 @@ To type `plain` instead of `node bin/plain.js`, link it once:
 npm link
 ```
 
-Then:
+Then start something finished and change it:
 
 ```bash
-plain new mine.plain     # start a new program
-plain run mine.plain     # run it in the terminal
-plain play mine.plain    # open a game or website in the browser
-plain build mine.plain   # write HTML files you can publish
-plain check mine.plain   # look for mistakes without running it
-plain words              # list every sentence Plain understands
+plain make game space      # a 2D game with gravity, jumping and coins
+plain make world moon      # a 3D world you walk around
+plain make site notes      # a website you can design by dragging
+plain make video holiday   # a video timeline you can trim and export
+```
+
+```bash
+plain run <file>     run it in the terminal
+plain play <file>    open it in the browser
+plain edit <file>    open the designer or the video studio
+plain build <file>   write HTML you can publish        (--out folder)
+plain check <file>   look for mistakes without running
+plain words          list every sentence Plain understands
 ```
 
 ---
 
-## The language in ninety seconds
+## The language in two minutes
 
 ```plain
 # Names hold values.
@@ -76,16 +85,10 @@ end
 make shopping be a list of "bread", "milk"
 add "apples" to shopping
 show item 1 of shopping         # bread
-show length of shopping         # 3
 
 for each item in shopping
     show " - " joined with item
 end
-
-# Things hold named values.
-make player be { name: "Ada", health: 100 }
-set the health of player to 80
-show health of player
 
 # Actions of your own read like the sentences that use them.
 to greet with person
@@ -95,30 +98,60 @@ end
 show greet with "world"
 ```
 
+And when a program grows up:
+
+```plain
+# Your own kinds of thing, with actions attached.
+a kind called Animal
+    has name
+    has sound be "..."
+    to speak
+        show "{name of me} says {sound of me}"
+    end
+end
+
+a kind called Dog based on Animal
+    has sound be "woof"
+end
+
+make rex be a new Dog with name "Rex"
+tell rex to speak                       # Rex says woof
+
+# Catching problems instead of stopping.
+try
+    show 1 divided by 0
+if it fails
+    show "I could not do that: {the problem}"
+end
+
+# Actions used as values.
+to double with n
+    give back n times 2
+end
+
+show [1, 2, 3] changed by the action double     # [2, 4, 6]
+
+# Other files.
+use "helpers.plain"
+```
+
 The whole language fits on one page: **[LANGUAGE.md](LANGUAGE.md)**.
 
 ---
 
-## The game engine
-
-A game is a description of what is on screen and what happens each frame.
+## Games, in 2D
 
 ```plain
 start a game called "Catch" sized 640 by 480
 set the background to "#141225"
+set gravity to 0.6
 
 make basket be a box at 320 , 440 sized 90 by 18 colored "#ffd166"
 make star be a circle at 320 , 0 sized 22 colored "#ef476f"
-set the speed of star to 0 , 4
-
-make score be 0
 
 every frame
     if key "left" is held
         move basket left by 9
-    end
-    if key "right" is held
-        move basket right by 9
     end
     keep basket on the screen
     draw "score {score}" at 18 , 16
@@ -126,77 +159,132 @@ end
 
 when star touches basket
     add 1 to score
-    move star to random 40 to 600 , 0
     play a beep at 880
 end
 ```
 
-```bash
-plain play examples/catch.plain
+Sprites, movement, gravity, per-frame code, timers, collisions, keyboard and
+mouse, drawing on top, and sound. The same engine runs headless in Node, so
+`plain run game.plain --frames 300` simulates 300 frames with no window — which
+is how the tests check games.
+
+## Games, in 3D
+
+The same clock, the same keys, the same `every frame` — with a world in it.
+
+```plain
+start a world called "Moon Walk" sized 900 by 600
+set the sky to "#0b1020"
+set world gravity to 0.02
+
+make ground be a floor at 0 , 0 , 0 sized 80 by 80 colored "#2c3a4f"
+make hero be a cube at 0 , 1 , 0 sized 1.6 colored "#ffd166"
+make prize be a ball at -6 , 1 , -8 sized 1.4 colored "#ef476f"
+
+follow hero with the camera
+
+every frame
+    if key "left" is held
+        turn hero left by 3
+    end
+    if key "up" is held
+        move hero forward by 0.2
+    end
+end
+
+when hero touches prize
+    add 1 to score
+end
 ```
 
-You get sprites, movement, gravity, per-frame code, timers, collisions,
-keyboard and mouse input, immediate drawing, and sound. The same engine runs
-headless in Node, so `plain run game.plain --frames 300` simulates 300 frames
-without a window — which is how the tests check games.
+Cubes, blocks, balls, posts, cones and floors; a camera that follows; gravity
+and a ground to land on; `forward` that means the way a thing is facing. It is
+drawn with WebGL — one shader, one light, no library — and flat things drawn
+with `draw` become a heads-up display over the top.
 
-Full list of game sentences: [LANGUAGE.md](LANGUAGE.md#the-game-engine).
+```bash
+plain play examples/world.plain
+```
 
 ---
 
-## The website engine
-
-A website is a description of what is on the page.
+## Websites, typed or dragged
 
 ```plain
 make a website called "Ada's Corner"
 set the theme to "dark"
 
 add a title "Ada's Corner"
-add text "A site written in sentences."
-
 add a card called "What is this?"
     add text "Every line came from a sentence."
-    add a list of "No build tools", "No brackets", "Just sentences"
 end
-
 add a button "Say hello"
     show a message "Hello from Plain!"
 end
-
-make a page called "Projects" at "/projects"
-add a title "Projects"
 ```
 
 ```bash
-plain play examples/site.plain          # see it, with working buttons
+plain play examples/site.plain           # see it, with working buttons
+plain edit examples/site.plain           # the designer
 plain build examples/site.plain --out site
 ```
 
-`plain build` writes ordinary HTML files — one per page, styled, responsive,
-with a light/dark theme baked in. Drop the folder on any host. The buttons and
-text boxes keep working because the same program is re-run in the browser.
+`plain edit` opens a designer: the live page on the left, blocks to add on the
+right, click anything to change its words, drag the order about, switch themes.
+**Save writes it back out as Plain sentences** — the same file you would have
+typed by hand, so you can keep working either way.
 
-The page content is written into the HTML itself, so it reads fine even with
-JavaScript off. The interactive parts need the folder to be *served* (any host,
-or `plain play`) — browsers refuse to load modules straight off the disk.
+`plain build` writes ordinary HTML files, one per page, styled and responsive.
+The page content is in the HTML itself, so it reads fine with JavaScript off.
+The interactive parts need the folder to be *served* (any host, or `plain
+play`) — browsers refuse to load modules straight off the disk.
 
-Full list of website sentences: [LANGUAGE.md](LANGUAGE.md#the-website-engine).
+---
+
+## Video
+
+```plain
+make a video called "How Plain Works" sized 1280 by 720
+
+add a title "How Plain Works" for 3 seconds
+fade the last clip in over 1 seconds
+
+add a clip "holiday.mp4" from 4 to 12 seconds
+put the words "the sea" on the last clip
+
+add music "song.mp3"
+```
+
+```bash
+plain play examples/video.plain          # watch it
+plain edit examples/video.plain          # the studio
+```
+
+The studio gives a preview, a scrubber, and a timeline you can drag: pull a
+clip's edge to change how long it lasts, reorder, retitle, set fades, delete.
+Save writes the timeline back as Plain sentences. Export records the picture
+track to a `.webm` file.
+
+Honest limits: export uses the browser's own recorder, so it captures the
+picture track in real time and does not mix the music in yet. Clips are laid
+end to end on one track.
 
 ---
 
 ## Why it is easy to learn
 
 - **One shape for everything.** Every line is either a plain sentence
-  (`add 1 to score`) or one of nine control words. There is no separate syntax
-  for calling a function, indexing a list, or building an object.
+  (`add 1 to score`) or one of a dozen control words. There is no separate
+  syntax for calling a function, indexing a list, or building an object.
 - **Errors are written for people.** `Line 4: I do not know a name called
-  "scoer"` with the line printed underneath and a suggestion of what to try.
+  "scoer"`, with the line printed underneath and a suggestion of what to try.
 - **Lists count from 1** and text is text — no zero-based surprises.
 - **Indentation is free.** Blocks end with `end`, so a stray space never
   breaks a program.
 - **The vocabulary is discoverable.** `plain words` prints every sentence the
   language knows, including the ones the engines add.
+- **The tools write the language.** The designer and the studio save Plain
+  sentences, so nothing you drag becomes code you cannot read.
 
 ## Extending it
 
@@ -208,16 +296,11 @@ import { createRuntime } from './src/runtime.js';
 const plain = createRuntime();
 
 plain.define('wave at $who', ({ who }, ctx) => ctx.output(`o/ ${who}`));
+plain.define('three times ...', (args, ctx) => { for (let i = 0; i < 3; i++) ctx.block(); });
 plain.defineValue('double $n', ({ n }) => n * 2);
 plain.defineInfix('$a rhymes with $b', ({ a, b }) => a.slice(-2) === b.slice(-2));
 
-plain.run(`
-wave at "world"
-show double 21
-if "cat" rhymes with "hat"
-    show "they do"
-end
-`);
+plain.run('wave at "world"');
 ```
 
 `$x` is a value, `#x` is a bare name, `$*x` is a comma separated list, and a
@@ -226,17 +309,20 @@ spec ending in `...` takes a block closed by `end`.
 ## Layout
 
 ```
-bin/plain.js          the command line tool
-src/lexer.js          text  -> tokens
-src/parser.js         tokens -> tree (this is where sentences are matched)
-src/interp.js         runs the tree
-src/phrases.js        the sentence table
-src/stdlib.js         the sentences every program has
-src/browser.js        running a program in a browser
-engines/game/         the game engine
-engines/web/          the website engine
-examples/             programs to read and run
-tests/run-tests.js    102 checks, no framework
+bin/plain.js           the command line tool
+bin/templates.js       the finished programs `plain make` writes
+src/lexer.js           text   -> tokens
+src/parser.js          tokens -> tree (this is where sentences are matched)
+src/interp.js          runs the tree; kinds, actions, catching problems
+src/phrases.js         the sentence table
+src/stdlib.js          the sentences every program has
+src/browser.js         running a program in a browser
+engines/game/          the 2D game engine
+engines/world/         the 3D world engine and its WebGL renderer
+engines/web/           the website engine, its HTML writer, and the designer
+engines/video/         the video timeline and the studio
+examples/              programs to read and run
+tests/run-tests.js     144 checks, no framework
 ```
 
 ## Tests

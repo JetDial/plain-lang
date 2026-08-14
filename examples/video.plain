@@ -1,0 +1,29 @@
+# A video, in Plain.
+# Watch it with: plain play examples/video.plain
+# Edit it with:  plain edit examples/video.plain
+#
+# The clips below are titles and colours, so this runs with no files at all.
+# Put an .mp4 or .jpg next to this file and uncomment the lines at the bottom
+# to use your own footage.
+
+make a video called "How Plain Works" sized 1280 by 720
+set the frame rate to 30
+
+add a title "How Plain Works" for 3 seconds
+fade the last clip in over 1 seconds
+
+add a background "#1b2a41" for 3 seconds
+put the words "One: you write sentences" on the last clip
+
+add a background "#22304a" for 3 seconds
+put the words "Two: the sentences are the program" on the last clip
+
+add a background "#2b3a56" for 3 seconds
+put the words "Three: drag things here, and it writes the sentences back" on the last clip
+
+add a title "That is the whole idea" for 3 seconds
+fade the last clip out over 1 seconds
+
+# add a clip "holiday.mp4" from 4 to 12 seconds
+# add a picture "beach.jpg" for 4 seconds
+# add music "song.mp3"
