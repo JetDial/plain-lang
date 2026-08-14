@@ -10,6 +10,7 @@ import { createRenderer } from '../engines/world/render.js';
 import { installWeb, THEMES } from '../engines/web/engine.js';
 import { installVideo } from '../engines/video/engine.js';
 import { installStore } from '../engines/store/engine.js';
+import { installData } from '../engines/data/engine.js';
 import { startStudio } from '../engines/video/player.js';
 import { startDesigner } from '../engines/web/designer.js';
 import { startLearning } from '../engines/learn/app.js';
@@ -43,6 +44,7 @@ export function startPlain(source, options = {}) {
   const site = installWeb(runtime, host);
   const studio = installVideo(runtime, host);
   installStore(runtime, host);
+  installData(runtime, {});
 
   try {
     runtime.run(source, options.file || 'program.plain');
@@ -75,6 +77,7 @@ export function editPlain(source, options = {}) {
   const site = installWeb(runtime, host);
   const studio = installVideo(runtime, host);
   installStore(runtime, host);
+  installData(runtime, {});
 
   try {
     runtime.run(source, options.file || 'program.plain');
