@@ -498,6 +498,10 @@ const HELPERS = {
   smaller: { code: `    public static double Smaller(dynamic a, dynamic b) { return Math.Min(Number(a), Number(b)); }`, needs: ['number'] },
   bigger: { code: `    public static double Bigger(dynamic a, dynamic b) { return Math.Max(Number(a), Number(b)); }`, needs: ['number'] },
   pi: { code: `    public static double Pi() { return Math.PI; }` },
+  e: { code: `    public static double E() { return Math.E; }` },
+  exponent: { code: `    public static double Exponent(dynamic value) { return Math.Exp(Number(value)); }`, needs: ['number'] },
+  logarithm: { code: `    public static double Logarithm(dynamic value) { return Math.Log(Math.Max(1e-300, Number(value))); }`, needs: ['number'] },
+  tangent: { code: `    public static double Tangent(dynamic value) { return Math.Tan(Number(value)); }`, needs: ['number'] },
 
   randomBetween: { code: `    static readonly Random Dice = new Random();\n    public static int RandomBetween(dynamic low, dynamic high) { return Dice.Next((int)Math.Ceiling(Number(low)), (int)Math.Floor(Number(high)) + 1); }`, needs: ['number'] },
   randomNumber: { code: `    public static double RandomNumber() { return Dice.NextDouble(); }`, needs: ['randomBetween'] },

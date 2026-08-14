@@ -430,6 +430,10 @@ def plain_field(thing, name):
   smaller: { code: `def plain_smaller(a, b):\n    return min(plain_number(a), plain_number(b))`, needs: ['number'] },
   bigger: { code: `def plain_bigger(a, b):\n    return max(plain_number(a), plain_number(b))`, needs: ['number'] },
   pi: { code: `def plain_pi():\n    return math.pi`, imports: ['math'] },
+  e: { code: `def plain_e():\n    return math.e`, imports: ['math'] },
+  exponent: { code: `def plain_exponent(value):\n    return math.exp(plain_number(value))`, needs: ['number'], imports: ['math'] },
+  logarithm: { code: `def plain_logarithm(value):\n    return math.log(max(1e-300, plain_number(value)))`, needs: ['number'], imports: ['math'] },
+  tangent: { code: `def plain_tangent(value):\n    return math.tan(plain_number(value))`, needs: ['number'], imports: ['math'] },
 
   randomBetween: { code: `def plain_random_between(low, high):\n    return random.randint(int(plain_number(low)), int(plain_number(high)))`, needs: ['number'], imports: ['random'] },
   randomNumber: { code: `def plain_random_number():\n    return random.random()`, imports: ['random'] },

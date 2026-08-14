@@ -293,6 +293,10 @@ const HELPERS = {
   smaller: { code: `  smaller(a, b) { return Math.min(plain.number(a), plain.number(b)); },`, needs: ['number'] },
   bigger: { code: `  bigger(a, b) { return Math.max(plain.number(a), plain.number(b)); },`, needs: ['number'] },
   pi: { code: `  pi() { return Math.PI; },` },
+  e: { code: `  e() { return Math.E; },` },
+  exponent: { code: `  exponent(value) { return Math.exp(plain.number(value)); },`, needs: ['number'] },
+  logarithm: { code: `  logarithm(value) { return Math.log(Math.max(1e-300, plain.number(value))); },`, needs: ['number'] },
+  tangent: { code: `  tangent(value) { return Math.tan(plain.number(value)); },`, needs: ['number'] },
 
   randomBetween: {
     code: `  randomBetween(low, high) {

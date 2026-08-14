@@ -81,6 +81,10 @@ export function installCore(rt) {
   rt.defineValue('smaller of $a and $b', a => Math.min(toNumber(a.a), toNumber(a.b)));
   rt.defineValue('bigger of $a and $b', a => Math.max(toNumber(a.a), toNumber(a.b)));
   rt.defineValue('pi', () => Math.PI);
+  rt.defineValue('e', () => Math.E);
+  rt.defineValue('exponent of $number', a => Math.exp(toNumber(a.number)));
+  rt.defineValue('logarithm of $number', a => Math.log(Math.max(1e-300, toNumber(a.number))));
+  rt.defineValue('tangent of $number', a => Math.tan(toNumber(a.number)));
 
   rt.defineValue('random $low to $high', a => {
     const low = Math.ceil(toNumber(a.low));

@@ -34,6 +34,9 @@ export class Parser {
     this.file = file;
     this.userFunctions = new Map();
     this.errors = [];   // mistakes found so far, so they can all be shown
+    // Names the program has made. A name always wins over a sentence of the
+    // same word, so calling something "round" does not break "round 3.7".
+    this.declared = new Set();
   }
 
   // ---------------------------------------------------------------- helpers
@@ -234,6 +237,7 @@ export class Parser {
       }
       const value = this.parseExpression();
       this.endOfStatement();
+      this.declare(name);
       return { type: 'Make', name, value, line: t.line };
     }
 
@@ -271,6 +275,10 @@ export class Parser {
       t.line,
       `lines usually start with show, make, set, if, repeat, for each, while, to, or a phrase like "add 1 to score"`
     );
+  }
+
+  declare(name) {
+    if (name) this.declared.add(String(name).toLowerCase());
   }
 
   parseName(where) {
@@ -327,6 +335,7 @@ export class Parser {
 
     if (this.eatWord('with')) {
       const name = this.parseName('after "repeat with"');
+      this.declare(name);
       this.expectWord('from', 'in a counting loop');
       const from = this.parseExpression(new Set(['to']));
       this.expectWord('to', 'in a counting loop');
@@ -367,6 +376,7 @@ export class Parser {
       this.error('Write it as: for each item in things', line);
     }
     const name = this.parseName('after "for each"');
+    this.declare(name);
     this.expectWord('in', 'in a "for each" line');
     const list = this.parseExpression();
     this.endOfStatement();
@@ -390,6 +400,7 @@ export class Parser {
     if (this.isWord('if')) {
       this.i += 3; // if it fails
       this.endOfStatement();
+      this.declare('problem');
       rescue = this.parseBlock(['end']);
     }
     this.expectWord('end', 'to close this "try"');
@@ -454,6 +465,7 @@ export class Parser {
     if (this.eatWord('with')) {
       while (true) {
         params.push(this.parseName('in the list of inputs'));
+        this.declare(params[params.length - 1]);
         if (this.eatWord('and') || this.eatSym(',')) continue;
         break;
       }
@@ -525,7 +537,7 @@ export class Parser {
 
   // ----------------------------------------------------------- phrase match
 
-  tryPhrase(table, stops, line) {
+  tryPhrase(table, stops, line, tight = false) {
     const t = this.peek();
     if (t.type !== 'word') return null;
     const key = t.value.toLowerCase();
@@ -541,7 +553,7 @@ export class Parser {
     for (const pattern of candidates) {
       const save = this.i;
       try {
-        const matched = this.matchPattern(pattern, stops, line);
+        const matched = this.matchPattern(pattern, stops, line, 0, null, tight);
         if (matched) return matched;
       } catch (e) {
         if (!(e instanceof PlainError)) throw e;
@@ -555,7 +567,7 @@ export class Parser {
     return null;
   }
 
-  matchPattern(pattern, outerStops, line, startIndex = 0, preFilled = null) {
+  matchPattern(pattern, outerStops, line, startIndex = 0, preFilled = null, tight = false) {
     const args = preFilled ? { ...preFilled } : {};
     for (let k = startIndex; k < pattern.parts.length; k++) {
       const part = pattern.parts[k];
@@ -572,6 +584,7 @@ export class Parser {
         const t = this.peek();
         if (t.type !== 'word' || RESERVED.has(t.value.toLowerCase())) return null;
         args[part.name] = t.value;
+        this.declare(t.value);
         this.i++;
       } else if (part.type === 'args') {
         const stops = union(stopsAfter(pattern, k + 1), outerStops);
@@ -588,7 +601,13 @@ export class Parser {
       } else {
         const stops = union(stopsAfter(pattern, k + 1), outerStops);
         const before = this.i;
-        const value = this.parseExpression(stops);
+        // The last piece of a sentence that gives a value binds tightly, so
+        // "item 1 of row times item 1 of other" multiplies two items rather
+        // than looking up an item of a multiplication.
+        // Your own actions keep the roomier reading, because "double with n
+        // plus 1" means the input is n plus 1.
+        const last = k === pattern.parts.length - 1 && !String(pattern.id).startsWith('user:');
+        const value = tight && last ? this.parseUnary(stops) : this.parseExpression(stops);
         if (this.i === before) return null;
         args[part.name] = value;
       }
@@ -671,7 +690,7 @@ export class Parser {
     for (const pattern of candidates) {
       const save = this.i;
       try {
-        const matched = this.matchPattern(pattern, stops, t.line, 1, { [pattern.parts[0].name]: left });
+        const matched = this.matchPattern(pattern, stops, t.line, 1, { [pattern.parts[0].name]: left }, true);
         if (matched) return { ...matched, type: 'PhraseValue' };
       } catch (e) {
         if (!(e instanceof PlainError)) throw e;
@@ -827,10 +846,15 @@ export class Parser {
       }
       if (w === 'a' && this.isWord('list', 1)) { this.i += 2; return { type: 'List', items: [], line }; }
 
-      // Sentences come first, so "the action double" is not mistaken for the
-      // decorative "the" in front of a name.
-      const phrase = this.tryPhrase(this.phrases.value, stops, line);
-      if (phrase) return { ...phrase, type: 'PhraseValue' };
+      // A name the program made wins over a sentence spelled the same way,
+      // so "repeat with round from 1 to 10" does not lose to "round $n".
+      const isName = this.declared.has(w) && !this.isWord('of', 1);
+      if (!isName) {
+        // Sentences come first, so "the action double" is not mistaken for
+        // the decorative "the" in front of a name.
+        const phrase = this.tryPhrase(this.phrases.value, stops, line, true);
+        if (phrase) return { ...phrase, type: 'PhraseValue' };
+      }
 
       // Articles read nicely and mean nothing: "the score" is "score".
       if (ARTICLES.has(w) && this.peek(1).type === 'word') { this.i++; return this.parsePrimary(stops); }

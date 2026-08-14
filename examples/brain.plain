@@ -1,0 +1,123 @@
+# A neural network, written in Plain and taught from scratch.
+# Run it with:  plain run examples/brain.plain
+#
+# It learns XOR: two inputs, and the answer is yes when exactly one of them
+# is 1. That cannot be learned by a straight line, so a hidden layer has to
+# work something out for itself. Nothing here is built in - the layers, the
+# forward pass and the backward pass are all sentences below.
+
+a kind called Layer
+    has weights                 # a list of rows, one row per output
+    has biases
+    has inputs                  # kept from the forward pass, needed going back
+    has outputs
+end
+
+to squash with x
+    give back 1 divided by (1 plus exponent of (0 minus x))
+end
+
+# The slope of squash, worked out from its own answer.
+to slope with y
+    give back y times (1 minus y)
+end
+
+to new layer with how_many_in and how_many_out
+    make weights be a list
+    repeat how_many_out times
+        make row be a list
+        repeat how_many_in times
+            add (random number times 2 minus 1) to row
+        end
+        add row to weights
+    end
+
+    make biases be a list
+    repeat how_many_out times
+        add 0 to biases
+    end
+
+    give back a new Layer with weights weights and biases biases
+end
+
+to think with layer and inputs
+    set the inputs of layer to inputs
+    make outputs be a list
+    repeat with which from 1 to length of weights of layer
+        make row be item which of weights of layer
+        make total be item which of biases of layer
+        repeat with at from 1 to length of row
+            set total to total plus (item at of row times item at of inputs)
+        end
+        add squash with total to outputs
+    end
+    set the outputs of layer to outputs
+    give back outputs
+end
+
+# Given how wrong each output was, nudge the weights and hand back how wrong
+# the layer's own inputs were.
+to learn with layer and wrongness and speed
+    make passed_back be a list
+    repeat length of inputs of layer times
+        add 0 to passed_back
+    end
+
+    repeat with which from 1 to length of weights of layer
+        make row be item which of weights of layer
+        make out be item which of outputs of layer
+        make change be item which of wrongness times slope with out
+
+        repeat with at from 1 to length of row
+            set item at of passed_back to item at of passed_back plus (item at of row times change)
+            set item at of row to item at of row plus (speed times change times item at of inputs of layer)
+        end
+        set item which of biases of layer to item which of biases of layer plus (speed times change)
+    end
+
+    give back passed_back
+end
+
+# ------------------------------------------------------------------ the net
+
+make hidden be new layer with 2 and 4
+make output be new layer with 4 and 1
+
+make questions be [[0, 0], [0, 1], [1, 0], [1, 1]]
+make answers be [0, 1, 1, 0]
+
+show "Teaching a 2-4-1 network to work out XOR."
+show ""
+
+make rounds be 4000
+repeat with round from 1 to rounds
+    make total_error be 0
+
+    repeat with which from 1 to 4
+        make inputs be item which of questions
+        make wanted be item which of answers
+
+        make guess be item 1 of (think with output and (think with hidden and inputs))
+        make wrong be wanted minus guess
+        set total_error to total_error plus (wrong times wrong)
+
+        make back be learn with output and [wrong] and 0.5
+        make ignored be learn with hidden and back and 0.5
+    end
+
+    if round modulo 1000 is 0
+        show "after {round} rounds the error is {round total_error to 4 places}"
+    end
+end
+
+show ""
+show "What it thinks now:"
+repeat with which from 1 to 4
+    make inputs be item which of questions
+    make guess be item 1 of (think with output and (think with hidden and inputs))
+    make said be "no"
+    if guess is above 0.5
+        set said to "yes"
+    end
+    show "  {item 1 of inputs} and {item 2 of inputs}  ->  {round guess to 3 places}  ({said}, wanted {item which of answers})"
+end

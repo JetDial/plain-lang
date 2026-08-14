@@ -19,10 +19,39 @@ export class Emitter {
     // Plain lets you "make" a name that already exists; most languages do
     // not, so we keep track and write an assignment instead.
     this.scopes = [new Set()];
+    // When a loop name is already taken further out, the inner one is given
+    // a fresh name and remembered here. C# refuses to shadow at all, and it
+    // reads better everywhere else too.
+    this.aliases = [new Map()];
   }
 
   known(name) { return this.scopes.some(scope => scope.has(name)); }
   remember(name) { this.scopes[this.scopes.length - 1].add(name); }
+
+  // What a name in the program is called in the written-out code.
+  variable(plainName) {
+    const wanted = this.identifier(plainName);
+    for (let at = this.aliases.length - 1; at >= 0; at--) {
+      const found = this.aliases[at].get(wanted);
+      if (found) return found;
+    }
+    return wanted;
+  }
+
+  // A loop name that is free, even if the same word is in use further out.
+  loopName(plainName) {
+    const wanted = this.identifier(plainName);
+    if (!this.known(wanted)) return wanted;
+    let number = 2;
+    while (this.known(wanted + number)) number++;
+    return wanted + number;
+  }
+
+  bindLoop(plainName, actual) {
+    this.remember(actual);
+    const wanted = this.identifier(plainName);
+    if (wanted !== actual) this.aliases[this.aliases.length - 1].set(wanted, actual);
+  }
 
   // Every kind in the program, so a target can see what a kind inherits.
   collectKinds(program) {
@@ -113,11 +142,13 @@ export class Emitter {
     this.write(header);
     this.depth++;
     this.scopes.push(new Set());
+    this.aliases.push(new Map());
   }
 
   close(text = null) {
     this.depth--;
     if (this.scopes.length > 1) this.scopes.pop();
+    if (this.aliases.length > 1) this.aliases.pop();
     const closer = text === null ? this.closer() : text;
     if (closer) this.write(closer);
   }
@@ -238,7 +269,7 @@ export class Emitter {
     switch (node.type) {
       case 'Show': return this.writeLine(this.showStatement(this.text(node.value)));
       case 'Make': {
-        const name = this.identifier(node.name);
+        const name = this.variable(node.name);
         const value = this.expression(node.value);
         if (this.known(name)) return this.writeLine(this.assign(name, value));
         this.remember(name);
@@ -301,19 +332,20 @@ export class Emitter {
 
   emitRepeat(node) {
     const times = this.expression(node.count);
-    this.open(this.countHeader('count', '1', times, '1'));
-    this.remember('count');
+    const name = this.loopName('count');
+    this.open(this.countHeader(name, '1', times, '1'));
+    this.bindLoop('count', name);
     this.block(node.block);
     this.close();
   }
 
   emitCount(node) {
-    const name = this.identifier(node.name);
+    const name = this.loopName(node.name);
     const from = this.expression(node.from);
     const to = this.expression(node.to);
     const step = node.step ? this.expression(node.step) : '1';
     this.open(this.countHeader(name, from, to, step));
-    this.remember(name);
+    this.bindLoop(node.name, name);
     this.block(node.block);
     this.close();
   }
@@ -325,8 +357,9 @@ export class Emitter {
   }
 
   emitForEach(node) {
-    this.open(this.forEachHeader(this.identifier(node.name), this.helper('items', [this.expression(node.list)])));
-    this.remember(this.identifier(node.name));
+    const name = this.loopName(node.name);
+    this.open(this.forEachHeader(name, this.helper('items', [this.expression(node.list)])));
+    this.bindLoop(node.name, name);
     this.block(node.block);
     this.close();
   }
@@ -398,7 +431,7 @@ export class Emitter {
   phraseStatement(node) {
     const args = node.args;
     const value = (key) => this.expression(args[key]);
-    const name = (key) => this.identifier(args[key]);
+    const name = (key) => this.variable(args[key]);
 
     switch (node.spec) {
       case 'add $value to #name':
@@ -461,7 +494,7 @@ export class Emitter {
       case 'Nothing': return this.nothingWord;
       case 'Var':
         // Inside an action of a kind, "me" is the thing itself.
-        return node.name.toLowerCase() === 'me' ? this.selfWord : this.identifier(node.name);
+        return node.name.toLowerCase() === 'me' ? this.selfWord : this.variable(node.name);
       case 'List': return this.listLiteral(node.items.map(item => this.expression(item)));
       case 'Record': return this.recordLiteral(node.pairs.map(pair => [pair.key, this.expression(pair.value)]));
       case 'Field': return this.readField(node);
@@ -575,6 +608,10 @@ export class Emitter {
       case 'smaller of $a and $b': return this.helper('smaller', [value('a'), value('b')]);
       case 'bigger of $a and $b': return this.helper('bigger', [value('a'), value('b')]);
       case 'pi': return this.helper('pi', []);
+      case 'e': return this.helper('e', []);
+      case 'exponent of $number': return this.helper('exponent', [value('number')]);
+      case 'logarithm of $number': return this.helper('logarithm', [value('number')]);
+      case 'tangent of $number': return this.helper('tangent', [value('number')]);
       case 'random $low to $high': return this.helper('randomBetween', [value('low'), value('high')]);
       case 'random number': return this.helper('randomNumber', []);
       case 'time now': return this.helper('timeNow', []);
