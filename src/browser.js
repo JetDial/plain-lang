@@ -11,6 +11,7 @@ import { installWeb, THEMES } from '../engines/web/engine.js';
 import { installVideo } from '../engines/video/engine.js';
 import { startStudio } from '../engines/video/player.js';
 import { startDesigner } from '../engines/web/designer.js';
+import { startLearning } from '../engines/learn/app.js';
 import { mountPage, stylesheet, hrefFor } from '../engines/web/render.js';
 
 const KEY_NAMES = {
@@ -85,6 +86,13 @@ export function editPlain(source, options = {}) {
   const running = { runtime, game, world, site, studio, ok: true, editing: true };
   win.plain = running;
   return running;
+}
+
+// Opened by `plain learn`: lessons and projects, with a real editor.
+export function learnPlain(options = {}) {
+  const win = options.window || window;
+  const doc = options.document || document;
+  return startLearning(doc, win);
 }
 
 // ------------------------------------------------------------------- games

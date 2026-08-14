@@ -47,10 +47,12 @@ plain make video holiday   # a video timeline you can trim and export
 ```
 
 ```bash
+plain learn          open the course: 10 lessons and 6 projects
 plain run <file>     run it in the terminal
 plain play <file>    open it in the browser
 plain edit <file>    open the designer or the video studio
 plain build <file>   write HTML you can publish        (--out folder)
+plain translate <f>  write the same program in JavaScript or Python
 plain check <file>   look for mistakes without running
 plain words          list every sentence Plain understands
 ```
@@ -271,6 +273,76 @@ end to end on one track.
 
 ---
 
+## Learning it
+
+```bash
+plain learn
+```
+
+Ten lessons and six projects, in the browser, with a real editor. Every step
+is checked by **running what you wrote** and looking at what it did — not by
+comparing your text to an answer. Get it wrong and you get a hint, not a red
+cross:
+
+> *Holding right should move the basket: `if key "right" is held ... end`*
+
+The lessons cover showing things, names, text, questions, loops, lists,
+things, actions, kinds and catching problems. Then you build:
+
+| Project | What you make | What it teaches |
+|---|---|---|
+| A quiz that marks itself | A three-question quiz with a score | lists, things, loops, actions |
+| A website about you | Two pages, a card, a working button | the website engine |
+| Catch the falling star | A playable 2D game | frames, keys, touching |
+| A world in three dimensions | A 3D world you walk around | the world engine |
+| A title sequence | A film with fades and captions | the video engine |
+| Read it in another language | Your own program in JS and Python | how it all maps over |
+
+Games and websites you write in the lesson run **live in the page** — the game
+on a canvas you can play with the arrow keys, the site in a preview frame.
+Progress is kept in your browser, and `plain learn --list` prints the syllabus
+in the terminal.
+
+Every lesson and project step has a worked answer in `tests/course-tests.js`
+that the test suite runs for real, so a broken lesson fails the build rather
+than the learner.
+
+## Translating it
+
+```bash
+plain translate mine.plain --to python
+plain translate mine.plain --to all --out translated
+```
+
+The same program, written out in **JavaScript** or **Python** — real loops,
+real classes, real functions, with your names kept and a small set of helpers
+for the few places where Plain means something particular (lists that count
+from 1, text that joins with anything, refusing to divide by zero).
+
+```plain
+to double with n
+    give back n times 2
+end
+show [1, 2, 3] changed by the action double
+```
+
+becomes, in Python:
+
+```python
+def double(n):
+    return (plain_number(n) * plain_number(2))
+
+print(plain_text(plain_changed_by([1, 2, 3], double)))
+```
+
+The test suite runs ten programs three ways — in Plain, in the generated
+JavaScript, and in the generated Python — and insists all three print exactly
+the same thing.
+
+Sentences that belong to an engine (games, worlds, websites, videos) do not
+translate, and the translator says so with the line numbers rather than
+writing something that half works.
+
 ## Why it is easy to learn
 
 - **One shape for everything.** Every line is either a plain sentence
@@ -285,6 +357,8 @@ end to end on one track.
   language knows, including the ones the engines add.
 - **The tools write the language.** The designer and the studio save Plain
   sentences, so nothing you drag becomes code you cannot read.
+- **It is not a dead end.**  writes your program out in
+  JavaScript or Python, so what you learn here carries over.
 
 ## Extending it
 
@@ -322,7 +396,9 @@ engines/world/         the 3D world engine and its WebGL renderer
 engines/web/           the website engine, its HTML writer, and the designer
 engines/video/         the video timeline and the studio
 examples/              programs to read and run
-tests/run-tests.js     144 checks, no framework
+src/translate/        Plain -> JavaScript and Python
+engines/learn/        the course: lessons, projects and their checks
+tests/run-tests.js     212 checks, no framework
 ```
 
 ## Tests

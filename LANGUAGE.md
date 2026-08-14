@@ -662,3 +662,36 @@ Try this: make scoer be <value> before using it
 ```
 
 `plain check file.plain` finds mistakes without running anything.
+
+---
+
+# Learning it
+
+```bash
+plain learn            # the course, in your browser
+plain learn --list     # the syllabus, in the terminal
+```
+
+Ten lessons, then six projects you build a step at a time. Each step runs your
+program and looks at what it did, so the answer can be written your own way.
+Games and websites run live inside the lesson.
+
+---
+
+# Writing it in another language
+
+```bash
+plain translate mine.plain --to javascript
+plain translate mine.plain --to python
+plain translate mine.plain --to all --out translated
+```
+
+Everything in this file up to here translates: names, sums, questions, loops,
+lists, things, actions, kinds, catching problems. Sentences from the engines
+(games, worlds, websites, videos) do not, and the translator lists them by
+line rather than writing something that half works.
+
+The generated file keeps your names and shape, and carries a small set of
+helpers for the places where Plain means something particular: lists count
+from 1, text joins with anything, `yes`/`no` decide truth, and dividing by
+zero is refused rather than becoming infinity.

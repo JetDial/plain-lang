@@ -22,6 +22,8 @@ import { installWeb } from '../engines/web/engine.js';
 import { installVideo } from '../engines/video/engine.js';
 import { documentToHTML, hrefFor } from '../engines/web/render.js';
 import { TEMPLATES, templateNames } from './templates.js';
+import { translate, targetNames, findTarget } from '../src/translate/index.js';
+import { syllabus, totalSteps } from '../engines/learn/course.js';
 
 globalThis.__plainFS = fs;
 
@@ -62,6 +64,8 @@ try {
     case 'words': commandWords(); break;
     case 'new': commandNew(target); break;
     case 'make': commandMake(rest[0], rest[1]); break;
+    case 'translate': commandTranslate(target); break;
+    case 'learn': case 'teach': await commandLearn(); break;
     case 'version': case '--version': case '-v': console.log(`Plain ${VERSION}`); break;
     default: commandHelp();
   }
@@ -225,6 +229,110 @@ function commandNew(name) {
   if (fs.existsSync(full)) fail(`"${file}" already exists.`);
   fs.writeFileSync(full, STARTER, 'utf8');
   console.log(`Made ${file}. Run it with:\n\n    plain run ${file}\n`);
+}
+
+// -------------------------------------------------------------------- learn
+
+async function commandLearn() {
+  const course = syllabus();
+
+  if (flags.list) {
+    console.log(`\nLearn Plain - ${course.length} parts, ${totalSteps()} steps.\n`);
+    for (const part of course) {
+      const label = part.kind === 'lesson' ? 'lesson ' : 'project';
+      console.log(`  ${label}  ${part.title}${part.steps > 1 ? `  (${part.steps} steps)` : ''}`);
+    }
+    console.log('\nStart it with:\n\n    plain learn\n');
+    return;
+  }
+
+  const port = Number(flags.port || flags.p || 4500);
+  const page = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Learn Plain</title>
+  </head>
+  <body>
+    <script type="module">
+      import { learnPlain } from '/plain/src/browser.js';
+      learnPlain();
+    </script>
+  </body>
+</html>
+`;
+
+  const server = http.createServer((request, response) => {
+    const route = decodeURIComponent(new URL(request.url, `http://localhost:${port}`).pathname);
+    if (route.startsWith('/plain/')) return sendFile(response, path.join(ROOT, route.slice('/plain/'.length)));
+    if (route === '/' || route === '/index.html') return sendText(response, 200, page, 'text/html');
+    sendText(response, 404, 'Not found', 'text/plain');
+  });
+
+  server.listen(port, () => {
+    const address = `http://localhost:${port}`;
+    console.log(`\nLearn Plain is open at ${address}`);
+    console.log(`${course.length} parts, ${totalSteps()} steps. Your progress is kept in the browser.`);
+    console.log('Press Ctrl+C to stop.\n');
+    if (!flags['no-open']) openBrowser(address);
+  });
+}
+
+// ---------------------------------------------------------------- translate
+
+function commandTranslate(file) {
+  const program = readProgram(file);
+  const wanted = flags.to || flags.t;
+
+  if (wanted === true || !wanted) {
+    console.log(`Translate into what? One of: ${targetNames().join(', ')}, or all\n`);
+    console.log(`    plain translate ${file || '<file.plain>'} --to python`);
+    console.log(`    plain translate ${file || '<file.plain>'} --to all --out translated\n`);
+    process.exitCode = 1;
+    return;
+  }
+
+  const chosen = String(wanted).toLowerCase() === 'all' ? targetNames() : [String(wanted)];
+  for (const name of chosen) {
+    if (!findTarget(name)) fail(`I cannot write ${name}. I know: ${targetNames().join(', ')}`);
+  }
+
+  const { runtime } = buildRuntime(() => {}, program.full);
+  let parsed;
+  try {
+    parsed = runtime.parse(program.source, path.basename(program.full));
+  } catch (error) {
+    if (reportPlainError(error, program.source)) return;
+    throw error;
+  }
+
+  const meta = { file: path.basename(program.full), version: VERSION };
+  const results = [];
+  for (const name of chosen) {
+    try {
+      results.push(translate(parsed, name, meta));
+    } catch (error) {
+      if (reportPlainError(error, program.source)) return;
+      throw error;
+    }
+  }
+
+  const out = flags.out || flags.o;
+  if (!out) {
+    // Straight to the terminal, so it can be piped somewhere.
+    console.log(results.map(result => result.code).join('\n'));
+    return;
+  }
+
+  const folder = path.resolve(process.cwd(), out);
+  const asFolder = chosen.length > 1 || !path.extname(folder);
+  if (asFolder) fs.mkdirSync(folder, { recursive: true });
+  for (const result of results) {
+    const target = asFolder ? path.join(folder, program.name + result.extension) : folder;
+    fs.writeFileSync(target, result.code, 'utf8');
+    console.log(`Wrote ${result.name} to ${path.relative(process.cwd(), target)}`);
+  }
 }
 
 // --------------------------------------------------------------------- make
@@ -457,6 +565,8 @@ Plain ${VERSION} - a language you write like a normal sentence.
   plain build <file.plain>    write HTML files you can publish   (--out folder)
   plain check <file.plain>    look for mistakes without running it
   plain words                 list every sentence Plain understands
+  plain learn                 lessons and projects, in your browser
+  plain translate <file>      write it in JavaScript or Python  (--to python)
   plain new <name>            start a blank program
   plain make <kind> <name>    start a finished one: ${templateNames().join(', ')}
 

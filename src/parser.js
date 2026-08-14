@@ -527,11 +527,14 @@ export class Parser {
     const args = preFilled ? { ...preFilled } : {};
     for (let k = startIndex; k < pattern.parts.length; k++) {
       const part = pattern.parts[k];
+      // A sentence inside another sentence may not eat a word the outer one
+      // is still waiting for: in "item number of questions", the "of"
+      // belongs to "item ... of ...", not to "number of ...".
       if (part.type === 'word') {
-        if (!this.isWord(part.value)) return null;
+        if (!this.isWord(part.value) || (k > startIndex && outerStops.has(part.value))) return null;
         this.i++;
       } else if (part.type === 'sym') {
-        if (!this.isSym(part.value)) return null;
+        if (!this.isSym(part.value) || (k > startIndex && outerStops.has(part.value))) return null;
         this.i++;
       } else if (part.type === 'name') {
         const t = this.peek();

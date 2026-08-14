@@ -736,6 +736,306 @@ check('more than one page is written back', () => {
   assert.equal(runtimeFor(written).site.pages.length, 2);
 });
 
+// ------------------------------------------------------------ translating
+
+import { translate, targetNames } from '../src/translate/index.js';
+
+function parsed(source) {
+  const rt = createRuntime({ onOutput: () => {} });
+  installGame(rt, {});
+  installWorld(rt, {});
+  installWeb(rt, {});
+  installVideo(rt, {});
+  return rt.parse(source, 'test.plain');
+}
+
+function written(source, target) {
+  return translate(parsed(source), target, { file: 'test.plain' }).code;
+}
+
+// Run the same program three ways and insist the printed lines match.
+function sameEverywhere(name, source) {
+  check(name, () => {
+    const expected = run(source).join('\n');
+    const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'plain-tr-'));
+    try {
+      const jsFile = path.join(folder, 'program.js');
+      fs.writeFileSync(jsFile, written(source, 'javascript'), 'utf8');
+      const fromJS = execFileSync(process.execPath, [jsFile], { encoding: 'utf8' }).replace(/\r/g, '').trimEnd();
+      assert.equal(fromJS, expected, 'JavaScript said something different');
+
+      if (PYTHON) {
+        const pyFile = path.join(folder, 'program.py');
+        fs.writeFileSync(pyFile, written(source, 'python'), 'utf8');
+        const fromPython = execFileSync(PYTHON, [pyFile], { encoding: 'utf8' }).replace(/\r/g, '').trimEnd();
+        assert.equal(fromPython, expected, 'Python said something different');
+      }
+    } finally {
+      fs.rmSync(folder, { recursive: true, force: true });
+    }
+  });
+}
+
+// Python is optional: the JavaScript half of every check still runs without it.
+const PYTHON = (() => {
+  for (const candidate of ['python', 'python3', 'py']) {
+    try {
+      const version = execFileSync(candidate, ['--version'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+      if (/Python 3/.test(version)) return candidate;
+    } catch { /* try the next one */ }
+  }
+  return null;
+})();
+
+check('it knows what it can write', () => {
+  assert.deepEqual(targetNames(), ['javascript', 'python']);
+});
+
+check('the file says where it came from', () => {
+  assert.match(written('show "hi"', 'javascript'), /Translated from test\.plain/);
+  assert.match(written('show "hi"', 'python'), /^# Translated/);
+});
+
+check('only the helpers a program needs are written', () => {
+  const small = written('show "hi"', 'javascript');
+  assert.ok(!small.includes('randomBetween'), 'wrote a helper the program never used');
+  assert.ok(small.includes('text('), 'showing something needs the text helper');
+});
+
+check('names that only differ by capitals stay one name', () => {
+  const code = written('make Score be 1\nadd 1 to score\nshow Score', 'javascript');
+  assert.ok(!code.includes('Score'), 'Score and score should become one name');
+});
+
+check('a name that clashes with the host language is renamed', () => {
+  const code = written('make class be 2\nshow class', 'python');
+  assert.match(code, /class_ = 2/);
+});
+
+sameEverywhere('translated: showing and sums', [
+  'show "hello"',
+  'show 2 plus 3 times 4',
+  'show 10 divided by 4',
+  'show 0.1 plus 0.2',
+  'show 7 modulo 3',
+  'show 2 ^ 10',
+  'show -5 plus 2'
+].join('\n'));
+
+sameEverywhere('translated: names and text', [
+  'make name be "Ada"',
+  'make Age be 36',
+  'show "{name} is {age}"',
+  'set age to age plus 1',
+  'show "next year {age}"',
+  'show uppercase of name joined with "!"'
+].join('\n'));
+
+sameEverywhere('translated: choosing', [
+  'make n be 5',
+  'if n is above 10',
+  '    show "big"',
+  'otherwise if n is 5',
+  '    show "five"',
+  'otherwise',
+  '    show "small"',
+  'end',
+  'if not n is 4',
+  '    show "not four"',
+  'end',
+  'if n is at least 5 and n is at most 5',
+  '    show "exactly five"',
+  'end'
+].join('\n'));
+
+sameEverywhere('translated: loops', [
+  'repeat 3 times',
+  '    show count',
+  'end',
+  'repeat with i from 5 to 1',
+  '    show i',
+  'end',
+  'repeat with i from 0 to 10 by 5',
+  '    show i',
+  'end',
+  'make n be 3',
+  'while n is above 0',
+  '    show n',
+  '    take 1 from n',
+  'end',
+  'for each letter in "abc"',
+  '    show letter',
+  'end',
+  'repeat with i from 1 to 5',
+  '    if i is 2',
+  '        next',
+  '    end',
+  '    if i is 4',
+  '        stop',
+  '    end',
+  '    show i',
+  'end'
+].join('\n'));
+
+sameEverywhere('translated: lists', [
+  'make things be a list of 3, 1, 2',
+  'add 4 to things',
+  'show things',
+  'show item 1 of things',
+  'show length of things',
+  'show sorted things',
+  'show reversed things',
+  'show total of things',
+  'show highest of things',
+  'show average of things',
+  'set item 2 of things to 9',
+  'show things',
+  'remove 9 from things',
+  'show things',
+  'show join things with "-"',
+  'show position of 4 in things',
+  'if things contains 3',
+  '    show "it has three"',
+  'end',
+  'for each thing in things',
+  '    show thing',
+  'end'
+].join('\n'));
+
+sameEverywhere('translated: things', [
+  'make player be { name: "Ada", health: 100 }',
+  'show name of player',
+  'set the health of player to 80',
+  'show health of player',
+  'show player',
+  'show keys of player',
+  'show value "name" of player',
+  'set value "health" of player to 70',
+  'show player',
+  'if player has "name"',
+  '    show "it has a name"',
+  'end'
+].join('\n'));
+
+sameEverywhere('translated: actions', [
+  'to double with n',
+  '    give back n times 2',
+  'end',
+  'to describe with thing and count',
+  '    if count is 1',
+  '        give back "one " joined with thing',
+  '    end',
+  '    give back "{count} {thing}s"',
+  'end',
+  'show double with 21',
+  'show describe with "apple" and 1',
+  'show describe with "apple" and 4',
+  'show [1, 2, 3] changed by the action double',
+  'show [1, 2, 3] added up by the action double',
+  'make f be the action double',
+  'show call f with 5'
+].join('\n'));
+
+sameEverywhere('translated: kinds', [
+  'a kind called Animal',
+  '    has name',
+  '    has sound be "..."',
+  '    has legs be 4',
+  '    to speak',
+  '        show "{name of me} says {sound of me}"',
+  '    end',
+  '    to describe',
+  '        give back "{name of me}, {legs of me} legs"',
+  '    end',
+  'end',
+  'a kind called Dog based on Animal',
+  '    has sound be "woof"',
+  '    to fetch with item',
+  '        give back "{name of me} fetched the {item}"',
+  '    end',
+  'end',
+  'make rex be a new Dog with name "Rex"',
+  'tell rex to speak',
+  'show ask rex to fetch with "ball"',
+  'show ask rex to describe',
+  'set the name of rex to "Rexy"',
+  'tell rex to speak',
+  'show rex',
+  'show kind name of rex',
+  'if rex is a kind of Animal',
+  '    show "an animal too"',
+  'end'
+].join('\n'));
+
+sameEverywhere('translated: going wrong', [
+  'try',
+  '    report a problem saying "oh no"',
+  'if it fails',
+  '    show "caught {the problem}"',
+  'end',
+  'try',
+  '    show 1 divided by 0',
+  'if it fails',
+  '    show "no dividing"',
+  'end',
+  'show "carried on"'
+].join('\n'));
+
+sameEverywhere('translated: text tools', [
+  'make sentence be "the quick brown fox"',
+  'show length of sentence',
+  'show uppercase of sentence',
+  'show parts of sentence split by " "',
+  'show replace "quick" with "slow" in sentence',
+  'show part of sentence from 5 to 9',
+  'show trimmed "  spaced  "',
+  'if does sentence start with "the"',
+  '    show "starts right"',
+  'end'
+].join('\n'));
+
+sameEverywhere('translated: numbers', [
+  'show round 3.7',
+  'show round 3.14159 to 2 places',
+  'show floor of 3.9',
+  'show ceiling of 3.1',
+  'show absolute of -4',
+  'show square root of 144',
+  'show bigger of 3 and 9',
+  'show smaller of 3 and 9'
+].join('\n'));
+
+check('every example that is not an engine program translates', () => {
+  for (const file of ['hello.plain', 'tour.plain', 'kinds.plain']) {
+    const source = fs.readFileSync(path.join(ROOT, 'examples', file), 'utf8');
+    for (const target of targetNames()) {
+      const code = translate(parsed(source), target, { file }).code;
+      assert.ok(code.length > 100, `${file} produced almost nothing for ${target}`);
+    }
+  }
+});
+
+check('engine sentences are refused with a clear list', () => {
+  const source = fs.readFileSync(path.join(ROOT, 'examples', 'pong.plain'), 'utf8');
+  let error = null;
+  try { translate(parsed(source), 'javascript', { file: 'pong.plain' }); }
+  catch (e) { error = e; }
+  assert.ok(error instanceof PlainError, 'should refuse, not guess');
+  assert.match(error.plainMessage, /belong to an engine/);
+  assert.match(error.plainMessage, /every frame/);
+});
+
+check('the command line translates a file', () => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'plain-cli-tr-'));
+  execFileSync(process.execPath, [
+    path.join(ROOT, 'bin', 'plain.js'), 'translate',
+    path.join(ROOT, 'examples', 'hello.plain'), '--to', 'all', '--out', folder
+  ], { encoding: 'utf8' });
+  assert.ok(fs.existsSync(path.join(folder, 'hello.js')));
+  assert.ok(fs.existsSync(path.join(folder, 'hello.py')));
+  fs.rmSync(folder, { recursive: true, force: true });
+});
+
 // ----------------------------------------------------------------- the tool
 
 check('the command line runs a program', () => {
@@ -789,6 +1089,11 @@ check('every example still runs', () => {
     runtimeFor(fs.readFileSync(path.join(ROOT, 'examples', file), 'utf8'));
   }
 });
+
+// -------------------------------------------------------------- the course
+
+const { runCourseChecks } = await import('./course-tests.js');
+runCourseChecks(check);
 
 // ---------------------------------------------------------------- the score
 
