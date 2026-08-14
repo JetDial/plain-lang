@@ -345,6 +345,36 @@ export class Game {
         ctx.beginPath();
         ctx.arc(item.x, item.y, item.size / 2, 0, Math.PI * 2);
         ctx.fill();
+      } else if (item.kind === 'triangle' || item.kind === 'arrow' || item.kind === 'plane') {
+        // Drawn nose-first along nothing, then turned to where it points.
+        const long = item.size / 2;
+        ctx.translate(item.x, item.y);
+        ctx.rotate((item.angle * Math.PI) / 180);
+        ctx.beginPath();
+        if (item.kind === 'triangle') {
+          ctx.moveTo(long, 0);
+          ctx.lineTo(-long, long * 0.85);
+          ctx.lineTo(-long, -long * 0.85);
+        } else if (item.kind === 'arrow') {
+          ctx.moveTo(long, 0);
+          ctx.lineTo(-long, long * 0.6);
+          ctx.lineTo(-long * 0.45, 0);
+          ctx.lineTo(-long, -long * 0.6);
+        } else {
+          // A swept shape with a tail, which reads as an aeroplane at any size.
+          ctx.moveTo(long, 0);
+          ctx.lineTo(-long * 0.25, long * 0.30);
+          ctx.lineTo(-long * 0.55, long * 0.85);
+          ctx.lineTo(-long * 0.80, long * 0.85);
+          ctx.lineTo(-long * 0.70, long * 0.22);
+          ctx.lineTo(-long, 0);
+          ctx.lineTo(-long * 0.70, -long * 0.22);
+          ctx.lineTo(-long * 0.80, -long * 0.85);
+          ctx.lineTo(-long * 0.55, -long * 0.85);
+          ctx.lineTo(-long * 0.25, -long * 0.30);
+        }
+        ctx.closePath();
+        ctx.fill();
       } else {
         ctx.fillRect(item.x - item.width / 2, item.y - item.height / 2, item.width, item.height);
       }
@@ -612,6 +642,21 @@ export function installGame(rt, host = {}) {
   rt.define('draw a circle at $x , $y sized $size colored $color', (a) => {
     game.drawQueue.push({ kind: 'circle', x: toNumber(a.x), y: toNumber(a.y), size: toNumber(a.size), color: toText(a.color) });
   });
+
+  // Anything with a front to it - an aeroplane, an arrow, a fish - has to be
+  // drawn pointing somewhere. Without this the only shapes a game can draw
+  // are ones that look the same whichever way round they are.
+  const turned = (kind) => (a) => {
+    game.drawQueue.push({
+      kind, x: toNumber(a.x), y: toNumber(a.y),
+      size: toNumber(a.size), angle: toNumber(a.degrees),
+      color: toText(a.color)
+    });
+  };
+
+  rt.define('draw a triangle at $x , $y sized $size turned $degrees colored $color', turned('triangle'));
+  rt.define('draw an arrow at $x , $y sized $size turned $degrees colored $color', turned('arrow'));
+  rt.define('draw a plane at $x , $y sized $size turned $degrees colored $color', turned('plane'));
 
   // ------------------------------------------------------------- ending it
 
