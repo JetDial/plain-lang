@@ -293,16 +293,45 @@ library.
 
 ## The internet
 
-\
-Fetching waits for its answer, because that is what "fetch this and then use
-it" means. Serving is the other way round: the program finishes and the
-server carries on answering. A route can read , , and can fetch things of its own mid-request.
+```plain
+fetch "https://api.github.com/repos/nodejs/node" as a thing into repo
+show "node has {stargazers_count of repo} stars"
 
- is a working one: a visitor counter that
+when someone visits "/"
+    answer with "<h1>Hello from Plain</h1>"
+end
+
+when someone visits "/add"
+    answer with "{(number of asked for \"a\") plus (number of asked for \"b\")}"
+end
+
+start serving on port 3000
+```
+
+Fetching **waits** for its answer, because that is what "fetch this and then
+use it" means. Serving is the other way round: the program finishes and the
+server carries on answering. A route can read `asked for "a"`, `what they
+sent` and `how they asked`, and can fetch things of its own mid-request.
+
+`examples/website-server.plain` is a working one — a visitor counter that
 survives restarts, a page that adds two numbers, and a page that fetches a
-line from GitHub.
+line of wisdom from GitHub:
 
-Both need a terminal — a page cannot be made to wait, nor open a port.
+```bash
+plain run examples/website-server.plain     # then open localhost:3000
+```
+
+Both need a terminal: a page cannot be made to wait, nor open a port of its
+own, so in a browser Plain says so instead of half-working.
+
+## Going faster
+
+```bash
+plain run brain.plain --fast
+```
+
+Translates to JavaScript and runs that instead of walking the tree. The
+neural network above goes from **1.20s to 0.20s**.
 
 ---
 
