@@ -225,6 +225,18 @@ export function installStore(rt, host = {}) {
   // and writes both, so a file or an answer from the web can be worked with
   // as ordinary lists and things.
 
+  // The same thing with nothing to spare: no line breaks, no indenting. For
+  // a file a person will read, "json of" is the one to use. For anything
+  // going down a wire many times a second, the spacing is most of what is
+  // being sent.
+  rt.defineValue('compact json of $value', (a, ctx) => {
+    try {
+      return JSON.stringify(a.value);
+    } catch {
+      ctx.fail('I cannot write that as JSON', 'something in it refers back to itself');
+    }
+  });
+
   rt.defineValue('json of $value', (a, ctx) => {
     try {
       return JSON.stringify(a.value, null, 2);
