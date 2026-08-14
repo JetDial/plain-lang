@@ -361,17 +361,21 @@ export class Game {
           ctx.lineTo(-long * 0.45, 0);
           ctx.lineTo(-long, -long * 0.6);
         } else {
-          // A swept shape with a tail, which reads as an aeroplane at any size.
+          // A swept wing with a tail behind it. Drawn down one side and back
+          // up the other, so the two halves cannot drift apart.
           ctx.moveTo(long, 0);
-          ctx.lineTo(-long * 0.25, long * 0.30);
-          ctx.lineTo(-long * 0.55, long * 0.85);
-          ctx.lineTo(-long * 0.80, long * 0.85);
-          ctx.lineTo(-long * 0.70, long * 0.22);
-          ctx.lineTo(-long, 0);
-          ctx.lineTo(-long * 0.70, -long * 0.22);
-          ctx.lineTo(-long * 0.80, -long * 0.85);
-          ctx.lineTo(-long * 0.55, -long * 0.85);
-          ctx.lineTo(-long * 0.25, -long * 0.30);
+          ctx.lineTo(-long * 0.20, long * 0.22);
+          ctx.lineTo(-long * 0.35, long * 0.80);
+          ctx.lineTo(-long * 0.60, long * 0.80);
+          ctx.lineTo(-long * 0.55, long * 0.18);
+          ctx.lineTo(-long * 0.85, long * 0.15);
+          ctx.lineTo(-long, long * 0.42);
+          ctx.lineTo(-long, -long * 0.42);
+          ctx.lineTo(-long * 0.85, -long * 0.15);
+          ctx.lineTo(-long * 0.55, -long * 0.18);
+          ctx.lineTo(-long * 0.60, -long * 0.80);
+          ctx.lineTo(-long * 0.35, -long * 0.80);
+          ctx.lineTo(-long * 0.20, -long * 0.22);
         }
         ctx.closePath();
         ctx.fill();
