@@ -8,5 +8,3 @@ dist/
 .DS_Store
 Thumbs.db
 
-# a stray file from a mistyped command, not part of the project
-x
