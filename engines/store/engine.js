@@ -158,5 +158,74 @@ export function installStore(rt, host = {}) {
     needFiles(ctx).append(toText(a.name), toText(a.value) + '\n', ctx);
   });
 
+  // -------------------------------------------------- the shapes data comes in
+  //
+  // Two ways nearly every program on earth writes things down. Plain reads
+  // and writes both, so a file or an answer from the web can be worked with
+  // as ordinary lists and things.
+
+  rt.defineValue('json of $value', (a, ctx) => {
+    try {
+      return JSON.stringify(a.value, null, 2);
+    } catch {
+      ctx.fail('I cannot write that as JSON', 'something in it refers back to itself');
+    }
+  });
+
+  rt.defineValue('thing from json $text', (a, ctx) => {
+    try {
+      return JSON.parse(toText(a.text));
+    } catch (problem) {
+      ctx.fail('That is not JSON I can read', String(problem.message || problem));
+    }
+  });
+
+  rt.defineValue('rows of $text', (a) => parseCSV(toText(a.text)));
+  rt.defineValue('csv of $rows', (a) => writeCSV(a.rows));
+
   return store;
+}
+
+// --------------------------------------------------------------------- CSV
+//
+// Spreadsheets and half the world's data arrive as commas and newlines,
+// with quotes around anything that contains one. A doubled quote inside a
+// quoted field means one quote.
+
+function parseCSV(text) {
+  const source = String(text ?? '').replace(/\r\n?/g, '\n');
+  const rows = [];
+  let row = [];
+  let field = '';
+  let quoted = false;
+  let started = false;             // tells an empty file from one blank row
+
+  for (let at = 0; at < source.length; at++) {
+    const letter = source[at];
+    started = true;
+    if (quoted) {
+      if (letter === '"') {
+        if (source[at + 1] === '"') { field += '"'; at++; }
+        else quoted = false;
+      } else field += letter;
+      continue;
+    }
+    if (letter === '"') { quoted = true; continue; }
+    if (letter === ',') { row.push(field); field = ''; continue; }
+    if (letter === '\n') { row.push(field); rows.push(row); row = []; field = ''; continue; }
+    field += letter;
+  }
+  if (started && (field !== '' || row.length)) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+function writeCSV(rows) {
+  const list = Array.isArray(rows) ? rows : [rows];
+  return list.map(row => {
+    const cells = Array.isArray(row) ? row : [row];
+    return cells.map(cell => {
+      const text = cell === null || cell === undefined ? '' : String(cell);
+      return /[",\n\r]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
+    }).join(',');
+  }).join('\n');
 }

@@ -48,6 +48,7 @@ const BLOCKS = [
   ['Button', 'button', { text: 'Press me', source: 'show a message "Hello"' }],
   ['Card', 'card', {}],
   ['Row', 'row', {}],
+  ['Markdown', 'markdown', { text: '## A heading\n\nSome **words** about this.' }],
   ['HTML', 'html', { text: '<b>your own markup</b>' }],
   ['Space', 'space', {}],
   ['Footer', 'footer', { text: 'Made with Plain.' }]
@@ -202,7 +203,11 @@ export function startDesigner(site, doc, win) {
     }
     const props = node.props || {};
     const fields = [];
-    if ('text' in props) fields.push(field(node.kind === 'html' ? 'Markup' : 'Words', 'text', props.text, node.kind === 'html'));
+    const written = node.kind === 'html' || node.kind === 'markdown';   // wants room to type
+    if ('text' in props) {
+      const label = node.kind === 'html' ? 'Markup' : node.kind === 'markdown' ? 'Markdown' : 'Words';
+      fields.push(field(label, 'text', props.text, written));
+    }
     if ('url' in props) fields.push(field('Address', 'url', props.url));
     if ('alt' in props) fields.push(field('Description', 'alt', props.alt));
     if ('label' in props) fields.push(field('Label', 'label', props.label));

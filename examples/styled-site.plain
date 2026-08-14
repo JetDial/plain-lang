@@ -1,4 +1,4 @@
-# A page with your own HTML and CSS mixed into Plain's.
+# A page with your own HTML, CSS, markdown and JavaScript mixed into Plain's.
 # See it with:  plain play examples/styled-site.plain
 # Design it with: plain edit examples/styled-site.plain
 
@@ -35,5 +35,29 @@ add a card called "Both at once"
 end
 
 add html '<hr style="border:0;height:1px;background:linear-gradient(90deg,transparent,#ffd166,transparent)">'
+
+# Markdown, for when the words matter more than the markup. This one is
+# read rather than passed through, so a stray < stays a <.
+add markdown '
+## Written in markdown
+
+The marks people already type: **bold**, *slanted*, `code`, and
+[a link](https://example.com).
+
+- lists
+- of things
+
+> and something worth quoting.
+'
+
+# And JavaScript, for the corners a sentence has not reached yet.
+add html '<p>This page has been open for <span id="ticks">0</span> seconds.</p>'
+add script '
+var seconds = 0;
+setInterval(function () {
+  seconds += 1;
+  document.getElementById("ticks").textContent = seconds;
+}, 1000);
+'
 
 add a footer "Made with Plain."

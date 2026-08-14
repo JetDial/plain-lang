@@ -148,6 +148,11 @@ remember score as "best score" if it is bigger
 
 write "hello" to file "notes.txt"
 show lines of file "notes.txt"
+
+# The shapes data arrives in.
+show json of shopping
+make person be thing from json '{"name": "Ada"}'
+make table be rows of text of file "sales.csv"
 ```
 
 The whole language fits on one page: **[LANGUAGE.md](LANGUAGE.md)**.
@@ -265,11 +270,15 @@ add html '<p><span class="badge">your own markup</span> sits here.</p>'
 
 add a title "Handmade" named crown
 style crown with 'color: #ffd166'
+
+add markdown '## Or the marks you already type, **bold** and all.'
+add script 'document.title = "written in JavaScript"'
 ```
 
-Single quotes are taken exactly as typed, which is what CSS and HTML need.
-Your style comes after Plain's, so it wins — in built pages, the live
-preview and the designer alike. See `examples/styled-site.plain`.
+Single quotes are taken exactly as typed, which is what CSS, HTML and
+markdown need. Your style comes after Plain's, so it wins — in built pages,
+the live preview and the designer alike. Markdown is read rather than passed
+through, so a stray `<` stays a `<`. See `examples/styled-site.plain`.
 
 `plain build` writes ordinary HTML files, one per page, styled and responsive.
 The page content is in the HTML itself, so it reads fine with JavaScript off.
@@ -486,17 +495,17 @@ src/stdlib.js          the sentences every program has
 src/browser.js         running a program in a browser
 engines/game/          the 2D game engine
 engines/world/         the 3D world engine and its WebGL renderer
-engines/web/           the website engine, its HTML writer, and the designer
+engines/web/           the website engine, its HTML and markdown writers, the designer
 engines/video/         the video timeline and the studio
 examples/              programs to read and run
-src/translate/        Plain -> JavaScript, Python, C# and Lua
+src/translate/        Plain -> nine other languages
 src/format.js         plain fmt
-engines/store/        remembering things, and reading and writing files
+engines/store/        remembering things, files, JSON and CSV
 engines/learn/        the course: lessons, projects and their checks
 tests/fake-dom.js      a small stand-in browser, so the pages can be tested
 engines/net/          fetching, and answering as a web server
 bin/parts.js          fetching and recording parts other people wrote
-tests/run-tests.js     310 checks, no framework, nine languages executed
+tests/run-tests.js     321 checks, no framework, nine languages executed
 ```
 
 ## Tests

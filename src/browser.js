@@ -196,9 +196,7 @@ function startSite(site, doc, win) {
   site.current = site.pages.find(page => hrefFor(page.path) === asked) || site.pages[0];
 
   doc.title = site.current.name === site.title ? site.title : `${site.current.name} - ${site.title}`;
-  ensureStyle(doc, stylesheet(site.theme) + '
-' + (site.styles || []).join('
-'));
+  ensureStyle(doc, [stylesheet(site.theme), ...(site.styles || [])].join('\n'));
 
   let root = doc.getElementById('plain-app');
   if (!root) {
@@ -212,6 +210,19 @@ function startSite(site, doc, win) {
 
   if (site.pages.length > 1) buildNav(site, doc, root);
   mountPage(site.current, root, doc);
+
+  // The page's own JavaScript, after the page exists so it can find things.
+  // A script put in as text would never run, so each one gets a real element
+  // of its own - unless it is already here, because `plain play` also builds
+  // the page on the server, and a timer started twice counts twice.
+  const already = new Set([...doc.querySelectorAll('script')].map(tag => tag.textContent.trim()));
+  for (const js of site.scripts || []) {
+    if (already.has(js.trim())) continue;
+    const tag = doc.createElement('script');
+    tag.textContent = js;
+    doc.body.appendChild(tag);
+  }
+
   for (const run of site.onLoad) run();
 }
 

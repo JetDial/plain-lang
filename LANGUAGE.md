@@ -343,6 +343,26 @@ show does file "notes.txt" exist
 Reading and writing files needs a terminal; in a browser Plain says so rather
 than failing quietly.
 
+Data usually arrives in one of two shapes, so Plain reads and writes both:
+
+```plain
+# JSON - what web services speak.
+show json of a list of 1, "two", yes
+make person be thing from json '{"name": "Ada", "years": [1815, 1852]}'
+show value "name" of person
+show item 1 of value "years" of person
+
+# CSV - what spreadsheets speak.
+make table be rows of text of file "sales.csv"
+show item 2 of item 1 of table              # row 1, column 2
+write csv of table to file "copy.csv"
+```
+
+`rows of` handles the awkward parts of CSV properly: commas inside quotes,
+doubled quotes meaning one quote, and lines that wrap. `csv of` puts the
+quotes back where they are needed. Neither loses anything on the way out and
+in again.
+
 ## 16. Patterns in text
 
 A pattern is written as text in **single quotes**, which are taken exactly as
@@ -822,7 +842,7 @@ end
 any named piece of the page. `show a message` pops up a short note in the
 browser, and prints to the terminal when there is no browser.
 
-## Your own HTML and CSS
+## Your own HTML, CSS, markdown and JavaScript
 
 Plain writes the page for you, but it does not stand in your way. Styling can
 be said as sentences:
@@ -860,14 +880,47 @@ add a title "Handmade" named crown
 style crown with 'letter-spacing: -0.03em; color: #ffd166'
 ```
 
-Your style comes after Plain's, so it wins. It reaches the built pages, the
-live preview and the designer alike — `examples/styled-site.plain` uses all
-of it at once.
+When the words matter more than the markup, write markdown:
 
-Two things worth knowing. Markup you add is **not** escaped — that is the
-point of it, and it is your own page, but do not paste in markup you were
-sent by somebody else. And a style cannot close the style block early;
-Plain sees to that.
+```plain
+add markdown '
+## A heading
+
+The marks people already type: **bold**, *slanted*, `code`, and
+[a link](https://example.com).
+
+- lists
+- of things
+
+> and something worth quoting.
+'
+```
+
+Headings, bold, slanted, code, links, pictures, lists, quotes, rules and
+fenced code all work. Markdown is *read* rather than passed through, so a
+stray `<` in your writing stays a `<`.
+
+And JavaScript, for the corners a sentence has not reached yet:
+
+```plain
+add html '<p>Open for <span id="ticks">0</span> seconds.</p>'
+add script '
+var seconds = 0;
+setInterval(function () {
+  seconds += 1;
+  document.getElementById("ticks").textContent = seconds;
+}, 1000);
+'
+```
+
+Your style comes after Plain's, so it wins. Style, markup, markdown and
+script all reach the built pages, the live preview and the designer alike —
+`examples/styled-site.plain` uses every one of them at once.
+
+Two things worth knowing. Markup and script you add are **not** escaped —
+that is the point of them, and it is your own page, but do not paste in
+markup or code you were sent by somebody else. And neither a style nor a
+script can close its own block early; Plain sees to that.
 
 ## The designer
 

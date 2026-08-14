@@ -18,6 +18,7 @@ import { startLearning } from '../engines/learn/app.js';
 import { paint } from '../engines/learn/highlight.js';
 import { targetNames } from '../src/translate/index.js';
 import { FakeWindow } from './fake-dom.js';
+import { startPlain } from '../src/browser.js';
 
 export function runPageChecks(check) {
   // A page needs somewhere to save to; this stands in for the Plain server.
@@ -271,6 +272,43 @@ export function runPageChecks(check) {
     assert.ok(jump, 'no button to jump to the line');
     assert.equal(jump.textContent, 'line 3');
     assert.equal(editor.value.slice(editor.selectionStart, editor.selectionEnd), 'show wobble');
+  });
+
+  // ------------------------------------------- the live page, as `plain play`
+
+  check('page: a live page carries names, markdown and its own script', () => {
+    const win = new FakeWindow();
+    const running = startPlain([
+      'make a website called "Live"',
+      'add a title "Live" named crown',
+      "style crown with 'color: #ffd166'",
+      "add markdown '## read me'",
+      "add script 'window.ranTwice = (window.ranTwice || 0) + 1;'"
+    ].join('\n'), { window: win, document: win.document, file: 'live.plain' });
+
+    assert.ok(running.ok, 'the program did not run');
+    // Named things must be findable by the style that names them.
+    const named = win.document.querySelector('[data-plain-name="crown"]');
+    assert.ok(named, 'the name never reached the live page');
+    // Markdown is read here too, not only when the page is built.
+    assert.ok(win.document.querySelector('.plain-markdown'), 'no markdown on the live page');
+    const scripts = win.document.querySelectorAll('script');
+    assert.equal(scripts.length, 1);
+    assert.match(scripts[0].textContent, /ranTwice/);
+  });
+
+  check('page: a script already on the page is not run a second time', () => {
+    const win = new FakeWindow();
+    // `plain play` serves the page already built, script and all, and then
+    // runs the same program again in the browser.
+    const standing = win.document.createElement('script');
+    standing.textContent = 'var n = 1;';
+    win.document.body.appendChild(standing);
+
+    startPlain("make a website called \"Live\"\nadd script 'var n = 1;'",
+      { window: win, document: win.document, file: 'live.plain' });
+
+    assert.equal(win.document.querySelectorAll('script').length, 1);
   });
 
   check('page: a website written in the course is previewed', () => {

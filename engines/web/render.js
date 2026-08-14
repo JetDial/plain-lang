@@ -2,6 +2,8 @@
 // One page description, two outputs: an HTML string (for `plain build`) and
 // real DOM nodes (for the browser, where buttons actually work).
 
+import { markdownToHTML } from './markdown.js';
+
 export const THEMES = {
   light: { bg: '#f7f7fb', card: '#ffffff', ink: '#16181d', soft: '#5b616e', line: '#e4e6ec', tint: '#2f6df6', tintInk: '#ffffff' },
   dark: { bg: '#0f1117', card: '#171a22', ink: '#eef0f6', soft: '#a3a9b8', line: '#272b36', tint: '#6c8cff', tintInk: '#0f1117' },
@@ -103,6 +105,8 @@ export function toSpec(node) {
     case 'space': return { tag: 'hr', className: 'plain-space' };
     // Written by the author, so it goes in as it stands rather than escaped.
     case 'html': return { tag: 'div', className: 'plain-html', raw: p.text || '' };
+    // Markdown is marked-up text, not markup: escaped first, then read.
+    case 'markdown': return { tag: 'div', className: 'plain-markdown', raw: markdownToHTML(p.text || '') };
     case 'link': return { tag: 'a', className: 'plain-link', text: p.text, attrs: { href: p.url } };
     case 'picture': return { tag: 'img', className: 'plain-picture', attrs: { src: p.url, alt: p.alt || '' }, empty: true };
     case 'button': return { tag: 'button', className: 'plain-button', text: p.text, attrs: { type: 'button' }, click: p.click };
@@ -200,6 +204,7 @@ ${(site.styles || []).join('\n')}
   </head>
   <body>
 ${body}
+${(site.scripts || []).map(js => `    <script>\n${js}\n    </script>`).join('\n')}
 ${script}
   </body>
 </html>
@@ -211,6 +216,7 @@ ${script}
 export function specToDOM(spec, document, page) {
   const el = document.createElement(spec.tag);
   if (spec.className) el.className = spec.className;
+  if (spec.name) el.setAttribute('data-plain-name', spec.name);
   for (const [key, value] of Object.entries(spec.attrs || {})) {
     if (value === undefined || value === null || value === '') continue;
     if (key === 'value') el.value = value;
@@ -227,6 +233,9 @@ export function mountPage(page, root, document) {
   root.textContent = '';
   for (const node of page.nodes) {
     const spec = toSpec(node);
+    // A name is how "style crown with ..." finds this thing, so it has to
+    // survive into the live page as well as the built one.
+    if (node.name) spec.name = node.name;
     const el = specToDOM(spec, document, page);
     node.element = el;
     root.appendChild(el);

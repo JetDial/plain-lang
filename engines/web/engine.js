@@ -29,6 +29,7 @@ export class Site {
     this.theme = 'light';
     this.pages = [];
     this.styles = [];              // CSS the program added itself
+    this.scripts = [];             // JavaScript the program added itself
     this.byName = new Map();
     this.onLoad = [];
     this.host = {};
@@ -71,6 +72,7 @@ export class Site {
     const lines = [`make a website called ${quote(this.title)}`];
     if (this.theme !== 'light') lines.push(`set the theme to ${quote(this.theme)}`);
     for (const css of this.styles) lines.push(`add style ${literal(css)}`);
+    for (const js of this.scripts) lines.push(`add script ${literal(js)}`);
 
     this.pages.forEach((page, index) => {
       lines.push('');
@@ -101,6 +103,7 @@ function nodeToPlain(node, indent) {
   switch (node.kind) {
     case 'space': return [indent + 'add a space'];
     case 'html': return [indent + 'add html ' + literal(props.text || '') + named];
+    case 'markdown': return [indent + 'add markdown ' + literal(props.text || '') + named];
     case 'link': return [indent + `add a link ${quote(props.text)} to ${quote(props.url)}`];
     case 'picture':
       return [indent + (props.alt
@@ -215,6 +218,14 @@ export function installWeb(rt, host = {}) {
   rt.define('add html $text named #id', (a) => void site.add('html', { text: toText(a.text) }, a.id));
 
   rt.define('add style $text', (a) => { site.styles.push(clean(toText(a.text))); });
+
+  // Markdown: the marks people already type. Written by the author, but
+  // turned into markup rather than passed through, so a stray < stays a <.
+  rt.define('add markdown $text', (a) => void site.add('markdown', { text: toText(a.text) }));
+  rt.define('add markdown $text named #id', (a) => void site.add('markdown', { text: toText(a.text) }, a.id));
+
+  // JavaScript, for the corners a sentence has not reached yet.
+  rt.define('add script $text', (a) => { site.scripts.push(clean(toText(a.text))); });
 
   rt.define('set the page background to $color', (a) => {
     site.styles.push(`body { background: ${clean(toText(a.color))}; }`);
@@ -339,6 +350,11 @@ function showToast(document, text) {
 export { THEMES };
 
 // Nothing in a style may close the block it sits in.
+// Style and script live inside a block that a stray closing tag would end
+// early, taking the rest of the page with it. A backslash keeps the tag
+// harmless without changing what the CSS or the JavaScript means.
 function clean(text) {
-  return String(text).replace(/<\/style/gi, '<\\/style');
+  return String(text)
+    .replace(/<\/style/gi, '<\\/style')
+    .replace(/<\/script/gi, '<\\/script');
 }

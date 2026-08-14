@@ -596,6 +596,62 @@ check('markup and style survive being written back', () => {
   assert.equal(node.props.text, '<div class="card">it\'s mine</div>');
 });
 
+check('a page can be written in markdown', () => {
+  const { site } = runtimeFor([
+    'make a website called "S"',
+    "add markdown '# Big",
+    '',
+    'Some **bold** and `code` and [a link](https://example.com).',
+    '',
+    '- one',
+    '- two',
+    '',
+    '> quoted',
+    "'"
+  ].join('\n'));
+  assert.equal(site.pages[0].nodes[0].kind, 'markdown');
+  const html = documentToHTML(site, site.pages[0], {});
+  assert.match(html, /<h1 class="plain-title">Big<\/h1>/);
+  assert.match(html, /<strong>bold<\/strong>/);
+  assert.match(html, /<code>code<\/code>/);
+  assert.match(html, /<a href="https:\/\/example\.com">a link<\/a>/);
+  assert.match(html, /<li>one<\/li>\n<li>two<\/li>/);
+  assert.match(html, /<blockquote class="plain-quote">/);
+});
+
+check('markdown is read, not passed through', () => {
+  const { site } = runtimeFor("make a website called \"S\"\nadd markdown '<script>bad()</script> is *fine* to write about'");
+  const html = documentToHTML(site, site.pages[0], {});
+  assert.ok(!html.includes('<script>bad()'), 'markdown let markup through');
+  assert.match(html, /&lt;script&gt;/);
+  assert.match(html, /<em>fine<\/em>/);
+});
+
+check('a page can carry your own JavaScript', () => {
+  const { site } = runtimeFor("make a website called \"S\"\nadd script 'console.log(1 < 2)'");
+  const html = documentToHTML(site, site.pages[0], {});
+  // Scripts go in as written - escaping them would stop them working.
+  assert.match(html, /<script>\nconsole\.log\(1 < 2\)\n\s*<\/script>/);
+});
+
+check('a script cannot break out of the script block', () => {
+  const { site } = runtimeFor("make a website called \"S\"\nadd script '</script><b>loose</b>'");
+  const html = documentToHTML(site, site.pages[0], {});
+  assert.ok(!html.includes('</script><b>loose'), 'the script block was closed early');
+});
+
+check('markdown and script survive being written back', () => {
+  const source = [
+    'make a website called "S"',
+    "add script 'var n = 1;'",
+    "add markdown '## Hi there'"
+  ].join('\n');
+  const { site } = runtimeFor(source);
+  const again = runtimeFor(site.toPlainSource());
+  assert.equal(again.site.scripts[0], 'var n = 1;');
+  assert.equal(again.site.pages[0].nodes[0].props.text, '## Hi there');
+});
+
 check('an unknown theme is explained', () => {
   const error = broken('make a website called "S"\nset the theme to "banana"');
   assert.match(error.plainMessage, /not a theme/);
@@ -1517,6 +1573,74 @@ check('files say plainly that they need a terminal', () => {
   try { runWith('show text of file "x.txt"', fakeStore(new Map())); }
   catch (e) { error = e; }
   assert.match(error.plainMessage, /terminal/);
+});
+
+// Some files here only ever run in a browser, so nothing else in this suite
+// would notice if one stopped being valid JavaScript. One did, silently, and
+// every `plain play` quietly fell back to a page that could not think.
+check('every file in the project is valid JavaScript', () => {
+  const found = [];
+  const walk = (folder) => {
+    for (const entry of fs.readdirSync(folder, { withFileTypes: true })) {
+      if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
+      const full = path.join(folder, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.name.endsWith('.js')) found.push(full);
+    }
+  };
+  walk(ROOT);
+  assert.ok(found.length > 30, `only found ${found.length} files to check`);
+
+  const broken = [];
+  for (const file of found) {
+    try { execFileSync(process.execPath, ['--check', file], { stdio: 'pipe' }); }
+    catch (problem) {
+      const said = String(problem.stderr || '').split('\n').find(line => line.includes('Error')) || 'would not parse';
+      broken.push(`${path.relative(ROOT, file)}: ${said.trim()}`);
+    }
+  }
+  assert.equal(broken.length, 0, `\n  ${broken.join('\n  ')}`);
+});
+
+check('things can be written as JSON and read back', () => {
+  const host = fakeStore(new Map());
+  assert.equal(
+    firstWith("show json of a list of 1, \"two\", yes", host),
+    '[\n  1,\n  "two",\n  true\n]'
+  );
+  assert.equal(firstWith('show value "town" of thing from json \'{"town": "Bath"}\'', host), 'Bath');
+  assert.equal(firstWith('show item 2 of thing from json "[10, 20]"', host), '20');
+  // A round trip keeps the shape.
+  assert.equal(
+    firstWith('show item 1 of value "years" of thing from json json of thing from json \'{"years":[1815]}\'', host),
+    '1815'
+  );
+});
+
+check('broken JSON is explained rather than crashed on', () => {
+  let error = null;
+  try { runWith("show thing from json '{oh dear'", fakeStore(new Map())); }
+  catch (e) { error = e; }
+  assert.ok(error instanceof PlainError);
+  assert.match(error.plainMessage, /not JSON I can read/);
+});
+
+check('CSV can be read and written, quotes and all', () => {
+  const host = fakeStore(new Map());
+  const table = 'make t be rows of "a,b\\nAda,\\"likes, commas\\"\\nBob,\\"said \\"\\"hi\\"\\"\\""';
+  assert.equal(firstWith(`${table}\nshow number of items in t`, host), '3');
+  assert.equal(firstWith(`${table}\nshow item 2 of item 2 of t`, host), 'likes, commas');
+  assert.equal(firstWith(`${table}\nshow item 2 of item 3 of t`, host), 'said "hi"');
+  assert.equal(firstWith('show rows of ""', host), '[]');
+  assert.equal(
+    firstWith('make r be a list of "a", "b,c"\nshow csv of a list of r', host),
+    'a,"b,c"'
+  );
+  // Out and back again is the same table.
+  assert.equal(
+    firstWith(`${table}\nshow item 2 of item 2 of rows of csv of t`, host),
+    'likes, commas'
+  );
 });
 
 function fakeStore(map) {
