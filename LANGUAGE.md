@@ -894,6 +894,9 @@ plain translate mine.plain --to python
 plain translate mine.plain --to csharp
 plain translate mine.plain --to lua
 plain translate mine.plain --to typescript
+plain translate mine.plain --to ruby
+plain translate mine.plain --to java
+plain translate mine.plain --to go
 plain translate mine.plain --to all --out translated
 ```
 

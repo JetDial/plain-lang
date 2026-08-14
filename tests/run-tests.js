@@ -889,6 +889,30 @@ function sameEverywhere(name, source) {
         assert.equal(fromLua, expected, 'Lua said something different');
       }
 
+      if (RUBY) {
+        const rubyFile = path.join(folder, 'program.rb');
+        fs.writeFileSync(rubyFile, written(source, 'ruby'), 'utf8');
+        const fromRuby = execFileSync(RUBY, [rubyFile], { encoding: 'utf8' }).replace(/\r/g, '').trimEnd();
+        assert.equal(fromRuby, expected, 'Ruby said something different');
+      }
+
+      if (JAVA) {
+        // A single .java file can be run straight off, with no build step.
+        const javaFile = path.join(folder, 'Program.java');
+        fs.writeFileSync(javaFile, written(source, 'java'), 'utf8');
+        const fromJava = execFileSync(JAVA, [javaFile], { encoding: 'utf8', cwd: folder }).replace(/\r/g, '').trimEnd();
+        assert.equal(fromJava, expected, 'Java said something different');
+      }
+
+      if (GO) {
+        const goFolder = path.join(folder, 'go');
+        fs.mkdirSync(goFolder, { recursive: true });
+        fs.writeFileSync(path.join(goFolder, 'main.go'), written(source, 'go'), 'utf8');
+        fs.writeFileSync(path.join(goFolder, 'go.mod'), 'module program' + String.fromCharCode(10) + String.fromCharCode(10) + 'go 1.21' + String.fromCharCode(10), 'utf8');
+        const fromGo = execFileSync(GO, ['run', '.'], { encoding: 'utf8', cwd: goFolder }).replace(new RegExp(String.fromCharCode(13), 'g'), '').trimEnd();
+        assert.equal(fromGo, expected, 'Go said something different');
+      }
+
       if (DOTNET) {
         const fromCSharp = runCSharp(written(source, 'csharp'), folder).replace(/\r/g, '').trimEnd();
         assert.equal(fromCSharp, expected, 'C# said something different');
@@ -947,8 +971,27 @@ const TYPESCRIPT = (() => {
   }
 })();
 
+const RUBY = lookFor('ruby', ['-v'], /ruby \d/);
+const GO = lookFor('go', ['version'], /go version/);
+// --version writes to stdout; the older -version writes to stderr.
+const JAVA = lookFor('java', ['--version'], /\d+\.\d+/);
+
+function lookFor(command, args, wanted) {
+  try {
+    const said = execFileSync(command, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    return wanted.test(said) ? command : null;
+  } catch (error) {
+    // Some tools write their version to stderr and "fail" doing it.
+    const said = String((error.stdout || '') + (error.stderr || ''));
+    return wanted.test(said) ? command : null;
+  }
+}
+
 const skipped = [];
 if (!TYPESCRIPT) skipped.push('TypeScript (this Node cannot run .ts directly)');
+if (!RUBY) skipped.push('Ruby (no ruby on this machine)');
+if (!JAVA) skipped.push('Java (no java on this machine)');
+if (!GO) skipped.push('Go (no go on this machine)');
 if (!PYTHON) skipped.push('Python (no python 3 on this machine)');
 if (!LUA) skipped.push('Lua (no lua interpreter on this machine)');
 if (!DOTNET) skipped.push('C# (dotnet has runtimes but no SDK on this machine)');
@@ -1239,8 +1282,8 @@ check('the command line translates a file', () => {
 // their shape rather than by running them. JavaScript and Python above are
 // checked by running them.
 
-check('it can also write C#, Lua and TypeScript', () => {
-  assert.deepEqual(targetNames(), ['javascript', 'python', 'csharp', 'lua', 'typescript']);
+check('it can write eight languages', () => {
+  assert.deepEqual(targetNames(), ['javascript', 'python', 'csharp', 'lua', 'typescript', 'ruby', 'java', 'go']);
 });
 
 const SHOWCASE = [

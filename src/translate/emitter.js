@@ -115,6 +115,9 @@ export class Emitter {
   newInstance(kind, pairs) { return `new ${kind}(${this.recordLiteral(pairs)})`; }
   methodCall(object, method, args) { return `${object}.${method}(${args.join(', ')})`; }
   callValue(action, args) { return `${action}(${args.join(', ')})`; }
+  // Calling an action by its name is not always written the same way as
+  // calling one that is being held in a name.
+  callFunction(name, args) { return this.callValue(name, args); }
   actionReference(name) { return name; }
   isKindOf(value, kind) { return `${value} instanceof ${kind}`; }
   exitProgram() { return 'process.exit(0)'; }
@@ -442,10 +445,12 @@ export class Emitter {
         return this.assign(name('name'), value('value'));
       case 'empty #name':
         return this.assign(name('name'), this.helper('emptied', [name('name')]));
+      // Assigned back, not just called: in some languages a list that has
+      // had something taken out of it is a new list.
       case 'remove $value from #name':
-        return this.helper('removeValue', [name('name'), value('value')]);
+        return this.assign(name('name'), this.helper('removeValue', [name('name'), value('value')]));
       case 'remove item $index from #name':
-        return this.helper('removeAt', [name('name'), value('index')]);
+        return this.assign(name('name'), this.helper('removeAt', [name('name'), value('index')]));
       case 'ask $question into #name':
         return this.assign(name('name'), this.helper('ask', [value('question')]));
       case 'stop the program':
@@ -480,7 +485,7 @@ export class Emitter {
     const [words] = String(node.id).slice(5).split('/');
     const order = String(node.spec).split(/\s+/).filter(part => part.startsWith('$')).map(part => part.slice(1));
     const args = order.map(key => this.expression(node.args[key]));
-    return this.callValue(this.identifier(words.replace(/\s+/g, '_')), args);
+    return this.callFunction(this.identifier(words.replace(/\s+/g, '_')), args);
   }
 
   // --------------------------------------------------------- expressions

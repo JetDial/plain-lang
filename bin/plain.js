@@ -795,7 +795,7 @@ Plain ${VERSION} - a language you write like a normal sentence.
   plain check <file.plain>    look for mistakes without running it
   plain words                 list every sentence Plain understands
   plain learn                 lessons and projects, in your browser
-  plain translate <file>      write it in JavaScript, TypeScript, Python, C# or Lua
+  plain translate <file>      write it in eight other languages     (--to go)
   plain fmt <file|folder>     tidy the indenting                    (--check)
   plain new <name>            start a blank program
   plain make <kind> <name>    start a finished one: ${templateNames().join(', ')}

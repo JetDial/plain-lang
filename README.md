@@ -56,7 +56,7 @@ plain run <file>     run it in the terminal            (--fast to go quicker)
 plain play <file>    open it in the browser
 plain edit <file>    open the designer or the video studio
 plain build <file>   write HTML you can publish        (--out folder)
-plain translate <f>  write it in JavaScript, TypeScript, Python, C# or Lua
+plain translate <f>  write it in eight other languages   (--to go)
 plain fmt <file>     tidy the indenting                (--check to just look)
 plain check <file>   look for mistakes without running
 plain words          list every sentence Plain understands
@@ -381,7 +381,7 @@ plain translate mine.plain --to all --out translated
 ```
 
 The same program, written out in **JavaScript**, **TypeScript**, **Python**,
-**C#** or **Lua** — real loops, real classes, real functions, with your names kept and a
+**Ruby**, **Java**, **C#**, **Go** or **Lua** — real loops, real classes, real functions, with your names kept and a
 small set of helpers for the few places where Plain means something particular
 (lists that count from 1, text that joins with anything, refusing to divide by
 zero).
@@ -402,9 +402,9 @@ def double(n):
 print(plain_text(plain_changed_by([1, 2, 3], double)))
 ```
 
-The test suite takes ten programs, translates each into **all four**
-languages, runs every result, and insists they all print exactly what Plain
-printed. If a language's tool is missing from the machine, that language is
+The test suite takes ten programs, translates each into **all eight**
+languages, runs every result, and insists all nine print exactly the same
+thing. If a language's tool is missing from the machine, that language is
 skipped and the run says so rather than pretending.
 
 Sentences that belong to an engine (games, worlds, websites, videos) do not
@@ -474,7 +474,7 @@ engines/store/        remembering things, and reading and writing files
 engines/learn/        the course: lessons, projects and their checks
 tests/fake-dom.js      a small stand-in browser, so the pages can be tested
 engines/net/          fetching, and answering as a web server
-tests/run-tests.js     295 checks, no framework
+tests/run-tests.js     297 checks, no framework, eight languages executed
 ```
 
 ## Tests

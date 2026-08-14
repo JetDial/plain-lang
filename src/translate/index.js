@@ -12,6 +12,9 @@ import { PythonEmitter } from './python.js';
 import { CSharpEmitter } from './csharp.js';
 import { LuaEmitter } from './lua.js';
 import { TypeScriptEmitter } from './typescript.js';
+import { RubyEmitter } from './ruby.js';
+import { JavaEmitter } from './java.js';
+import { GoEmitter } from './go.js';
 
 // `run` says the test suite runs the generated file and compares what it
 // prints with what Plain printed. A language whose tool is not on the
@@ -21,7 +24,10 @@ export const TARGETS = {
   python: { emitter: PythonEmitter, also: ['py', 'python3'], run: true },
   csharp: { emitter: CSharpEmitter, also: ['cs', 'c#', 'dotnet', 'unity'], run: true },
   lua: { emitter: LuaEmitter, also: ['love', 'roblox'], run: true },
-  typescript: { emitter: TypeScriptEmitter, also: ['ts'], run: true }
+  typescript: { emitter: TypeScriptEmitter, also: ['ts'], run: true },
+  ruby: { emitter: RubyEmitter, also: ['rb'], run: true },
+  java: { emitter: JavaEmitter, also: ['jvm'], run: true },
+  go: { emitter: GoEmitter, also: ['golang'], run: true }
 };
 
 export function targetNames() {
@@ -49,4 +55,4 @@ export function translate(program, targetName, meta = {}) {
 }
 
 export { Emitter } from './emitter.js';
-export { JavaScriptEmitter, PythonEmitter, CSharpEmitter, LuaEmitter, TypeScriptEmitter };
+export { JavaScriptEmitter, PythonEmitter, CSharpEmitter, LuaEmitter, TypeScriptEmitter, RubyEmitter, JavaEmitter, GoEmitter };
