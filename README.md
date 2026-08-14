@@ -23,8 +23,10 @@ verb, blocks end with `end`, and indentation is yours to choose. Underneath it
 has the things a grown-up language has: your own kinds of thing, actions used
 as values, catching problems, and files that pull in other files.
 
-**Nothing to install but Node, and no dependencies of its own.** The whole of
-it is the files in this repository — which is also why `plain pack` can hand
+**Nothing to install but Node.** Plain itself pulls in no packages - the
+whole of it is the files in this repository. (Your *programs* can depend on
+other people though: see parts, below, which fetch what they need, pin what
+they got, and refuse anything that changed underneath you.) — which is also why `plain pack` can hand
 you one folder to copy to a server.
 
 ## What comes with it
