@@ -17,6 +17,7 @@ import { JavaEmitter } from './java.js';
 import { GoEmitter } from './go.js';
 import { PhpEmitter } from './php.js';
 import { RustEmitter } from './rust.js';
+import { CEmitter } from './c.js';
 
 // `run` says the test suite runs the generated file and compares what it
 // prints with what Plain printed. A language whose tool is not on the
@@ -31,7 +32,8 @@ export const TARGETS = {
   java: { emitter: JavaEmitter, also: ['jvm'], run: true },
   go: { emitter: GoEmitter, also: ['golang'], run: true },
   php: { emitter: PhpEmitter, also: ['php8'], run: true },
-  rust: { emitter: RustEmitter, also: ['rs'], run: true }
+  rust: { emitter: RustEmitter, also: ['rs'], run: true },
+  c: { emitter: CEmitter, also: ['clang', 'gcc'], run: true }
 };
 
 export function targetNames() {
@@ -61,5 +63,5 @@ export function translate(program, targetName, meta = {}) {
 export { Emitter } from './emitter.js';
 export {
   JavaScriptEmitter, PythonEmitter, CSharpEmitter, LuaEmitter, TypeScriptEmitter,
-  RubyEmitter, JavaEmitter, GoEmitter, PhpEmitter, RustEmitter
+  RubyEmitter, JavaEmitter, GoEmitter, PhpEmitter, RustEmitter, CEmitter
 };

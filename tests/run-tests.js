@@ -1042,6 +1042,11 @@ function sameEverywhere(name, source) {
         const fromRust = runRust(written(source, 'rust'), folder).replace(/\r/g, '').trimEnd();
         assert.equal(fromRust, expected, 'Rust said something different');
       }
+
+      if (CC) {
+        const fromC = runC(written(source, 'c'), folder).replace(/\r/g, '').trimEnd();
+        assert.equal(fromC, expected, 'C said something different');
+      }
     } finally {
       fs.rmSync(folder, { recursive: true, force: true });
     }
@@ -1097,6 +1102,7 @@ const TYPESCRIPT = (() => {
 })();
 
 const RUST = lookFor('rustc', ['--version'], /rustc \d/);
+const CC = lookFor('gcc', ['--version'], /gcc|clang/) || lookFor('clang', ['--version'], /clang/) || lookFor('cc', ['--version'], /gcc|clang/);
 const RUBY = lookFor('ruby', ['-v'], /ruby \d/);
 const GO = lookFor('go', ['version'], /go version/);
 const PHP = lookFor('php', ['--version'], /PHP \d/);
@@ -1124,6 +1130,7 @@ if (!PYTHON) skipped.push('Python (no python 3 on this machine)');
 if (!LUA) skipped.push('Lua (no lua interpreter on this machine)');
 if (!DOTNET) skipped.push('C# (dotnet has runtimes but no SDK on this machine)');
 if (!RUST) skipped.push('Rust (no rustc on this machine)');
+if (!CC) skipped.push('C (no C compiler on this machine)');
 
 // One file, no crates and no Cargo: the runtime is written out with the
 // program, so rustc alone is enough. Built without optimising, because this
@@ -1423,9 +1430,85 @@ check('the command line translates a file', () => {
 // their shape rather than by running them. JavaScript and Python above are
 // checked by running them.
 
-check('it can write ten languages', () => {
+// One file, no libraries but the maths one, so any C compiler will do.
+function runC(code, folder) {
+  const file = path.join(folder, 'program.c');
+  const built = path.join(folder, 'program-c.exe');
+  fs.writeFileSync(file, code, 'utf8');
+  execFileSync(CC, ['-std=c99', '-O1', '-w', '-o', built, file, '-lm'], {
+    encoding: 'utf8', cwd: folder, stdio: ['ignore', 'pipe', 'pipe']
+  });
+  return execFileSync(built, [], { encoding: 'utf8', cwd: folder });
+}
+
+// The two runtimes in runtime/ are real files rather than strings inside an
+// emitter, so they can be built and run on their own. Each one comes with a
+// small program that says what Plain would say, which is the point.
+check('the Rust runtime stands up on its own', () => {
+  if (!RUST) return;
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'plain-rt-'));
+  try {
+    const code = '#![allow(dead_code, unused_mut, unused_variables, unused_parens, non_snake_case, unused_imports)]\n'
+      + fs.readFileSync(path.join(ROOT, 'runtime', 'rust', 'plain.rs'), 'utf8') + '\n'
+      + fs.readFileSync(path.join(ROOT, 'runtime', 'rust', 'stubs.rs'), 'utf8');
+    const said = runRust(code, folder).replace(/\r/g, '').trim();
+    assert.equal(said, ['0.3', '2.5', '[1, 2, 3]', '3', 'I cannot divide by zero'].join('\n'));
+  } finally {
+    fs.rmSync(folder, { recursive: true, force: true });
+  }
+});
+
+check('the C runtime stands up on its own', () => {
+  if (!CC) return;
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'plain-rt-'));
+  try {
+    const code = fs.readFileSync(path.join(ROOT, 'runtime', 'c', 'plain.c'), 'utf8') + '\n'
+      + fs.readFileSync(path.join(ROOT, 'runtime', 'c', 'stubs.c'), 'utf8');
+    const said = runC(code, folder).replace(/\r/g, '').trim();
+    assert.equal(said, ['0.3', '2.5', '[1, 2, 3]', '3', '3-1-2', 'Hello', 'I cannot divide by zero'].join('\n'));
+  } finally {
+    fs.rmSync(folder, { recursive: true, force: true });
+  }
+});
+
+// The sweep is the whole reason C can run a long program at all. Without it
+// this loop would ask for a gigabyte; with it, memory stays where it started.
+check('C gives memory back as it goes', () => {
+  if (!CC) return;
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'plain-rt-'));
+  try {
+    const source = [
+      'make i be 0',
+      'make total be 0',
+      'while i is below 60000',
+      '    make words be "row " joined with i',
+      '    make bits be a list of words, i, uppercase of words',
+      '    add length of item 1 of bits to total',
+      '    add 1 to i',
+      'end',
+      'show total'
+    ].join('\n');
+    assert.equal(runC(written(source, 'c'), folder).replace(/\r/g, '').trim(), run(source).join('\n'));
+    // 60000 turns, four things made each turn: a quarter of a million
+    // allocations. The pool is swept every turn, so it never holds more than
+    // one turn's worth.
+    assert.match(written(source, 'c'), /plain_sweep\(&_frame\)/);
+  } finally {
+    fs.rmSync(folder, { recursive: true, force: true });
+  }
+});
+
+check('C says what it cannot do rather than writing code that will not build', () => {
+  let error = null;
+  try { written("show \"ab\" matches 'a+'", 'c'); }
+  catch (problem) { error = problem; }
+  assert.ok(error instanceof PlainError, 'the pattern should have been refused');
+  assert.match(error.plainMessage, /C has no such thing/);
+});
+
+check('it can write eleven languages', () => {
   assert.deepEqual(targetNames(),
-    ['javascript', 'python', 'csharp', 'lua', 'typescript', 'ruby', 'java', 'go', 'php', 'rust']);
+    ['javascript', 'python', 'csharp', 'lua', 'typescript', 'ruby', 'java', 'go', 'php', 'rust', 'c']);
 });
 
 check('Rust says what it cannot do rather than writing code that will not build', () => {

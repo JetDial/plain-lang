@@ -56,7 +56,7 @@ plain run <file>     run it in the terminal            (--fast to go quicker)
 plain play <file>    open it in the browser
 plain edit <file>    open the designer or the video studio
 plain build <file>   write HTML you can publish        (--out folder)
-plain translate <f>  write it in ten other languages    (--to rust)
+plain translate <f>  write it in 11 other languages     (--to rust)
 plain fmt <file>     tidy the indenting                (--check to just look)
 plain get <url>      fetch a part into this folder     (plain parts to list)
 plain check <file>   look for mistakes without running
@@ -409,7 +409,7 @@ plain translate mine.plain --to all --out translated
 ```
 
 The same program, written out in **JavaScript**, **TypeScript**, **Python**,
-**Ruby**, **PHP**, **Java**, **C#**, **Go**, **Lua** or **Rust** — real loops, real
+**Ruby**, **PHP**, **Java**, **C#**, **Go**, **Lua**, **Rust** or **C** — real loops, real
 classes, real functions, with your names kept and a
 small set of helpers for the few places where Plain means something particular
 (lists that count from 1, text that joins with anything, refusing to divide by
@@ -431,8 +431,8 @@ def double(n):
 print(plain_text(plain_changed_by([1, 2, 3], double)))
 ```
 
-The test suite takes ten programs, translates each into **all ten**
-languages, builds and runs every result, and insists all eleven print exactly
+The test suite takes ten programs, translates each into **all eleven**
+languages, builds and runs every result, and insists all twelve print exactly
 the same thing. If a language's tool is missing from the machine, that language is
 skipped and the run says so rather than pretending.
 
@@ -453,9 +453,24 @@ plain translate mine.plain --to rust --out mine.rs
 rustc -O mine.rs && ./mine
 ```
 
-No crates, no Cargo, no build file. Reference counting is not a garbage
-collector: a program that ties a knot in itself (a list holding itself, two
-things pointing at each other) leaks that knot until it ends.
+No crates, no Cargo, no build file.
+
+C is the same idea taken further, because C has none of the pieces: no type
+that holds anything, no lists that grow, no text that joins, and no way to
+give memory back on its own. `runtime/c/plain.c` builds all four. Every
+thing on the heap is counted, and swept up at the end of each turn of a loop:
+
+```bash
+plain translate mine.plain --to c --out mine.c
+cc -O2 mine.c -o mine -lm
+```
+
+A loop of six million turns, each making four things, holds steady at 4 MB —
+without the sweep it would ask for a gigabyte.
+
+Neither counting nor sweeping is quite a garbage collector: a program that
+ties a knot in itself (a list holding itself, two things pointing at each
+other) keeps that knot until it ends. Everything else is given back.
 
 ## Why it is easy to learn
 
@@ -516,15 +531,16 @@ engines/world/         the 3D world engine and its WebGL renderer
 engines/web/           the website engine, its HTML and markdown writers, the designer
 engines/video/         the video timeline and the studio
 examples/              programs to read and run
-src/translate/        Plain -> ten other languages
+src/translate/        Plain -> 11 other languages
 runtime/rust/         the Value type Rust programs are built on
+runtime/c/            the same for C, with the counting and the sweep
 src/format.js         plain fmt
 engines/store/        remembering things, files, JSON and CSV
 engines/learn/        the course: lessons, projects and their checks
 tests/fake-dom.js      a small stand-in browser, so the pages can be tested
 engines/net/          fetching, and answering as a web server
 bin/parts.js          fetching and recording parts other people wrote
-tests/run-tests.js     322 checks, no framework, ten languages executed
+tests/run-tests.js     326 checks, no framework, 11 languages executed
 ```
 
 ## Tests
