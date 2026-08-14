@@ -177,6 +177,10 @@ plain build examples/site.plain --out site
 with a light/dark theme baked in. Drop the folder on any host. The buttons and
 text boxes keep working because the same program is re-run in the browser.
 
+The page content is written into the HTML itself, so it reads fine even with
+JavaScript off. The interactive parts need the folder to be *served* (any host,
+or `plain play`) — browsers refuse to load modules straight off the disk.
+
 Full list of website sentences: [LANGUAGE.md](LANGUAGE.md#the-website-engine).
 
 ---
@@ -232,7 +236,7 @@ src/browser.js        running a program in a browser
 engines/game/         the game engine
 engines/web/          the website engine
 examples/             programs to read and run
-tests/run-tests.js    101 checks, no framework
+tests/run-tests.js    102 checks, no framework
 ```
 
 ## Tests

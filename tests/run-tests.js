@@ -464,6 +464,15 @@ check('the command line lists its sentences', () => {
   assert.match(output, /every frame/);
 });
 
+check('the command line starts a new program that runs', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'plain-new-'));
+  const plain = path.join(ROOT, 'bin', 'plain.js');
+  execFileSync(process.execPath, [plain, 'new', 'first.plain'], { cwd: dir, encoding: 'utf8' });
+  const output = execFileSync(process.execPath, [plain, 'run', 'first.plain'], { cwd: dir, encoding: 'utf8' });
+  assert.match(output, /Hello, world!/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
 check('a website builds to real files', () => {
   const out = fs.mkdtempSync(path.join(os.tmpdir(), 'plain-build-'));
   execFileSync(process.execPath, [path.join(ROOT, 'bin', 'plain.js'), 'build', path.join(ROOT, 'examples', 'site.plain'), '--out', out], { encoding: 'utf8' });

@@ -26,6 +26,23 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
 const VERSION = '0.1.0';
 
+// Declared up here because the command switch below runs as the file loads.
+const STARTER = `# A new Plain program. Run it with: plain run this-file.plain
+
+make name be "world"
+show "Hello, {name}!"
+
+make score be 0
+repeat 3 times
+    add 10 to score
+end
+show "Score: {score}"
+
+if score is above 20
+    show "That is a good score."
+end
+`;
+
 const argv = process.argv.slice(2);
 const command = (argv[0] || 'help').toLowerCase();
 const rest = argv.slice(1);
@@ -166,18 +183,6 @@ function commandNew(name) {
   console.log(`Made ${file}. Run it with:\n\n    plain run ${file}\n`);
 }
 
-const STARTER = `# A new Plain program. Run it with: plain run this-file.plain
-
-make name be "world"
-show "Hello, {name}!"
-
-make score be 0
-repeat 3 times
-    add 10 to score
-end
-show "Score: {score}"
-`;
-
 // -------------------------------------------------------------------- build
 
 async function commandBuild(file) {
@@ -202,7 +207,10 @@ async function commandBuild(file) {
 
   if (game.started) {
     fs.writeFileSync(path.join(out, 'index.html'), gamePage(game.title, script), 'utf8');
-    console.log(`Built the game into ${path.relative(process.cwd(), out)}\\index.html`);
+    console.log(`Built the game into ${path.join(path.relative(process.cwd(), out), 'index.html')}`);
+    console.log('Put the folder on a web host to share it. To play it here, use:');
+    console.log(`\n    plain play ${file}\n`);
+    console.log('(Browsers refuse to load a game opened straight from disk, so it needs a host.)');
     return;
   }
 
@@ -214,7 +222,8 @@ async function commandBuild(file) {
     count++;
   }
   console.log(`Built ${count} page${count === 1 ? '' : 's'} into ${path.relative(process.cwd(), out)}`);
-  console.log('Open index.html, or put the whole folder on any web host.');
+  console.log('Put the whole folder on any web host. Opening index.html from disk');
+  console.log('shows the pages, but buttons only come alive once it is served.');
 }
 
 function copyRuntime(out) {
