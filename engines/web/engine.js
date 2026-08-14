@@ -1,0 +1,213 @@
+// Plain - the website engine.
+//
+//     make a website called "My Site"
+//     set the theme to "dark"
+//     add a title "Hello"
+//     add text "This page was written in Plain."
+//     add a button "Say hi"
+//         show a message "Hi!"
+//     end
+//
+// The program builds a description of the site. `plain build` turns that
+// description into HTML files; in a browser the same description becomes
+// real elements with working buttons.
+
+import { toText, toNumber, truthy } from '../../src/values.js';
+import { mountPage, THEMES } from './render.js';
+
+export class Page {
+  constructor(name, path) {
+    this.name = name;
+    this.path = path;
+    this.nodes = [];
+  }
+}
+
+export class Site {
+  constructor() {
+    this.title = 'A Plain website';
+    this.theme = 'light';
+    this.pages = [];
+    this.byName = new Map();
+    this.onLoad = [];
+    this.host = {};
+    this.current = this.page('Home', '/');
+  }
+
+  page(name, path) {
+    const existing = this.pages.find(p => p.path === path);
+    if (existing) return existing;
+    const page = new Page(name, path);
+    this.pages.push(page);
+    return page;
+  }
+
+  // Nodes are added to whichever container block we are inside.
+  get target() {
+    return this.stack && this.stack.length ? this.stack[this.stack.length - 1].children : this.current.nodes;
+  }
+
+  add(kind, props = {}, name = null) {
+    const node = { kind, props, children: [], name };
+    this.target.push(node);
+    if (name) this.byName.set(String(name).toLowerCase(), node);
+    return node;
+  }
+
+  find(name) {
+    return this.byName.get(String(name).toLowerCase()) || null;
+  }
+
+  // Redraw after something changed (browser only).
+  refresh() {
+    if (this.host.document && this.host.root) mountPage(this.current, this.host.root, this.host.document);
+  }
+}
+
+export function installWeb(rt, host = {}) {
+  if (rt.libraries.has('web')) return rt.site;
+  rt.libraries.add('web');
+
+  const site = new Site();
+  site.stack = [];
+  site.host = host;
+  rt.site = site;
+
+  const container = (kind, props, ctx) => {
+    const node = site.add(kind, props);
+    site.stack.push(node);
+    try { ctx.block(); } finally { site.stack.pop(); }
+    return node;
+  };
+
+  // ------------------------------------------------------------- the site
+
+  rt.define('make a website called $title', (a) => { site.title = toText(a.title); site.current.name = toText(a.title); });
+
+  rt.define('set the theme to $theme', (a, ctx) => {
+    const theme = toText(a.theme).toLowerCase();
+    if (!THEMES[theme]) ctx.fail(`"${theme}" is not a theme. Try: ${Object.keys(THEMES).join(', ')}`);
+    site.theme = theme;
+  });
+
+  rt.define('make a page called $name at $path', (a) => {
+    const path = normalisePath(toText(a.path));
+    site.current = site.page(toText(a.name), path);
+  });
+
+  rt.define('make a page called $name', (a) => {
+    const name = toText(a.name);
+    site.current = site.page(name, normalisePath('/' + name.toLowerCase().replace(/[^a-z0-9]+/g, '-')));
+  });
+
+  rt.define('work on the page called $name', (a, ctx) => {
+    const page = site.pages.find(p => p.name.toLowerCase() === toText(a.name).toLowerCase());
+    if (!page) ctx.fail(`There is no page called "${toText(a.name)}"`);
+    site.current = page;
+  });
+
+  // ------------------------------------------------------------------ text
+
+  rt.define('add a title $text', (a) => void site.add('title', { text: toText(a.text) }));
+  rt.define('add a title $text named #id', (a) => void site.add('title', { text: toText(a.text) }, a.id));
+  rt.define('add a heading $text', (a) => void site.add('heading', { text: toText(a.text) }));
+  rt.define('add a heading $text named #id', (a) => void site.add('heading', { text: toText(a.text) }, a.id));
+  rt.define('add a small heading $text', (a) => void site.add('small-heading', { text: toText(a.text) }));
+  rt.define('add text $text', (a) => void site.add('text', { text: toText(a.text) }));
+  rt.define('add text $text named #id', (a) => void site.add('text', { text: toText(a.text) }, a.id));
+  rt.define('add a note $text', (a) => void site.add('note', { text: toText(a.text) }));
+  rt.define('add a quote $text', (a) => void site.add('quote', { text: toText(a.text) }));
+  rt.define('add code $text', (a) => void site.add('code', { text: toText(a.text) }));
+  rt.define('add a space', () => void site.add('space'));
+  rt.define('add a footer $text', (a) => void site.add('footer', { text: toText(a.text) }));
+
+  // ------------------------------------------------------------ list, media
+
+  rt.define('add a list of $*items', (a) => {
+    let items = Array.isArray(a.items) ? a.items : [a.items];
+    // "add a list of things" where things is already a list.
+    if (items.length === 1 && Array.isArray(items[0])) items = items[0];
+    site.add('list', { items: items.map(v => toText(v)) });
+  });
+
+  rt.define('add a picture $url', (a) => void site.add('picture', { url: toText(a.url) }));
+  rt.define('add a picture $url with words $alt', (a) =>
+    void site.add('picture', { url: toText(a.url), alt: toText(a.alt) }));
+
+  rt.define('add a link $text to $url', (a) =>
+    void site.add('link', { text: toText(a.text), url: toText(a.url) }));
+
+  // ------------------------------------------------------------ interaction
+
+  rt.define('add a button $text ...', (a, ctx) => {
+    const run = ctx.block;
+    site.add('button', { text: toText(a.text), click: () => { run(); site.refresh(); } });
+  });
+
+  rt.define('add a text box named #id with label $label', (a) =>
+    void site.add('field', { label: toText(a.label), value: '' }, a.id));
+
+  rt.define('add a big text box named #id with label $label', (a) =>
+    void site.add('field', { label: toText(a.label), value: '', big: true }, a.id));
+
+  rt.defineValue('typed in #id', (a, ctx) => {
+    const node = site.find(a.id);
+    if (!node) ctx.fail(`There is no text box named "${a.id}"`);
+    const input = node.element && node.element.querySelector ? node.element.querySelector('input, textarea') : null;
+    if (input) node.props.value = input.value;
+    return node.props.value || '';
+  });
+
+  rt.define('set the words of #id to $value', (a, ctx) => {
+    const node = site.find(a.id);
+    if (!node) ctx.fail(`There is nothing named "${a.id}" on this page`);
+    if (node.kind === 'field') node.props.value = toText(a.value);
+    else node.props.text = toText(a.value);
+    if (node.element) {
+      if (node.kind === 'field') {
+        const input = node.element.querySelector('input, textarea');
+        if (input) input.value = toText(a.value);
+      } else {
+        node.element.textContent = toText(a.value);
+      }
+    }
+  });
+
+  rt.define('show a message $text', (a) => {
+    const text = toText(a.text);
+    if (host.document) showToast(host.document, text);
+    else rt.output(text);
+  });
+
+  rt.define('when the page loads ...', (a, ctx) => { site.onLoad.push(ctx.block); });
+
+  // -------------------------------------------------------------- grouping
+
+  rt.define('add a card ...', (a, ctx) => void container('card', {}, ctx));
+  rt.define('add a card called $title ...', (a, ctx) => {
+    const node = container('card', {}, ctx);
+    node.children.unshift({ kind: 'small-heading', props: { text: toText(a.title) }, children: [] });
+  });
+  rt.define('add a row ...', (a, ctx) => void container('row', {}, ctx));
+
+  // Handy for building pages from data.
+  rt.defineValue('page count', () => site.pages.length);
+
+  return site;
+}
+
+function normalisePath(path) {
+  const clean = String(path).trim();
+  if (!clean || clean === '/') return '/';
+  return '/' + clean.replace(/^\/+/, '').replace(/\/+$/, '');
+}
+
+function showToast(document, text) {
+  const note = document.createElement('div');
+  note.className = 'plain-message';
+  note.textContent = text;
+  document.body.appendChild(note);
+  setTimeout(() => note.remove(), 2600);
+}
+
+export { THEMES };

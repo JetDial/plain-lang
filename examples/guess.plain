@@ -1,0 +1,26 @@
+# A guessing game you play in the terminal.
+# Run it with:  plain run examples/guess.plain
+
+make secret be random 1 to 20
+make tries be 0
+
+show "I am thinking of a number between 1 and 20."
+show "You have six goes."
+
+repeat 6 times
+    ask "Your guess? " into guess
+    add 1 to tries
+
+    if guess is secret
+        show "Yes! You got it in {tries} goes."
+        stop the program
+    end
+
+    if guess is below secret
+        show "Higher."
+    otherwise
+        show "Lower."
+    end
+end
+
+show "Out of goes. The number was {secret}."

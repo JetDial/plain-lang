@@ -1,0 +1,40 @@
+# Catch the falling stars.
+# Play it with:  plain play examples/catch.plain
+# Move with the left and right arrow keys.
+
+start a game called "Catch" sized 640 by 480
+set the background to "#141225"
+
+make basket be a box at 320 , 440 sized 90 by 18 colored "#ffd166"
+make star be a circle at 320 , 0 sized 22 colored "#ef476f"
+set the speed of star to 0 , 4
+
+make score be 0
+make lives be 3
+
+every frame
+    if key "left" is held
+        move basket left by 9
+    end
+    if key "right" is held
+        move basket right by 9
+    end
+    keep basket on the screen
+
+    if y of star is above 500
+        take 1 from lives
+        move star to random 40 to 600 , 0
+        if lives is 0
+            stop the game saying "You caught {score} stars"
+        end
+    end
+
+    draw "score {score}    lives {lives}" at 18 , 16
+end
+
+when star touches basket
+    add 1 to score
+    move star to random 40 to 600 , 0
+    set the speed of star to 0 , 4 plus score divided by 5
+    play a beep at 880
+end

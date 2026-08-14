@@ -1,0 +1,36 @@
+// Plain - errors.
+// Every message is written for someone who has never seen a stack trace.
+
+export class PlainError extends Error {
+  constructor(message, line = null, file = null, hint = null) {
+    super(message);
+    this.name = 'PlainError';
+    this.plainMessage = message;
+    this.line = line;
+    this.file = file;
+    this.hint = hint;
+  }
+
+  // A friendly, multi-line report. `source` is optional; when given we show
+  // the offending line with a marker under it.
+  report(source) {
+    const where = this.line ? `Line ${this.line}` : 'Somewhere in your program';
+    const lines = [`${where}: ${this.plainMessage}`];
+    if (source && this.line) {
+      const text = String(source).replace(/\r\n?/g, '\n').split('\n')[this.line - 1];
+      if (text !== undefined) {
+        lines.push('');
+        lines.push(`  ${this.line} | ${text}`);
+      }
+    }
+    if (this.hint) {
+      lines.push('');
+      lines.push(`Try this: ${this.hint}`);
+    }
+    return lines.join('\n');
+  }
+}
+
+export function fail(message, line, file, hint) {
+  throw new PlainError(message, line, file, hint);
+}

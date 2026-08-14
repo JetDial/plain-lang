@@ -1,0 +1,62 @@
+# A small website, in Plain.
+# See it with:    plain play examples/site.plain
+# Publish it with: plain build examples/site.plain --out site
+#
+# `plain build` writes a folder of ordinary HTML files. Put that folder on
+# any web host and the site works.
+
+make a website called "Ada's Corner"
+set the theme to "dark"
+
+add a title "Ada's Corner"
+add text "A small website written in a language that reads like English."
+
+add a card called "What is this?"
+    add text "Every line on this page came from a sentence like: add text \"hello\"."
+    add a list of "No build tools", "No brackets to count", "Just sentences"
+end
+
+add a heading "Things I am learning"
+add a list of "How loops work", "How to draw a game", "How to publish a page"
+
+add a button "Say hello"
+    show a message "Hello from Plain!"
+end
+
+add a space
+add a link "Read the language guide" to "https://example.com"
+add a footer "Made with Plain."
+
+# ---------------------------------------------------------------- page two
+
+make a page called "Projects" at "/projects"
+
+add a title "Projects"
+add text "Two things I made this week."
+
+add a row
+    add a card called "Pong"
+        add text "A ball, two paddles, and 60 lines of Plain."
+    end
+    add a card called "Catch"
+        add text "Stars fall, you catch them in a basket."
+    end
+end
+
+add a footer "Made with Plain."
+
+# -------------------------------------------------------------- page three
+
+make a page called "Hello" at "/hello"
+
+add a title "Say hello"
+add text "This page remembers what you type."
+
+add a text box named visitor with label "Your name"
+
+add a button "Greet me"
+    set the words of answer to "Hello, {typed in visitor}!"
+end
+
+add text "..." named answer
+add a footer "Made with Plain."

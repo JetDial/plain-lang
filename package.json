@@ -1,0 +1,38 @@
+{
+  "name": "plain-lang",
+  "version": "0.1.0",
+  "description": "Plain - a programming language you write like a normal sentence, with a built-in game engine and website engine.",
+  "type": "module",
+  "bin": {
+    "plain": "bin/plain.js"
+  },
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./game": "./engines/game/engine.js",
+    "./web": "./engines/web/engine.js"
+  },
+  "scripts": {
+    "test": "node tests/run-tests.js",
+    "hello": "node bin/plain.js run examples/hello.plain"
+  },
+  "files": [
+    "bin",
+    "src",
+    "engines",
+    "examples",
+    "LANGUAGE.md",
+    "README.md"
+  ],
+  "keywords": [
+    "programming-language",
+    "beginner",
+    "game-engine",
+    "website-engine",
+    "interpreter"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  }
+}

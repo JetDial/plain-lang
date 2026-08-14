@@ -1,0 +1,68 @@
+# Pong, in Plain.
+# Play it with:  plain play examples/pong.plain
+# Use the up and down arrow keys.
+
+start a game called "Pong" sized 800 by 500
+set the background to "#0d1117"
+
+make you be a box at 40 , 250 sized 16 by 110 colored "#7ee787"
+make them be a box at 760 , 250 sized 16 by 110 colored "#79c0ff"
+make ball be a circle at 400 , 250 sized 18 colored "#f0f6fc"
+set the speed of ball to 6 , 3
+
+make score be 0
+make best be 0
+
+every frame
+    if key "up" is held
+        move you up by 9
+    end
+    if key "down" is held
+        move you down by 9
+    end
+    keep you on the screen
+
+    # The other paddle follows the ball, but not perfectly.
+    if y of ball is above y of them
+        move them down by 5
+    otherwise
+        move them up by 5
+    end
+    keep them on the screen
+
+    # Bounce off the top and the bottom of the screen.
+    if y of ball is below 9
+        bounce ball upright
+    end
+    if y of ball is above 491
+        bounce ball upright
+    end
+
+    # Someone missed: start again in the middle.
+    if x of ball is below 0
+        move ball to 400 , 250
+        set the speed of ball to 6 , 3
+        set score to 0
+    end
+    if x of ball is above 800
+        move ball to 400 , 250
+        set the speed of ball to -6 , 3
+        set score to 0
+    end
+
+    draw "rallies {score}    best {best}" at 20 , 18
+end
+
+when ball touches you
+    bounce ball sideways
+    add 1 to score
+    if score is above best
+        set best to score
+    end
+    play a beep at 660
+end
+
+when ball touches them
+    bounce ball sideways
+    play a beep at 330
+end

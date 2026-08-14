@@ -1,0 +1,98 @@
+# A tour of everything in the Plain language.
+# Run it with:  plain run examples/tour.plain
+
+show "--- names and text ---"
+
+make who be "world"
+make year be 2026
+show "Hello {who}, the year is {year}."
+show "Two lots of five is " joined with 2 times 5
+
+show "--- asking questions ---"
+
+make age be 12
+if age is at least 18
+    show "grown up"
+otherwise if age is at least 13
+    show "teenager"
+otherwise
+    show "child"
+end
+
+show "--- lists ---"
+
+make shopping be a list of "bread", "milk", "apples"
+add "cheese" to shopping
+remove "milk" from shopping
+
+show "I need {length of shopping} things:"
+for each item in shopping
+    show " - " joined with item
+end
+
+show "The first is " joined with first of shopping
+show "Sorted: " joined with text of sorted shopping
+show "All together: " joined with join shopping with ", "
+
+make numbers be a list of 4, 8, 15, 16, 23, 42
+show "total {total of numbers}, highest {highest of numbers}, average {average of numbers}"
+
+show "--- things ---"
+
+make player be { name: "Ada", health: 100, level: 3 }
+show "{name of player} is on level {level of player}"
+set the health of player to 80
+show "health is now {health of player}"
+
+show "--- counting ---"
+
+repeat with number from 1 to 5
+    show "{number} squared is {number times number}"
+end
+
+make countdown be 3
+while countdown is above 0
+    show "{countdown}..."
+    take 1 from countdown
+end
+show "lift off"
+
+show "--- actions of your own ---"
+
+to greet with person
+    give back "Hello, " joined with person joined with "!"
+end
+
+to describe with thing and count
+    if count is 1
+        give back "one " joined with thing
+    end
+    give back "{count} {thing}s"
+end
+
+show greet with "Grace"
+show describe with "apple" and 1
+show describe with "apple" and 4
+
+to shout with words
+    show uppercase of words
+end
+
+shout with "this is a sentence that does something"
+
+show "--- text tools ---"
+
+make sentence be "the quick brown fox"
+show "length: {length of sentence}"
+show "upper: {uppercase of sentence}"
+show "parts: {text of parts of sentence split by \" \"}"
+show "swap: {replace \"quick\" with \"slow\" in sentence}"
+
+show "--- numbers ---"
+
+show "round 3.7 is {round 3.7}"
+show "square root of 144 is {square root of 144}"
+show "bigger of 3 and 9 is {bigger of 3 and 9}"
+show "10 divided by 4 is {10 divided by 4}"
+
+show "--- done ---"

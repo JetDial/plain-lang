@@ -1,0 +1,19 @@
+# Your first Plain program.
+# Run it with:  plain run examples/hello.plain
+
+show "Hello, world!"
+
+make name be "Ada"
+show "Nice to meet you, {name}."
+
+make score be 0
+repeat 3 times
+    add 10 to score
+end
+show "Score: {score}"
+
+if score is above 20
+    show "That is a good score."
+otherwise
+    show "Keep going."
+end
