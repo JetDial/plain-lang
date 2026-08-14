@@ -11,6 +11,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
+import https from 'node:https';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { spawn, execFileSync } from 'node:child_process';
@@ -23,7 +24,7 @@ import { installWorld } from '../engines/world/engine.js';
 import { installWeb } from '../engines/web/engine.js';
 import { installVideo } from '../engines/video/engine.js';
 import { installStore } from '../engines/store/engine.js';
-import { installNet, readCookies } from '../engines/net/engine.js';
+import { installNet, readCookies, readParts } from '../engines/net/engine.js';
 import { installData } from '../engines/data/engine.js';
 import { documentToHTML, hrefFor } from '../engines/web/render.js';
 import { TEMPLATES, templateNames } from './templates.js';
@@ -39,6 +40,24 @@ const ROOT = path.resolve(HERE, '..');
 const VERSION = '0.4.0';
 
 // Declared up here because the command switch below runs as the file loads.
+
+// Everything owing a write when the program ends, in one list. One program
+// has one store, but the test suite makes hundreds, and one listener each
+// would have Node warning about a leak it was right to notice.
+const owed = new Set();
+let listening = false;
+
+function rememberToWrite(write) {
+  owed.add(write);
+  if (listening) return;
+  listening = true;
+  const all = () => { for (const one of owed) one(); };
+  process.on('exit', all);
+  for (const signal of ['SIGINT', 'SIGTERM']) {
+    process.on(signal, () => { all(); process.exit(0); });
+  }
+}
+
 const STARTER = `# A new Plain program. Run it with: plain run this-file.plain
 
 make name be "world"
@@ -140,9 +159,10 @@ function buildRuntime(onOutput, baseFile = process.cwd()) {
   const site = installWeb(runtime, {});
   const world = installWorld(runtime, {});
   const studio = installVideo(runtime, {});
-  const store = installStore(runtime, storeHost(baseFile));
-  const tables = installData(runtime, {});
-  const server = installNet(runtime, netHost(runtime));
+  const keeping = storeHost(baseFile);
+  const store = installStore(runtime, keeping);
+  const tables = installData(runtime, locksmith());
+  const server = installNet(runtime, { ...netHost(runtime), putFile: keeping.putFile });
   return { runtime, game, site, world, studio, store, server, tables };
 }
 
@@ -225,7 +245,25 @@ function netHost(runtime) {
 
     // The program has finished by now; the server keeps the process alive.
     serve(server, ctx) {
-      const listener = http.createServer((request, response) => {
+      // Locked or not, the answering below is the same; only the door
+      // differs. The two files are the certificate a browser checks and the
+      // key that proves it belongs to you.
+      let locked = null;
+      if (server.safely) {
+        try {
+          locked = {
+            cert: fs.readFileSync(path.resolve(process.cwd(), server.safely.certificate)),
+            key: fs.readFileSync(path.resolve(process.cwd(), server.safely.key))
+          };
+        } catch (problem) {
+          ctx.fail(
+            `I could not read the certificate or the key: ${problem.message}`,
+            'both are files, and both are needed'
+          );
+        }
+      }
+
+      const answering = (request, response) => {
         const url = new URL(request.url, `http://localhost:${server.port}`);
         const chunks = [];
         request.on('data', piece => chunks.push(piece));
@@ -242,11 +280,18 @@ function netHost(runtime) {
           }
 
           const found = server.routeFor(url.pathname, request.method);
+          const raw = Buffer.concat(chunks);
+          const kind = request.headers['content-type'] || '';
+          // A form with a file in it is sent in pieces, each with a name.
+          // The pieces that are only words go in with the rest of the form.
+          const sentIn = /multipart\/form-data/i.test(kind) ? readParts(raw, kind) : null;
+
           server.asked = {
             path: url.pathname,
             query: Object.fromEntries(url.searchParams.entries()),
-            sent: Buffer.concat(chunks).toString('utf8'),
-            kind: request.headers['content-type'] || '',
+            sent: sentIn ? sentIn.written : raw.toString('utf8'),
+            kind: sentIn ? 'application/x-www-form-urlencoded' : kind,
+            files: sentIn ? sentIn.files : {},
             method: request.method,
             parts: found ? found.parts : {},
             cookies,
@@ -285,7 +330,9 @@ function netHost(runtime) {
           response.end(answer.body);
           console.log(`  ${request.method} ${url.pathname} -> ${code}${answer.goTo ? ' ' + answer.goTo : ` ${answer.body.length} bytes`}`);
         });
-      });
+      };
+
+      const listener = locked ? https.createServer(locked, answering) : http.createServer(answering);
 
       listener.on('error', (error) => {
         console.error(`\nI could not serve on port ${server.port}: ${error.message}\n`);
@@ -293,7 +340,9 @@ function netHost(runtime) {
       });
 
       listener.listen(server.port, () => {
-        console.log(`\nPlain is answering at http://localhost:${server.port}`);
+        const swept = server.sweepVisitors ? server.sweepVisitors() : 0;
+        console.log(`\nPlain is answering at http${locked ? 's' : ''}://localhost:${server.port}`);
+        if (swept) console.log(`  (forgot ${swept} visitor${swept === 1 ? '' : 's'} nobody has seen for a month)`);
         for (const route of server.routes) console.log(`  ${route.path}`);
         console.log('\nPress Ctrl+C to stop.\n');
       });
@@ -344,6 +393,10 @@ function storeHost(baseFile) {
   return {
     fs,
     memoryFile: path.join(folder, `${stem}.memory.json`),
+
+    // Whatever is still owed gets written when the program ends, however it
+    // ends: falling off the bottom, stopping itself, or Ctrl+C.
+    atEnd: rememberToWrite,
     files: {
       read: (name, ctx) => {
         const file = inside(name, ctx);
@@ -352,6 +405,43 @@ function storeHost(baseFile) {
       exists: (name, ctx) => fs.existsSync(inside(name, ctx)),
       write: (name, text, ctx) => fs.writeFileSync(inside(name, ctx), text, 'utf8'),
       append: (name, text, ctx) => fs.appendFileSync(inside(name, ctx), text, 'utf8')
+    },
+
+    // A file somebody sent, put where the program asked - inside the same
+    // fence as everything else, and into a folder that is made if needed.
+    putFile: (name, bytes, ctx) => {
+      const file = inside(name, ctx);
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, bytes);
+    }
+  };
+}
+
+// Scrambling a password, and checking one, are the two things a program must
+// never do by hand. Node has the machinery built for it: a slow, salted
+// scramble, and a comparison that takes the same time whether it matches on
+// the first letter or the last.
+function locksmith() {
+  return {
+    lock(password) {
+      const salt = crypto.randomBytes(16);
+      const scrambled = crypto.scryptSync(String(password), salt, 32, { N: 16384, r: 8, p: 1 });
+      return `scrypt:${salt.toString('hex')}:${scrambled.toString('hex')}`;
+    },
+
+    fits(password, locked) {
+      // A name nobody has still costs the same work, so that guessing names
+      // learns nothing from how quickly the answer comes back.
+      const [, saltHex, wantedHex] = String(locked || '').split(':');
+      const salt = saltHex ? Buffer.from(saltHex, 'hex') : crypto.randomBytes(16);
+      const wanted = wantedHex ? Buffer.from(wantedHex, 'hex') : crypto.randomBytes(32);
+      let got;
+      try {
+        got = crypto.scryptSync(String(password), salt, wanted.length, { N: 16384, r: 8, p: 1 });
+      } catch {
+        return false;
+      }
+      return Boolean(locked) && got.length === wanted.length && crypto.timingSafeEqual(got, wanted);
     }
   };
 }

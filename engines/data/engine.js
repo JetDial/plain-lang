@@ -36,6 +36,8 @@ export function installData(rt, host = {}) {
     constructor(name) {
       this.name = String(name);
       this.isTable = true;
+      this.stamp = 0;          // goes up on every change
+      this.lookups = new Map(); // key -> { stamp, byValue }
     }
 
     get key() { return PREFIX + this.name; }
@@ -46,7 +48,28 @@ export function installData(rt, host = {}) {
       return { next: Number(held.next) || 1, rows: held.rows };
     }
 
-    write(held) { store.set(this.key, held); }
+    write(held) {
+      store.set(this.key, held);
+      this.stamp += 1;         // anything looked up before is out of date
+    }
+
+    // Looking through a hundred thousand rows one at a time is fine once and
+    // hopeless in a loop. The first question about a field builds a lookup
+    // from that field's values to the rows holding them; the rest are
+    // instant, until something is written and it is built again.
+    lookup(key) {
+      const found = this.lookups.get(key);
+      if (found && found.stamp === this.stamp) return found.byValue;
+
+      const byValue = new Map();
+      for (const row of this.read().rows) {
+        const at = sameAs(pick(row, key));
+        if (!byValue.has(at)) byValue.set(at, []);
+        byValue.get(at).push(row);
+      }
+      this.lookups.set(key, { stamp: this.stamp, byValue });
+      return byValue;
+    }
 
     toPlainText() { return `the table "${this.name}"`; }
   }
@@ -124,15 +147,19 @@ export function installData(rt, host = {}) {
   });
 
   // The one question every program asks: the rows where something matches.
+  // A plain value goes through the lookup; anything more involved, like a
+  // list, is compared row by row, because that is what "is" means for those.
   rt.defineValue('rows of $table where $key is $value', (a, ctx) => {
     const table = need(a.table, ctx, 'Looking through a table');
     const key = toText(a.key);
+    if (simple(a.value)) return table.lookup(key).get(sameAs(a.value)) || [];
     return table.read().rows.filter(row => equals(pick(row, key), a.value));
   });
 
   rt.defineValue('first row of $table where $key is $value', (a, ctx) => {
     const table = need(a.table, ctx, 'Looking through a table');
     const key = toText(a.key);
+    if (simple(a.value)) return (table.lookup(key).get(sameAs(a.value)) || [])[0] || null;
     return table.read().rows.find(row => equals(pick(row, key), a.value)) || null;
   });
 
@@ -163,8 +190,96 @@ export function installData(rt, host = {}) {
     return table.read().rows.some(row => equals(pick(row, key), a.value));
   });
 
+  // ------------------------------------------------------------- accounts
+  //
+  // Almost every program that keeps things also wants to know whose they
+  // are. A password must never be written down as itself, and comparing two
+  // of them must not be quicker when the first letters match - so the work
+  // is handed to the machinery that is built for it rather than done here.
+
+  const needLocks = (ctx) => {
+    if (host.lock && host.fits) return host;
+    ctx.fail(
+      'Accounts only work when Plain runs in a terminal',
+      'a page has no safe way to scramble a password'
+    );
+  };
+
+  const nameOf = (value) => toText(value).trim();
+
+  rt.define('create an account in $table for $name with password $password', (a, ctx) => {
+    const locks = needLocks(ctx);
+    const table = need(a.table, ctx, 'Making an account');
+    const who = nameOf(a.name);
+    const secret = toText(a.password);
+
+    if (who === '') ctx.fail('An account needs a name');
+    if (secret.length < 8) {
+      ctx.fail('That password is too short', 'eight letters or more, and something nobody would guess');
+    }
+    if (table.lookup('name').get(sameAs(who))) {
+      ctx.fail(`There is already an account for ${who}`, 'pick another name, or sign in instead');
+    }
+
+    const held = table.read();
+    held.rows.push({ name: who, locked: locks.lock(secret), id: held.next });
+    held.next += 1;
+    table.write(held);
+    rt.lastRowId = held.next - 1;
+  });
+
+  rt.defineValue('the account in $table for $name with password $password', (a, ctx) => {
+    const locks = needLocks(ctx);
+    const table = need(a.table, ctx, 'Checking an account');
+    const row = (table.lookup('name').get(sameAs(nameOf(a.name))) || [])[0];
+    // Checked even when there is no such account, so that a name nobody has
+    // does not answer faster than one somebody does.
+    const fits = locks.fits(toText(a.password), row ? row.locked : null);
+    return row && fits ? row : null;
+  });
+
+  rt.defineInfix('$table has an account for $name', (a, ctx) => {
+    const table = need(a.table, ctx, 'Checking a table');
+    return Boolean(table.lookup('name').get(sameAs(nameOf(a.name))));
+  });
+
+  rt.define('change the password in $table for $name to $password', (a, ctx) => {
+    const locks = needLocks(ctx);
+    const table = need(a.table, ctx, 'Changing a password');
+    const secret = toText(a.password);
+    if (secret.length < 8) {
+      ctx.fail('That password is too short', 'eight letters or more, and something nobody would guess');
+    }
+    const held = table.read();
+    const at = held.rows.findIndex(row => sameAs(pick(row, 'name')) === sameAs(nameOf(a.name)));
+    if (at < 0) ctx.fail(`There is no account for ${nameOf(a.name)}`);
+    held.rows[at] = { ...held.rows[at], locked: locks.lock(secret) };
+    table.write(held);
+  });
+
   rt.tables = { Table, tables };
   return rt.tables;
+}
+
+// Values that can be looked up rather than searched for.
+function simple(value) {
+  const kind = typeof value;
+  return value === null || value === undefined || kind === 'number' || kind === 'string' || kind === 'boolean';
+}
+
+// Two values Plain calls the same have to land on the same shelf, and 3 and
+// "3" are the same to Plain. So anything that reads as a number is filed as
+// one, yes/no is filed by which it is, and everything else by its words.
+function sameAs(value) {
+  if (value === null || value === undefined) return 'nothing';
+  if (typeof value === 'boolean') return 'yes/no:' + (value ? 1 : 0);
+  if (typeof value === 'number') return Number.isNaN(value) ? 'text:NaN' : 'number:' + value;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed !== '' && !Number.isNaN(Number(trimmed))) return 'number:' + Number(trimmed);
+    return 'text:' + value;
+  }
+  return 'text:' + toText(value);
 }
 
 // Names in Plain ignore capitals, and a row's fields should too.

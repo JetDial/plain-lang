@@ -16,7 +16,7 @@ import { installWorld } from '../engines/world/engine.js';
 import { installWeb } from '../engines/web/engine.js';
 import { installVideo } from '../engines/video/engine.js';
 import { installStore } from '../engines/store/engine.js';
-import { installNet, readSent, readCookies } from '../engines/net/engine.js';
+import { installNet, readSent, readCookies, readParts } from '../engines/net/engine.js';
 import { installData } from '../engines/data/engine.js';
 import { readList, save, checkPart, fingerprint, nameFrom } from '../bin/parts.js';
 import { format } from '../src/format.js';
@@ -2055,12 +2055,133 @@ check('asking a table for a row that is not there says nothing, not nonsense', (
   assert.deepEqual(said, ['nothing', '0']);
 });
 
+// A lookup that gives a different answer from reading every row would be
+// worse than no lookup at all, so the two are held against each other.
+check('looking a row up agrees with reading every row', () => {
+  const rows = [];
+  for (let at = 1; at <= 400; at++) {
+    rows.push(`save { name: "p${at}", town: "t${at % 7}", size: ${at % 5} } in many`);
+  }
+  const said = run([
+    'make many be a table called "many"',
+    ...rows,
+    'show number of items in rows of many where "town" is "t3"',
+    'show number of items in rows of many where "size" is 2',
+    // 3 and "3" are the same to Plain, so they must land in the same place.
+    'show number of items in rows of many where "size" is "2"',
+    'show name of first row of many where "name" is "p399"',
+    'show number of items in rows of many where "town" is "nowhere"'
+  ].join('\n'));
+  assert.deepEqual(said, ['57', '80', '80', 'p399', '0']);
+});
+
+check('a lookup notices when the table has changed under it', () => {
+  const said = run([
+    'make many be a table called "many"',
+    'save { town: "Bath" } in many',
+    'show number of items in rows of many where "town" is "Bath"',
+    'save { town: "Bath" } in many',
+    'show number of items in rows of many where "town" is "Bath"',
+    'change row 1 of many to { town: "Hull" }',
+    'show number of items in rows of many where "town" is "Bath"',
+    'show number of items in rows of many where "town" is "Hull"',
+    'remove row 2 from many',
+    'show number of items in rows of many where "town" is "Bath"'
+  ].join('\n'));
+  assert.deepEqual(said, ['1', '2', '1', '1', '0']);
+});
+
+// --------------------------------------------------------------- accounts
+
+const LOCKS = {
+  // The same shape as the real one, without the slow scrambling, so the
+  // suite stays quick. What is checked here is the behaviour around it.
+  lock: (password) => 'test:' + [...String(password)].reverse().join(''),
+  fits: (password, locked) => Boolean(locked) && locked === 'test:' + [...String(password)].reverse().join('')
+};
+
+function runAccounts(source) {
+  const rt = createRuntime({ onOutput: () => {} });
+  installStore(rt, {});
+  installData(rt, LOCKS);
+  rt.run(source, 'accounts.plain');
+  return rt.lines;
+}
+
+check('an account keeps a scrambled password, never the password', () => {
+  const said = runAccounts([
+    'make people be a table called "people"',
+    'create an account in people for "Ada" with password "correct horse"',
+    'show name of row 1 of people',
+    'show locked of row 1 of people',
+    'show people has an account for "Ada"',
+    'show people has an account for "Bob"'
+  ].join('\n'));
+  assert.equal(said[0], 'Ada');
+  assert.ok(!said[1].includes('correct horse'), 'the password was written down as itself');
+  assert.deepEqual(said.slice(2), ['yes', 'no']);
+});
+
+check('signing in works with the right password and not the wrong one', () => {
+  const said = runAccounts([
+    'make people be a table called "people"',
+    'create an account in people for "Ada" with password "correct horse"',
+    'show name of the account in people for "Ada" with password "correct horse"',
+    'show the account in people for "Ada" with password "wrong horse"',
+    'show the account in people for "Nobody" with password "correct horse"',
+    'change the password in people for "Ada" to "another one"',
+    'show the account in people for "Ada" with password "correct horse"',
+    'show name of the account in people for "Ada" with password "another one"'
+  ].join('\n'));
+  assert.deepEqual(said, ['Ada', 'nothing', 'nothing', 'nothing', 'Ada']);
+});
+
+check('an account cannot be taken twice, and a weak password is refused', () => {
+  let error = null;
+  try {
+    runAccounts([
+      'make people be a table called "people"',
+      'create an account in people for "Ada" with password "correct horse"',
+      'create an account in people for "Ada" with password "something else"'
+    ].join('\n'));
+  } catch (problem) { error = problem; }
+  assert.match(error.plainMessage, /already an account for Ada/);
+
+  error = null;
+  try {
+    runAccounts('make people be a table called "people"\ncreate an account in people for "Ada" with password "short"');
+  } catch (problem) { error = problem; }
+  assert.match(error.plainMessage, /too short/);
+});
+
+check('accounts say plainly that they need a terminal', () => {
+  const rt = createRuntime({ onOutput: () => {} });
+  installStore(rt, {});
+  installData(rt, {});                      // no locks, as in a browser
+  let error = null;
+  try {
+    rt.run('make people be a table called "people"\ncreate an account in people for "Ada" with password "correct horse"', 'a.plain');
+  } catch (problem) { error = problem; }
+  assert.match(error.plainMessage, /only work when Plain runs in a terminal/);
+});
+
 check('using something that is not a table is explained', () => {
   const error = broken('make notes be a list of 1, 2\nsave { a: 1 } in notes');
   assert.match(error.plainMessage, /needs a table/);
 });
 
 // ----------------------------------------------------------- the internet
+
+function runNetWith(source, store) {
+  const rt = createRuntime({ onOutput: () => {} });
+  installGame(rt, {});
+  installWeb(rt, {});
+  installStore(rt, store);
+  installData(rt, {});
+  const server = installNet(rt, {});
+  rt.run(source, 'net.plain');
+  return { rt, server };
+}
 
 function runNet(source, host = {}) {
   const rt = createRuntime({ onOutput: () => {} });
@@ -2169,6 +2290,130 @@ check('a visitor can be told apart, and signed in', () => {
   server.routes[2].run();
   server.routes[1].run();
   assert.equal(server.answer.body, 'nothing has 3');
+});
+
+check('a visitor is still known after the program is restarted', () => {
+  const map = new Map();
+  const sign = [
+    'when someone visits "/in"',
+    '    sign this visitor in as "Ada"',
+    '    keep 3 as "basket" for this visitor',
+    'end'
+  ].join('\n');
+  const ask = [
+    'when someone visits "/who"',
+    '    make basket be what this visitor has as "basket"',
+    '    answer with "{who is signed in} has {basket}"',
+    'end'
+  ].join('\n');
+
+  // One run signs them in...
+  const first = runNetWith(sign, fakeStore(map));
+  first.server.asked = { ...first.server.asked, tag: 'aaa' };
+  first.server.routes[0].run();
+
+  // ...and a whole new run, with nothing in memory, still knows them.
+  const again = runNetWith(ask, fakeStore(map));
+  again.server.asked = { ...again.server.asked, tag: 'aaa' };
+  again.server.routes[0].run();
+  assert.equal(again.server.answer.body, 'Ada has 3');
+
+  // Somebody else is still somebody else.
+  again.server.asked = { ...again.server.asked, tag: 'bbb' };
+  again.server.routes[0].run();
+  assert.equal(again.server.answer.body, 'nothing has nothing');
+});
+
+check('a visitor nobody has seen for a month is forgotten', () => {
+  const map = new Map();
+  const store = fakeStore(map);
+  const old = Date.now() - 40 * 24 * 60 * 60 * 1000;
+  map.set('plain.remember.visitor:stale', JSON.stringify({ seen: old, held: { signedIn: 'Ghost' } }));
+  map.set('plain.remember.visitor:fresh', JSON.stringify({ seen: Date.now(), held: { signedIn: 'Ada' } }));
+
+  const { server } = runNetWith('when someone visits "/"\n    answer with "hi"\nend', store);
+  assert.equal(server.sweepVisitors(), 1, 'one old visitor should have been forgotten');
+  assert.ok(!map.has('plain.remember.visitor:stale'));
+  assert.ok(map.has('plain.remember.visitor:fresh'));
+});
+
+check('forgetting a visitor forgets them for good', () => {
+  const map = new Map();
+  const store = fakeStore(map);
+  const { server } = runNetWith([
+    'when someone visits "/in"',
+    '    sign this visitor in as "Ada"',
+    'end',
+    'when someone visits "/out"',
+    '    forget everything about this visitor',
+    'end'
+  ].join('\n'), store);
+  server.asked = { ...server.asked, tag: 'aaa' };
+  server.routes[0].run();
+  assert.ok(map.has('plain.remember.visitor:aaa'));
+  server.routes[1].run();
+  assert.ok(!map.has('plain.remember.visitor:aaa'));
+});
+
+check('a file sent with a form arrives whole, and the words with it', () => {
+  const edge = '----PlainTest';
+  const raw = Buffer.concat([
+    Buffer.from(`--${edge}\r\nContent-Disposition: form-data; name="who"\r\n\r\nAda\r\n`),
+    Buffer.from(`--${edge}\r\nContent-Disposition: form-data; name="picture"; filename="cat.png"\r\n`),
+    Buffer.from('Content-Type: image/png\r\n\r\n'),
+    // Bytes that are not text, to prove nothing is turned into any.
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0xff, 0xfe, 0x0d, 0x0a]),
+    Buffer.from(`\r\n--${edge}--\r\n`)
+  ]);
+
+  const { server } = runNet([
+    'when someone sends to "/upload"',
+    '    make sent be the file sent as "picture"',
+    '    answer with "{the form field \\"who\\"} sent {name of sent}, {bytes of sent} bytes, {type of sent}"',
+    'end'
+  ].join('\n'));
+
+  const read = readParts(raw, `multipart/form-data; boundary=${edge}`);
+  assert.deepEqual(Object.keys(read.files), ['picture']);
+  assert.equal(read.files.picture.name, 'cat.png');
+  assert.equal(read.files.picture.size, 9);
+  assert.deepEqual([...read.files.picture.bytes], [0x89, 0x50, 0x4e, 0x47, 0x00, 0xff, 0xfe, 0x0d, 0x0a]);
+  assert.equal(read.written, 'who=Ada');
+
+  server.asked = { ...server.asked, sent: read.written, kind: 'application/x-www-form-urlencoded', files: read.files };
+  server.routes[0].run();
+  assert.equal(server.answer.body, 'Ada sent cat.png, 9 bytes, image/png');
+});
+
+check('a form with no file in it still reads as a form', () => {
+  const edge = 'xyz';
+  const raw = Buffer.from(`--${edge}\r\nContent-Disposition: form-data; name="a"\r\n\r\n1\r\n--${edge}\r\nContent-Disposition: form-data; name="b"\r\n\r\ntwo words\r\n--${edge}--\r\n`);
+  const read = readParts(raw, `multipart/form-data; boundary=${edge}`);
+  assert.deepEqual(read.files, {});
+  assert.deepEqual(readSent(read.written), { a: '1', b: 'two words' });
+});
+
+check('asking for a file that was not sent says so', () => {
+  const { server } = runNet('when someone sends to "/u"\n    show a file was sent as "picture"\nend');
+  server.asked = { ...server.asked, files: {} };
+  server.routes[0].run();
+  // And saving one that is not there is a problem, not a silent nothing.
+  const { server: other } = runNet('when someone sends to "/u"\n    save the file sent as "picture" to "kept.png"\nend');
+  other.asked = { ...other.asked, files: {} };
+  let error = null;
+  try { other.routes[0].run(); } catch (problem) { error = problem; }
+  assert.match(error.plainMessage, /Nothing was sent as picture/);
+});
+
+check('a server can be told to lock the conversation', () => {
+  let asked = null;
+  const { server } = runNet(
+    'start serving safely on port 8443 with certificate "cert.pem" and key "key.pem"',
+    { serve: (one) => { asked = one; } }
+  );
+  assert.equal(server.port, 8443);
+  assert.deepEqual(server.safely, { certificate: 'cert.pem', key: 'key.pem' });
+  assert.ok(asked, 'the server should have been started');
 });
 
 check('cookies are read, and rubbish in them is ignored', () => {

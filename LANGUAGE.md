@@ -499,7 +499,9 @@ work. It is kept the same way `remember` keeps things: a file beside the
 program in a terminal, the browser's own store on a page.
 
 **Who is asking.** Every browser is given a tag, and what belongs to that tag
-stays on the machine the program runs on:
+stays on the machine the program runs on. It is kept the way everything else
+is kept, so restarting the program does not throw everybody out; anyone not
+seen for a month is forgotten:
 
 ```plain
 sign this visitor in as "Ada"
@@ -509,6 +511,63 @@ sign this visitor out
 keep 3 as "basket" for this visitor
 show what this visitor has as "basket"
 forget everything about this visitor
+```
+
+**Accounts with passwords.** A password is never written down as itself: it
+is scrambled, slowly and with salt, by the machinery built for it. Checking
+one takes the same time whether it is wrong in the first letter or the last,
+and a name nobody has costs the same as one somebody does.
+
+```plain
+make people be a table called "people"
+
+create an account in people for "Ada" with password "correct horse"
+if people has an account for "Ada"
+    show "that name is taken"
+end
+
+make found be the account in people for "Ada" with password whatever they typed
+if found is nothing
+    show "no"
+otherwise
+    sign this visitor in as name of found
+end
+
+change the password in people for "Ada" to "another long one"
+```
+
+Eight letters is the shortest password Plain will take. An account row holds
+`name` and `locked`, and you can put anything else on it you like.
+
+**Files sent with a form.** A picture is not text, so it is never turned into
+any:
+
+```plain
+when someone sends to "/picture"
+    if a file was sent as "picture"
+        make sent be the file sent as "picture"
+        save the file sent as "picture" to "kept/{name of sent}"
+        show "{name of sent}, {bytes of sent} bytes, said to be {type of sent}"
+    end
+end
+```
+
+They are called `name`, `type` and `bytes` because `size of` and `kind of`
+already mean something else in Plain. `the text of the file sent as "notes"`
+reads one that is text after all. Anything saved goes through the same fence
+as every other file: beside your program, and nowhere else.
+
+**Locking the conversation.** The same server, over https:
+
+```plain
+start serving safely on port 8443 with certificate "cert.pem" and key "key.pem"
+```
+
+Both are files. For playing about on your own machine, one command makes a
+pair (browsers will warn that nobody vouches for it, which is true):
+
+```bash
+openssl req -x509 -newkey rsa:2048 -nodes -keyout key.pem -out cert.pem -days 365 -subj "/CN=localhost"
 ```
 
 And the rest of what a server needs:

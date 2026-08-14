@@ -402,13 +402,38 @@ Rows are ordinary things, so `title of note` works. They are kept the way
 store on a page.
 
 Every browser gets a tag, so the server can tell one visitor from another
-without anything about them leaving your machine:
+without anything about them leaving your machine — and it is kept, so
+restarting the program does not throw everybody out:
 
 ```plain
-sign this visitor in as "Ada"
-show who is signed in
+create an account in people for "Ada" with password "correct horse"
+
+make found be the account in people for typed name with password typed word
+if found is not nothing
+    sign this visitor in as name of found
+end
+
 keep 3 as "basket" for this visitor
 show what this visitor has as "basket"
+```
+
+A password is never written down as itself: it is scrambled slowly, with
+salt, by the machinery built for it, and checking one takes the same time
+whether it is wrong at the first letter or the last. A name nobody has costs
+the same as a name somebody does.
+
+Files sent with a form arrive as bytes, never as text:
+
+```plain
+make sent be the file sent as "picture"
+save the file sent as "picture" to "kept/{name of sent}"
+show "{name of sent}, {bytes of sent} bytes, said to be {type of sent}"
+```
+
+And the whole thing can be locked:
+
+```plain
+start serving safely on port 8443 with certificate "cert.pem" and key "key.pem"
 ```
 
 Plus `send them to "/"`, `answer that nothing is there`, `answer with ... and
@@ -423,8 +448,11 @@ one, it is gone; tell it your name, and the browser next to yours still says
 nobody. What a visitor types is escaped before it goes back out, and a folder
 handed out cannot be walked out of with `..`.
 
-Sessions live in the server's memory, so a restart signs everybody out. The
-notes themselves are on disk and survive.
+Looking a row up is not a search: the first question about a field builds a
+lookup from that field to the rows holding it, and the rest are instant until
+something is written. Two thousand lookups in a table of two hundred thousand
+rows: **2.2s reading every row, 0.4s with the lookup**, and the gap grows with
+every question asked.
 
 ## Going faster
 
@@ -611,13 +639,14 @@ runtime/rust/         the Value type Rust programs are built on
 runtime/c/            the same for C, with the counting and the sweep
 src/format.js         plain fmt
 engines/store/        remembering things, files, JSON and CSV
-engines/data/         tables: rows with ids, kept between runs
+engines/data/         tables: rows with ids, looked up rather than
+                      scanned, and accounts with real passwords
 engines/learn/        the course: lessons, projects and their checks
 tests/fake-dom.js      a small stand-in browser, so the pages can be tested
 engines/net/          fetching, and answering as a web server: routes,
                       forms, visitors, files
 bin/parts.js          fetching and recording parts other people wrote
-tests/run-tests.js     347 checks, no framework, 11 languages executed
+tests/run-tests.js     360 checks, no framework, 11 languages executed
 ```
 
 ## Tests

@@ -53,10 +53,31 @@ export function createStore(host = {}) {
     }
     return held;
   };
-  const save = () => {
+  // Writing the whole file every time something changes is fine for a high
+  // score and hopeless for a table: a hundred thousand rows would mean a
+  // hundred thousand writes of a file that keeps getting longer. So a change
+  // only marks the file as owing a write, and the write happens once the
+  // program stops to draw breath - and always before it ends.
+  let owing = false;
+  let waiting = null;
+
+  const writeNow = () => {
+    owing = false;
+    if (waiting) { clearTimeout(waiting); waiting = null; }
     try { fs.writeFileSync(file, JSON.stringify(held, null, 2) + '\n', 'utf8'); }
     catch { /* a read-only folder should not stop the program */ }
   };
+
+  const save = () => {
+    owing = true;
+    if (waiting) return;
+    waiting = setTimeout(() => { waiting = null; if (owing) writeNow(); }, 0);
+    if (typeof waiting.unref === 'function') waiting.unref();
+  };
+
+  // A program that ends - or is stopped with Ctrl+C - still keeps what it
+  // was given.
+  if (host.atEnd) host.atEnd(() => { if (owing) writeNow(); });
 
   return {
     kind: 'file',
@@ -64,7 +85,9 @@ export function createStore(host = {}) {
     get(key) { const all = load(); return Object.prototype.hasOwnProperty.call(all, key) ? all[key] : undefined; },
     set(key, value) { load()[key] = value ?? null; save(); },
     remove(key) { delete load()[key]; save(); },
-    keys() { return Object.keys(load()).sort(); }
+    keys() { return Object.keys(load()).sort(); },
+    // For anything that has to know the file is up to date this instant.
+    flush() { if (owing) writeNow(); }
   };
 }
 

@@ -91,6 +91,56 @@ export function readSent(text, kind = '') {
   return out;
 }
 
+// A form carrying a file arrives in pieces, each with a boundary line before
+// it, its own few headers, a blank line, and then whatever was sent - which
+// may be a picture, so it is kept as bytes and never turned into text.
+export function readParts(raw, kind) {
+  const edge = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(kind);
+  const files = {};
+  const written = [];
+  if (!edge) return { files, written: '' };
+
+  const line = Buffer.from('--' + (edge[1] || edge[2]).trim());
+  const gap = Buffer.from('\r\n\r\n');
+  let at = raw.indexOf(line);
+  if (at < 0) return { files, written: '' };
+
+  while (at >= 0) {
+    const from = at + line.length;
+    if (raw.slice(from, from + 2).toString() === '--') break;   // the last one
+    const next = raw.indexOf(line, from);
+    const ends = next < 0 ? raw.length : next;
+
+    const head = raw.indexOf(gap, from);
+    if (head < 0 || head > ends) break;
+    const headers = raw.slice(from, head).toString('utf8');
+    // The piece ends with the \r\n that belongs to the boundary after it.
+    const body = raw.slice(head + gap.length, Math.max(head + gap.length, ends - 2));
+
+    const named = /name="([^"]*)"/i.exec(headers);
+    const called = /filename="([^"]*)"/i.exec(headers);
+    const says = /content-type:\s*([^\r\n;]+)/i.exec(headers);
+    const name = named ? named[1] : '';
+
+    if (name) {
+      if (called && called[1]) {
+        files[name] = {
+          // Only the last piece of what they called it, so a name with a
+          // path in it cannot decide where anything ends up.
+          name: String(called[1]).split(/[\\/]/).pop(),
+          kind: says ? says[1].trim() : 'application/octet-stream',
+          size: body.length,
+          bytes: body
+        };
+      } else {
+        written.push(encodeURIComponent(name) + '=' + encodeURIComponent(body.toString('utf8')));
+      }
+    }
+    at = next;
+  }
+  return { files, written: written.join('&') };
+}
+
 export function readCookies(header) {
   const out = {};
   for (const pair of String(header || '').split(';')) {
@@ -203,6 +253,15 @@ export function installNet(rt, host = {}) {
     host.serve(server, ctx);
   });
 
+  // The same server, with the conversation locked. The two files are the
+  // certificate a browser checks and the key that proves it is yours.
+  rt.define('start serving safely on port $port with certificate $cert and key $key', (a, ctx) => {
+    if (!host.serve) needTerminal(ctx, 'Serving');
+    server.port = Math.round(toNumber(a.port));
+    server.safely = { certificate: toText(a.cert), key: toText(a.key) };
+    host.serve(server, ctx);
+  });
+
   rt.defineValue('what was asked for', () => server.asked.path);
   rt.defineValue('what they sent', () => server.asked.sent);
   rt.defineValue('how they asked', () => server.asked.method);
@@ -227,6 +286,37 @@ export function installNet(rt, host = {}) {
   rt.defineValue('the address part $name', (a) => {
     const found = server.asked.parts[toText(a.name)];
     return found === undefined ? '' : found;
+  });
+
+  // ------------------------------------------------------ files sent in
+  //
+  // A picture arriving from a form is not text, so it is never turned into
+  // any. What a program gets is what it needs to decide - the name it had,
+  // what it claims to be, and how big it is - and a way to put it somewhere.
+
+  const uploaded = (name) => (server.asked.files || {})[toText(name)] || null;
+
+  // Called name, type and bytes on purpose: "size of" and "kind of" already
+  // mean something in Plain, and a field with either of those names could
+  // never be read.
+  rt.defineValue('the file sent as $name', (a) => {
+    const found = uploaded(a.name);
+    if (!found) return null;
+    return { name: found.name, type: found.kind, bytes: found.size };
+  });
+
+  rt.defineValue('a file was sent as $name', (a) => Boolean(uploaded(a.name)));
+
+  rt.defineValue('the text of the file sent as $name', (a) => {
+    const found = uploaded(a.name);
+    return found ? found.bytes.toString('utf8') : '';
+  });
+
+  rt.define('save the file sent as $name to $where', (a, ctx) => {
+    const found = uploaded(a.name);
+    if (!found) ctx.fail(`Nothing was sent as ${toText(a.name)}`);
+    if (!host.putFile) needTerminal(ctx, 'Keeping a file that was sent');
+    host.putFile(toText(a.where), found.bytes, ctx);
   });
 
   // ----------------------------------------------------------- answering
@@ -255,15 +345,47 @@ export function installNet(rt, host = {}) {
   // browser is given a tag, and what belongs to that tag is kept here, so
   // nothing private ever leaves the machine the program runs on.
 
+  // What a visitor is carrying is kept the way everything else in Plain is
+  // kept, so a program that is restarted does not throw everybody out. Each
+  // one also carries when it was last seen, so old ones can be swept away
+  // rather than piling up for ever.
+  const VISITOR = 'visitor:';
+  const MONTH = 30 * 24 * 60 * 60 * 1000;
+
   const carrying = () => {
     const tag = server.asked.tag;
     if (!tag) return {};
-    if (!server.visitors.has(tag)) server.visitors.set(tag, {});
+    if (!server.visitors.has(tag)) {
+      const kept = rt.store ? rt.store.get(VISITOR + tag) : undefined;
+      const held = kept && typeof kept === 'object' && kept.held ? kept.held : {};
+      server.visitors.set(tag, held);
+    }
     return server.visitors.get(tag);
+  };
+
+  const writeVisitor = () => {
+    const tag = server.asked.tag;
+    if (!tag || !rt.store) return;
+    rt.store.set(VISITOR + tag, { seen: Date.now(), held: server.visitors.get(tag) || {} });
+  };
+
+  // Anybody who has not been seen for a month is forgotten, which keeps the
+  // file from growing forever on a server that has been up a long time.
+  server.sweepVisitors = () => {
+    if (!rt.store) return 0;
+    let gone = 0;
+    for (const key of rt.store.keys()) {
+      if (!key.startsWith(VISITOR)) continue;
+      const kept = rt.store.get(key);
+      const seen = kept && Number(kept.seen);
+      if (!seen || Date.now() - seen > MONTH) { rt.store.remove(key); gone += 1; }
+    }
+    return gone;
   };
 
   rt.define('keep $value as $key for this visitor', (a) => {
     carrying()[toText(a.key)] = a.value;
+    writeVisitor();
   });
 
   // Not "this visitor's $key": an apostrophe is how text in single quotes
@@ -277,16 +399,20 @@ export function installNet(rt, host = {}) {
   rt.defineValue('this visitor has $key', (a) => carrying()[toText(a.key)] !== undefined);
 
   rt.define('forget everything about this visitor', () => {
-    if (server.asked.tag) server.visitors.set(server.asked.tag, {});
+    if (!server.asked.tag) return;
+    server.visitors.set(server.asked.tag, {});
+    if (rt.store) rt.store.remove(VISITOR + server.asked.tag);
   });
 
   // Signing in is what nearly every program wants this for, so it says so.
   rt.define('sign this visitor in as $who', (a) => {
     carrying().signedIn = a.who;
+    writeVisitor();
   });
 
   rt.define('sign this visitor out', () => {
     delete carrying().signedIn;
+    writeVisitor();
   });
 
   rt.defineValue('who is signed in', () => {
