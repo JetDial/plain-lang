@@ -670,12 +670,12 @@ show join sorted scores with " < "
         task: 'Last step, in your terminal rather than here: run <code>plain translate yourfile.plain --to all --out translated</code> and open the folder.',
         teach: `
 <p>The course can show you the code. Your terminal can hand you the files:</p>
-<pre>plain translate mine.plain --to python
+<pre class="shell">plain translate mine.plain --to python
 plain translate mine.plain --to rust --out mine.rs
 plain translate mine.plain --to all --out translated</pre>
 <p>What comes out is a real file you can build and run with nothing else
 installed:</p>
-<pre>python mine.py
+<pre class="shell">python mine.py
 node mine.js
 rustc -O mine.rs && ./mine
 cc -O2 mine.c -o mine -lm && ./mine</pre>

@@ -18,6 +18,7 @@ import { installVideo } from '../engines/video/engine.js';
 import { installStore } from '../engines/store/engine.js';
 import { installNet, readSent, readCookies, readParts } from '../engines/net/engine.js';
 import { installData } from '../engines/data/engine.js';
+import { LESSONS, PROJECTS } from '../engines/learn/course.js';
 import { readList, save, checkPart, fingerprint, nameFrom } from '../bin/parts.js';
 import { format } from '../src/format.js';
 import { documentToHTML } from '../engines/web/render.js';
@@ -2732,6 +2733,67 @@ check('a game builds to one page', () => {
   assert.match(html, /startPlain/);
   assert.match(html, /<title>Pong<\/title>/);
   fs.rmSync(out, { recursive: true, force: true });
+});
+
+// The suite already checks that every worked answer passes its step. This
+// asks the other half of the question: is the code the course and the
+// documents *show* you code that Plain actually understands? A lesson that
+// teaches a sentence Plain does not know is worse than no lesson.
+function readable(source) {
+  const rt = createRuntime({ onOutput: () => {} });
+  installGame(rt, {}); installWorld(rt, {}); installWeb(rt, {});
+  installVideo(rt, {}); installStore(rt, {}); installData(rt, {}); installNet(rt, {});
+  rt.parse(source, 'shown.plain');
+}
+
+function plainBlocks(html) {
+  // Blocks marked as shell are lines to type in a terminal, not Plain.
+  return [...String(html || '').matchAll(/<pre(?! class="shell")[^>]*>([\s\S]*?)<\/pre>/g)]
+    .map(found => found[1]
+      .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+      .replace(/&amp;/g, '&')
+      .trim());
+}
+
+check('every piece of Plain the course shows is Plain it understands', () => {
+  const wrong = [];
+  let counted = 0;
+  const look = (where, html) => {
+    for (const code of plainBlocks(html)) {
+      counted++;
+      try { readable(code); }
+      catch (error) { wrong.push(`${where}: ${error.plainMessage || error.message}`); }
+    }
+  };
+  for (const lesson of LESSONS) look(`lesson "${lesson.title}"`, lesson.teach);
+  for (const project of PROJECTS) {
+    project.steps.forEach((step, at) => {
+      look(`${project.id} step ${at + 1}`, step.teach);
+      look(`${project.id} step ${at + 1}`, step.task);
+    });
+  }
+  assert.ok(counted > 20, `only found ${counted} pieces of code to check`);
+  assert.equal(wrong.length, 0, '\n  ' + wrong.join('\n  '));
+});
+
+check('every piece of Plain the documents show is Plain it understands', () => {
+  const wrong = [];
+  let counted = 0;
+  for (const file of ['LANGUAGE.md', 'README.md']) {
+    const text = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    for (const found of text.matchAll(/```plain\n([\s\S]*?)```/g)) {
+      const code = found[1];
+      // A block that pulls in another file needs that file to be there,
+      // which is a different question from whether the sentence is right.
+      if (/^[ \t]*use[ \t]+["']/m.test(code)) continue;
+      counted++;
+      try { readable(code); }
+      catch (error) { wrong.push(`${file}: ${error.plainMessage || error.message}`); }
+    }
+  }
+  assert.ok(counted > 60, `only found ${counted} blocks to check`);
+  assert.equal(wrong.length, 0, '\n  ' + wrong.join('\n  '));
 });
 
 check('every example still runs', () => {

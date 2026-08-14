@@ -362,7 +362,7 @@ install.
 make notes be a table called "notes"
 
 when someone visits "/"
-    answer with the page page with everything in notes
+    answer with the page "<h1>{number of rows in notes} notes</h1>"
 end
 
 when someone sends to "/notes"                 # a form arriving
@@ -408,7 +408,7 @@ restarting the program does not throw everybody out:
 ```plain
 create an account in people for "Ada" with password "correct horse"
 
-make found be the account in people for typed name with password typed word
+make found be the account in people for the form field "who" with password the form field "password"
 if found is not nothing
     sign this visitor in as name of found
 end
@@ -646,7 +646,7 @@ tests/fake-dom.js      a small stand-in browser, so the pages can be tested
 engines/net/          fetching, and answering as a web server: routes,
                       forms, visitors, files
 bin/parts.js          fetching and recording parts other people wrote
-tests/run-tests.js     360 checks, no framework, 11 languages executed
+tests/run-tests.js     362 checks, no framework, 11 languages executed
 ```
 
 ## Tests

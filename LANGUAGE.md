@@ -160,8 +160,8 @@ to greet with person
     give back "Hello, " joined with person
 end
 
-to shout with words and times
-    repeat times times
+to shout with words and many
+    repeat many times
         show uppercase of words
     end
 end
@@ -171,7 +171,8 @@ shout with "hey" and 3
 ```
 
 The name can be several words: `to add up with a and b` is called as
-`add up with 3 and 4`. `give back` returns a value and ends the action.
+`add up with 3 and 4`. A few words are Plain's own - `times`, `count`, `end`
+- and it says so rather than letting you name something one of them. `give back` returns a value and ends the action.
 Actions can be used before they are written.
 
 ## 10. Kinds of your own
@@ -462,7 +463,7 @@ the browser sent a form or a program sent JSON:
 
 ```plain
 when someone visits "/name"        # somebody looking
-    answer with the page ...
+    answer with the page "<form method='post' action='/name'>...</form>"
 end
 
 when someone sends to "/name"      # somebody sending
@@ -526,7 +527,8 @@ if people has an account for "Ada"
     show "that name is taken"
 end
 
-make found be the account in people for "Ada" with password whatever they typed
+make typed be the form field "password"
+make found be the account in people for "Ada" with password typed
 if found is nothing
     show "no"
 otherwise
@@ -664,31 +666,31 @@ remove ball from the game
 
 ```plain
 every frame
-    ...
+    move hero right by 2
 end
 
 every 2 seconds
-    ...
+    add 1 to score
 end
 
 when ball touches paddle
-    ...
+    bounce ball
 end
 
 when key "space" is pressed
-    ...
+    push hero up by 9
 end
 
 when any key is pressed
-    ...
+    show "off we go"
 end
 
 when the mouse is clicked
-    ...
+    add 1 to score
 end
 
 when ball leaves the screen
-    ...
+    stop the game saying "missed"
 end
 ```
 

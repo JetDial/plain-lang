@@ -41,6 +41,10 @@ body { margin: 0; background: #0b0d13; color: #e8ecf4;
   font-family: ui-monospace, "Cascadia Code", Consolas, monospace; }
 .teach pre { background: #10141e; border: 1px solid #1e2432; border-radius: 10px;
   padding: 14px 16px; overflow-x: auto; font: 13.5px/1.6 ui-monospace, Consolas, monospace; color: #cfd6e6; }
+/* Lines to type in a terminal, not lines of Plain. */
+.teach pre.shell { background: #0c1016; border-color: #223046; color: #9fd0b4; }
+.teach pre.shell::before { content: "in your terminal"; display: block; color: #63788c;
+  font-size: 11px; text-transform: uppercase; letter-spacing: .09em; margin-bottom: 7px; }
 .task { background: #101a2c; border: 1px solid #22344f; border-left: 3px solid #4c8dff;
   border-radius: 10px; padding: 14px 16px; margin: 20px 0 14px; }
 .task b { color: #9dc0ff; display: block; font-size: 12px; text-transform: uppercase;
