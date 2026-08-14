@@ -111,6 +111,19 @@ export function installCore(rt) {
   rt.defineValue('logarithm of $number', a => Math.log(Math.max(1e-300, toNumber(a.number))));
   rt.defineValue('tangent of $number', a => Math.tan(toNumber(a.number)));
 
+  // The way back. A language with sine, cosine and tangent and no way to ask
+  // "what angle was that, then?" cannot work out which way one thing lies
+  // from another - which is the first thing anybody drawing or aiming wants.
+  // All three answer in radians, as the three above expect.
+  rt.defineValue('arcsine of $number', a => Math.asin(Math.max(-1, Math.min(1, toNumber(a.number)))));
+  rt.defineValue('arccosine of $number', a => Math.acos(Math.max(-1, Math.min(1, toNumber(a.number)))));
+
+  // Two numbers rather than one, because the sign of each is what says which
+  // quarter of the circle the answer is in - something a single ratio cannot
+  // tell you. Straight up is a quarter turn; straight left is half of one.
+  rt.defineValue('arctangent of $up over $across',
+    a => Math.atan2(toNumber(a.up), toNumber(a.across)));
+
   rt.defineValue('random $low to $high', a => {
     const low = Math.ceil(toNumber(a.low));
     const high = Math.floor(toNumber(a.high));
