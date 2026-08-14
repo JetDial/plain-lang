@@ -1037,6 +1037,11 @@ function sameEverywhere(name, source) {
         const fromCSharp = runCSharp(written(source, 'csharp'), folder).replace(/\r/g, '').trimEnd();
         assert.equal(fromCSharp, expected, 'C# said something different');
       }
+
+      if (RUST) {
+        const fromRust = runRust(written(source, 'rust'), folder).replace(/\r/g, '').trimEnd();
+        assert.equal(fromRust, expected, 'Rust said something different');
+      }
     } finally {
       fs.rmSync(folder, { recursive: true, force: true });
     }
@@ -1091,6 +1096,7 @@ const TYPESCRIPT = (() => {
   }
 })();
 
+const RUST = lookFor('rustc', ['--version'], /rustc \d/);
 const RUBY = lookFor('ruby', ['-v'], /ruby \d/);
 const GO = lookFor('go', ['version'], /go version/);
 const PHP = lookFor('php', ['--version'], /PHP \d/);
@@ -1117,6 +1123,19 @@ if (!PHP) skipped.push('PHP (no php on this machine)');
 if (!PYTHON) skipped.push('Python (no python 3 on this machine)');
 if (!LUA) skipped.push('Lua (no lua interpreter on this machine)');
 if (!DOTNET) skipped.push('C# (dotnet has runtimes but no SDK on this machine)');
+if (!RUST) skipped.push('Rust (no rustc on this machine)');
+
+// One file, no crates and no Cargo: the runtime is written out with the
+// program, so rustc alone is enough. Built without optimising, because this
+// is checking what it says, not how fast it says it.
+function runRust(code, folder) {
+  const file = path.join(folder, 'program.rs');
+  fs.writeFileSync(file, code, 'utf8');
+  execFileSync(RUST, ['-C', 'opt-level=0', '-C', 'debuginfo=0', '-A', 'warnings', '-o', path.join(folder, 'program.exe'), file], {
+    encoding: 'utf8', cwd: folder, stdio: ['ignore', 'pipe', 'pipe']
+  });
+  return execFileSync(path.join(folder, 'program.exe'), [], { encoding: 'utf8', cwd: folder });
+}
 
 // Build and run the generated C# once, in a throwaway project.
 function runCSharp(code, folder) {
@@ -1404,8 +1423,17 @@ check('the command line translates a file', () => {
 // their shape rather than by running them. JavaScript and Python above are
 // checked by running them.
 
-check('it can write nine languages', () => {
-  assert.deepEqual(targetNames(), ['javascript', 'python', 'csharp', 'lua', 'typescript', 'ruby', 'java', 'go', 'php']);
+check('it can write ten languages', () => {
+  assert.deepEqual(targetNames(),
+    ['javascript', 'python', 'csharp', 'lua', 'typescript', 'ruby', 'java', 'go', 'php', 'rust']);
+});
+
+check('Rust says what it cannot do rather than writing code that will not build', () => {
+  let error = null;
+  try { written("show \"ab\" matches 'a+'", 'rust'); }
+  catch (problem) { error = problem; }
+  assert.ok(error instanceof PlainError, 'the pattern should have been refused');
+  assert.match(error.plainMessage, /Rust has no such thing/);
 });
 
 const SHOWCASE = [

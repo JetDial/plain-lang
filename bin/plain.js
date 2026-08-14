@@ -931,7 +931,7 @@ Plain ${VERSION} - a language you write like a normal sentence.
   plain check <file.plain>    look for mistakes without running it
   plain words                 list every sentence Plain understands
   plain learn                 lessons and projects, in your browser
-  plain translate <file>      write it in nine other languages      (--to php)
+  plain translate <file>      write it in ten other languages       (--to rust)
   plain fmt <file|folder>     tidy the indenting                    (--check)
   plain get <url> [as name]   fetch a part into this folder
   plain parts                 what this folder is using
