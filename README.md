@@ -1,7 +1,10 @@
 # Plain
 
-A programming language you write the way you type a sentence — with a 2D and
-3D game engine, a website designer, and a video editor built on top of it.
+A programming language you write the way you type a sentence — and, in the
+same box, everything you would otherwise go and collect: a web server with a
+database behind it, 2D and 3D game engines, a website designer, a video
+editor, and a translator that writes your program out in eleven other
+languages.
 
 ```plain
 make score be 0
@@ -19,6 +22,24 @@ No semicolons, no curly braces, no `public static void`. Lines start with a
 verb, blocks end with `end`, and indentation is yours to choose. Underneath it
 has the things a grown-up language has: your own kinds of thing, actions used
 as values, catching problems, and files that pull in other files.
+
+**Nothing to install but Node, and no dependencies of its own.** The whole of
+it is the files in this repository — which is also why `plain pack` can hand
+you one folder to copy to a server.
+
+## What comes with it
+
+| | |
+|---|---|
+| **Whole applications** | addresses, forms, a table that survives restarts, sign-in with real passwords, files people send, HTTPS, live connections, email |
+| **Games** | 2D with sprites, gravity and collisions; 3D on a hand-written WebGL renderer |
+| **Websites** | typed, or dragged about in a designer that writes Plain sentences back out |
+| **Video** | a timeline, a studio, and a WebM file at the end, muxed by hand |
+| **Eleven other languages** | JavaScript, TypeScript, Python, Ruby, PHP, Java, C#, Go, Lua, Rust, C — real code, built and run by the test suite |
+| **A course** | 16 lessons and 7 projects in the browser, every step checked by running what you wrote |
+
+Made with it: **[Skyward](https://github.com/JetDial/skyward)**, a multiplayer
+flying game whose whole server is one file of Plain sentences.
 
 ---
 
@@ -661,34 +682,42 @@ spec ending in `...` takes a block closed by `end`.
 ## Layout
 
 ```
-bin/plain.js           the command line tool
-bin/templates.js       the finished programs `plain make` writes
-src/lexer.js           text   -> tokens
-src/parser.js          tokens -> tree (this is where sentences are matched)
-src/interp.js          runs the tree; kinds, actions, catching problems
-src/phrases.js         the sentence table
-src/stdlib.js          the sentences every program has
-src/browser.js         running a program in a browser
-engines/game/          the 2D game engine
-engines/world/         the 3D world engine and its WebGL renderer
-engines/web/           the website engine, its HTML and markdown writers, the designer
-engines/video/         the video timeline and the studio
-examples/              programs to read and run
-src/translate/        Plain -> 11 other languages
-runtime/rust/         the Value type Rust programs are built on
-runtime/c/            the same for C, with the counting and the sweep
-src/format.js         plain fmt
-engines/store/        remembering things, files, JSON and CSV
-engines/data/         tables: rows with ids, looked up rather than
-                      scanned, and accounts with real passwords
-engines/learn/        the course: lessons, projects and their checks
-tests/fake-dom.js      a small stand-in browser, so the pages can be tested
-engines/net/          fetching, and answering as a web server: routes,
-                      forms, visitors, files, live connections
-engines/mail/         sending email, and the shape a message goes in
-bin/parts.js          fetching and recording parts other people wrote
-engines/parts/        what a part says about itself, read before it is run
-tests/run-tests.js     391 checks, no framework, 11 languages executed
+the language
+  src/lexer.js         text   -> tokens
+  src/parser.js        tokens -> tree (this is where sentences are matched)
+  src/interp.js        runs the tree; kinds, actions, catching problems
+  src/phrases.js       the sentence table
+  src/stdlib.js        the sentences every program has
+  src/format.js        plain fmt
+  src/browser.js       running a program in a browser
+
+what a program can do
+  engines/game/        the 2D game engine
+  engines/world/       the 3D world engine and its WebGL renderer
+  engines/web/         the website engine, its HTML and markdown writers,
+                       and the designer
+  engines/video/       the video timeline and the studio
+  engines/store/       remembering things, files, JSON and CSV
+  engines/data/        tables: rows with ids, looked up rather than scanned,
+                       transactions, joins, accounts with real passwords
+  engines/net/         fetching, and answering as a web server: addresses,
+                       forms, visitors, files, live connections
+  engines/mail/        sending email, and the shape a message goes in
+  engines/parts/       what a part says about itself, read before it is run
+  engines/learn/       the course: lessons, projects and their checks
+
+writing it out in something else
+  src/translate/       Plain -> 11 other languages
+  runtime/rust/        the Value type Rust programs are built on
+  runtime/c/           the same for C, with the counting and the sweep
+
+the tool, and proof
+  bin/plain.js         the command line tool
+  bin/templates.js     the finished programs `plain make` writes
+  bin/parts.js         fetching and recording parts other people wrote
+  examples/            programs to read and run
+  tests/fake-dom.js    a small stand-in browser, so pages can be tested
+  tests/run-tests.js   391 checks, no framework, 11 languages built and run
 ```
 
 ## Tests
