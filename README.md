@@ -59,6 +59,7 @@ plain build <file>   write HTML you can publish        (--out folder)
 plain translate <f>  write it in 11 other languages     (--to rust)
 plain fmt <file>     tidy the indenting                (--check to just look)
 plain get <url>      fetch a part into this folder     (plain parts to list)
+plain pack <file>    one folder to copy to a server
 plain check <file>   look for mistakes without running
 plain words          list every sentence Plain understands
 ```
@@ -465,6 +466,29 @@ something is written. Two thousand lookups in a table of two hundred thousand
 rows: **2.2s reading every row, 0.4s with the lookup**, and the gap grows with
 every question asked.
 
+## Sending it somewhere
+
+```plain
+use the mail server "smtp.example.com" on port 587
+sign in to the mail server as "me@example.com" with password "an app password"
+send an email from "me@example.com" to "you@example.com" about "Your receipt" saying "Thank you."
+```
+
+The whole SMTP conversation, written out: hello, lock the line, prove who
+you are, from, to, the message, goodbye. Accents survive in both the subject
+and the words. A server that refuses says why, in its own words.
+
+## Putting it on a server
+
+```bash
+plain pack app.plain
+```
+
+One folder with everything in it: your program, the files it uses, and Plain
+itself. Nothing to install but Node. Inside are three ways to start it —
+`sh start.sh`, a `Dockerfile`, and a systemd unit — and a README saying
+which file holds your data and how to back it up.
+
 ## Going faster
 
 ```bash
@@ -655,9 +679,10 @@ engines/data/         tables: rows with ids, looked up rather than
 engines/learn/        the course: lessons, projects and their checks
 tests/fake-dom.js      a small stand-in browser, so the pages can be tested
 engines/net/          fetching, and answering as a web server: routes,
-                      forms, visitors, files
+                      forms, visitors, files, live connections
+engines/mail/         sending email, and the shape a message goes in
 bin/parts.js          fetching and recording parts other people wrote
-tests/run-tests.js     369 checks, no framework, 11 languages executed
+tests/run-tests.js     375 checks, no framework, 11 languages executed
 ```
 
 ## Tests

@@ -664,6 +664,31 @@ end
 browser thing - `new WebSocket("ws://localhost:3020")` - so anything that
 speaks WebSocket can join.
 
+### Telling somebody
+
+A receipt, a reset link, a nightly summary. Sending waits for its answer,
+the way fetching does:
+
+```plain
+use the mail server "smtp.example.com" on port 587
+sign in to the mail server as "me@example.com" with password "an app password"
+
+send an email from "me@example.com" to "you@example.com" about "Your receipt" saying "Thank you."
+
+show what the mail server said
+```
+
+Port 587 offers to lock the line and Plain takes it; port 465 is locked from
+the first byte. Accents in a subject and in the words are carried the way a
+mail server from 1982 expects, so nothing arrives as `?????`. An address
+that is not one is refused before anything is sent, and a server that says
+no says why:
+
+    The mail server would not take that message: 550 no such person here
+
+Most mail providers want a password made for programs rather than the one
+you type, and will say so.
+
 ### One at a time
 
 Only one program may keep things in a given file. A second is told so

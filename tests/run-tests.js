@@ -18,6 +18,7 @@ import { installVideo } from '../engines/video/engine.js';
 import { installStore } from '../engines/store/engine.js';
 import { installNet, readSent, readCookies, readParts, readFrame, sixtyFour } from '../engines/net/engine.js';
 import { installData } from '../engines/data/engine.js';
+import { installMail, buildMessage, looksLikeAddress } from '../engines/mail/engine.js';
 import { LESSONS, PROJECTS } from '../engines/learn/course.js';
 import { readList, save, checkPart, fingerprint, nameFrom } from '../bin/parts.js';
 import { format } from '../src/format.js';
@@ -2254,6 +2255,108 @@ check('using something that is not a table is explained', () => {
   assert.match(error.plainMessage, /needs a table/);
 });
 
+// ----------------------------------------------------------------- email
+
+function runMail(source, host = {}) {
+  const rt = createRuntime({ onOutput: () => {} });
+  installStore(rt, {});
+  const mail = installMail(rt, host);
+  rt.run(source, 'mail.plain');
+  return { rt, mail };
+}
+
+check('a message is written the way a mail server expects one', () => {
+  const written = buildMessage({
+    from: 'me@example.com',
+    to: 'you@example.com',
+    subject: 'Café — it worked',
+    body: 'Hello there.\n.a line starting with a dot\nÜnicode too.'
+  }, new Date(Date.UTC(2026, 7, 14, 9, 48, 34)), 'abc');
+
+  assert.match(written, /^From: me@example\.com\r\n/);
+  assert.match(written, /\r\nTo: you@example\.com\r\n/);
+  assert.match(written, /\r\nDate: Fri, 14 Aug 2026 09:48:34 \+0000\r\n/);
+  assert.match(written, /\r\nMessage-ID: <abc@plain>\r\n/);
+  assert.match(written, /\r\nContent-Transfer-Encoding: base64\r\n/);
+  assert.ok(written.endsWith('\r\n'), 'a message ends with a line ending');
+
+  // An accented subject goes in the shape a 1982 mail server will carry.
+  const subject = /Subject: (.*)\r\n/.exec(written)[1];
+  assert.match(subject, /^=\?UTF-8\?B\?.*\?=$/);
+  assert.equal(
+    Buffer.from(subject.slice(10, -2), 'base64').toString('utf8'),
+    'Café — it worked'
+  );
+
+  // And the words come back exactly, dot and umlaut and all.
+  const body = written.split('\r\n\r\n').slice(1).join('\r\n\r\n');
+  assert.equal(
+    Buffer.from(body.replace(/\r\n/g, ''), 'base64').toString('utf8'),
+    'Hello there.\n.a line starting with a dot\nÜnicode too.'
+  );
+  // No line in a message may be longer than a mail server will take.
+  for (const line of written.split('\r\n')) assert.ok(line.length <= 78, `a line was ${line.length} long`);
+});
+
+check('a plain subject is left alone', () => {
+  const written = buildMessage({ from: 'a@b.com', to: 'c@d.com', subject: 'Your receipt', body: 'hi' });
+  assert.match(written, /\r\nSubject: Your receipt\r\n/);
+});
+
+check('an address that is not one is refused before anything is sent', () => {
+  assert.ok(looksLikeAddress('me@example.com'));
+  assert.ok(looksLikeAddress('first.last+tag@sub.example.co.uk'));
+  assert.ok(!looksLikeAddress('me'));
+  assert.ok(!looksLikeAddress('me@example'));
+  assert.ok(!looksLikeAddress('me @example.com'));
+  assert.ok(!looksLikeAddress('me@exa mple.com'));
+  assert.ok(!looksLikeAddress(''));
+
+  let error = null;
+  try {
+    runMail([
+      'use the mail server "smtp.example.com" on port 587',
+      'send an email from "me@example.com" to "nonsense" saying "hi"'
+    ].join('\n'), { sendMail: () => 'sent' });
+  } catch (problem) { error = problem; }
+  assert.match(error.plainMessage, /does not look like an email address/);
+});
+
+check('the mail server has to be said before anything is sent', () => {
+  let error = null;
+  try {
+    runMail('send an email from "a@b.com" to "c@d.com" saying "hi"', { sendMail: () => 'sent' });
+  } catch (problem) { error = problem; }
+  assert.match(error.plainMessage, /do not know which mail server/);
+});
+
+check('what is handed to the mail server is what the program said', () => {
+  let asked = null;
+  const { rt } = runMail([
+    'use the mail server "smtp.example.com" on port 2525',
+    'sign in to the mail server as "me@example.com" with password "s3cret"',
+    'send an email from "me@example.com" to "you@example.com" about "Hello" saying "It worked."',
+    'show what the mail server said'
+  ].join('\n'), { sendMail: (settings, message) => { asked = { settings, message }; return '250 OK'; } });
+
+  assert.equal(asked.settings.host, 'smtp.example.com');
+  assert.equal(asked.settings.port, 2525);
+  assert.equal(asked.settings.user, 'me@example.com');
+  assert.equal(asked.settings.password, 's3cret');
+  assert.deepEqual(asked.message, {
+    from: 'me@example.com', to: 'you@example.com', subject: 'Hello', body: 'It worked.'
+  });
+  assert.deepEqual(rt.lines, ['250 OK']);
+});
+
+check('email says plainly that it needs a terminal', () => {
+  let error = null;
+  try {
+    runMail('use the mail server "s" on port 25\nsend an email from "a@b.com" to "c@d.com" saying "hi"', {});
+  } catch (problem) { error = problem; }
+  assert.match(error.plainMessage, /only works when Plain runs in a terminal/);
+});
+
 // ----------------------------------------------------------- the internet
 
 function runNetWith(source, store) {
@@ -2892,6 +2995,7 @@ function readable(source) {
   const rt = createRuntime({ onOutput: () => {} });
   installGame(rt, {}); installWorld(rt, {}); installWeb(rt, {});
   installVideo(rt, {}); installStore(rt, {}); installData(rt, {}); installNet(rt, {});
+  installMail(rt, {});
   rt.parse(source, 'shown.plain');
 }
 

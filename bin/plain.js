@@ -26,6 +26,7 @@ import { installVideo } from '../engines/video/engine.js';
 import { installStore } from '../engines/store/engine.js';
 import { installNet, readCookies, readParts, readFrame, sixtyFour } from '../engines/net/engine.js';
 import { installData } from '../engines/data/engine.js';
+import { installMail, buildMessage } from '../engines/mail/engine.js';
 import { documentToHTML, hrefFor } from '../engines/web/render.js';
 import { TEMPLATES, templateNames } from './templates.js';
 import { translate, targetNames, findTarget } from '../src/translate/index.js';
@@ -94,6 +95,7 @@ try {
     case 'learn': case 'teach': await commandLearn(); break;
     case 'get': commandGet(rest[0], rest[2]); break;
     case 'parts': commandParts(); break;
+    case 'pack': commandPack(target); break;
     case 'fmt': case 'tidy': commandTidy(rest.filter(a => !a.startsWith('-'))); break;
     case 'version': case '--version': case '-v': console.log(`Plain ${VERSION}`); break;
     default: commandHelp();
@@ -169,7 +171,8 @@ function buildRuntime(onOutput, baseFile = process.cwd()) {
     tellAll: (words, except) => (server.host ? server.host.tellAll(words, except) : null),
     connected: () => (server.host ? server.host.connected() : 0)
   });
-  return { runtime, game, site, world, studio, store, server, tables };
+  const mail = installMail(runtime, { sendMail });
+  return { runtime, game, site, world, studio, store, server, tables, mail };
 }
 
 // Fetching has to finish before the next line runs, and the interpreter does
@@ -534,6 +537,38 @@ function storeHost(baseFile) {
   };
 }
 
+// Sending waits for its answer, the way fetching does, and for the same
+// reason: the next line of the program is about to assume it worked. The
+// conversation happens in a program of its own.
+function sendMail(settings, message, ctx) {
+  const written = buildMessage(message);
+  const asking = {
+    host: settings.host,
+    port: settings.port,
+    user: settings.user,
+    password: settings.password,
+    from: message.from,
+    to: message.to
+  };
+  let raw;
+  try {
+    raw = execFileSync(process.execPath, [
+      path.join(HERE, 'mail-helper.mjs'), JSON.stringify(asking), written
+    ], { encoding: 'utf8', timeout: 45000, maxBuffer: 8 * 1024 * 1024 });
+  } catch (problem) {
+    ctx.fail(
+      `I could not reach the mail server at ${settings.host}:${settings.port}`,
+      'check the address and the port, and that you are online'
+    );
+  }
+  let answer;
+  try { answer = JSON.parse(raw); } catch { answer = { ok: false, said: String(raw).trim() }; }
+  if (!answer.ok) {
+    ctx.fail(`The mail server would not take that message: ${answer.said}`);
+  }
+  return answer.said;
+}
+
 // Is anybody actually running under that number? Signal 0 asks without
 // sending anything, which is exactly the question.
 function alive(who) {
@@ -789,6 +824,152 @@ function commandParts() {
 }
 
 // --------------------------------------------------------------------- tidy
+
+// ------------------------------------------------------------------- pack
+//
+// Everything needed to run one program on a machine that is not this one, in
+// a single folder: the program, the files it uses, Plain itself, and three
+// small files that say how to start it. Plain has no dependencies, so this
+// is a copy rather than a build - which is why it can be read and checked
+// rather than trusted.
+function commandPack(file) {
+  const program = readProgram(file);
+  const out = path.resolve(process.cwd(), flags.out || `${program.name}-packed`);
+  const from = path.dirname(program.full);
+
+  fs.mkdirSync(out, { recursive: true });
+  for (const folder of ['src', 'engines', 'runtime']) copyInto(path.join(ROOT, folder), path.join(out, folder));
+  fs.mkdirSync(path.join(out, 'bin'), { recursive: true });
+  for (const one of ['plain.js', 'parts.js', 'templates.js', 'mail-helper.mjs']) {
+    fs.copyFileSync(path.join(ROOT, 'bin', one), path.join(out, 'bin', one));
+  }
+
+  // The program, and everything it pulls in with `use`.
+  const app = path.join(out, 'app');
+  fs.mkdirSync(app, { recursive: true });
+  fs.copyFileSync(program.full, path.join(app, path.basename(program.full)));
+  const used = collectUsed(program.source, program.full);
+  for (const one of Object.keys(used)) {
+    const beside = path.resolve(from, one);
+    if (!fs.existsSync(beside)) continue;
+    const landing = path.join(app, path.relative(from, beside));
+    fs.mkdirSync(path.dirname(landing), { recursive: true });
+    fs.copyFileSync(beside, landing);
+  }
+
+  const started = `app/${path.basename(program.full)}`;
+  const port = (/start serving(?: safely)? on port (\d+)/.exec(program.source) || [])[1] || '3000';
+
+  write(path.join(out, 'package.json'), JSON.stringify({
+    name: program.name.toLowerCase().replace(/[^a-z0-9-]+/g, '-') || 'plain-app',
+    private: true,
+    type: 'module',
+    scripts: { start: `node bin/plain.js run ${started}` },
+    engines: { node: '>=18' }
+  }, null, 2) + '\n');
+
+  write(path.join(out, 'start.sh'), [
+    '#!/bin/sh',
+    '# Start the program. Nothing to install first: Plain is all here.',
+    'cd "$(dirname "$0")"',
+    `exec node bin/plain.js run ${started}`,
+    ''
+  ].join('\n'));
+
+  write(path.join(out, 'Dockerfile'), [
+    'FROM node:22-alpine',
+    'WORKDIR /app',
+    'COPY . .',
+    `EXPOSE ${port}`,
+    `CMD ["node", "bin/plain.js", "run", "${started}"]`,
+    ''
+  ].join('\n'));
+
+  write(path.join(out, `${program.name}.service`), [
+    '[Unit]',
+    `Description=${program.name}, written in Plain`,
+    'After=network.target',
+    '',
+    '[Service]',
+    'Type=simple',
+    `WorkingDirectory=/opt/${program.name}`,
+    `ExecStart=/usr/bin/node /opt/${program.name}/bin/plain.js run /opt/${program.name}/${started}`,
+    'Restart=always',
+    'RestartSec=2',
+    '',
+    '[Install]',
+    'WantedBy=multi-user.target',
+    ''
+  ].join('\n'));
+
+  write(path.join(out, 'README.md'), [
+    `# ${program.name}`,
+    '',
+    'Written in Plain. Everything needed to run it is in this folder, and the',
+    'only thing that has to be on the machine already is Node 18 or newer.',
+    '',
+    '```bash',
+    'sh start.sh',
+    '```',
+    '',
+    'or, with Docker:',
+    '',
+    '```bash',
+    `docker build -t ${program.name} . && docker run -p ${port}:${port} ${program.name}`,
+    '```',
+    '',
+    'or as something the machine keeps running, on a Linux box with systemd:',
+    '',
+    '```bash',
+    `sudo cp -r . /opt/${program.name}`,
+    `sudo cp ${program.name}.service /etc/systemd/system/`,
+    `sudo systemctl enable --now ${program.name}`,
+    '```',
+    '',
+    '## What is kept, and where',
+    '',
+    'Anything the program remembers - and every table - lives in',
+    `\`${started.replace(/\.plain$/, '')}.memory.json\`, beside the program.`,
+    'That file is the whole of your data: copy it to back it up, and keep it',
+    'when you replace this folder with a newer one.',
+    '',
+    'Only one copy of the program may use that file at a time. A second is',
+    'told so rather than left to quietly overwrite the first.',
+    ''
+  ].join('\n'));
+
+  const counted = countFiles(out);
+  console.log(`Packed ${program.name} into ${path.relative(process.cwd(), out) || '.'}`);
+  console.log(`  ${counted} files, everything it needs, nothing to install.`);
+  console.log('');
+  console.log('  sh start.sh                     run it here');
+  console.log('  docker build -t app . ...       run it in a box');
+  console.log(`  ${program.name}.service          keep it running on a Linux server`);
+}
+
+function copyInto(from, to) {
+  fs.mkdirSync(to, { recursive: true });
+  for (const entry of fs.readdirSync(from, { withFileTypes: true })) {
+    if (entry.name.startsWith('.')) continue;
+    const one = path.join(from, entry.name);
+    const other = path.join(to, entry.name);
+    if (entry.isDirectory()) copyInto(one, other);
+    else fs.copyFileSync(one, other);
+  }
+}
+
+function countFiles(folder) {
+  let many = 0;
+  for (const entry of fs.readdirSync(folder, { withFileTypes: true })) {
+    if (entry.isDirectory()) many += countFiles(path.join(folder, entry.name));
+    else many++;
+  }
+  return many;
+}
+
+function write(file, text) {
+  fs.writeFileSync(file, text, 'utf8');
+}
 
 function commandTidy(files) {
   const wanted = files.length ? files : ['.'];
@@ -1183,6 +1364,7 @@ Plain ${VERSION} - a language you write like a normal sentence.
   plain edit <file.plain>     open the designer (sites) or the studio (videos)
   plain build <file.plain>    write HTML files you can publish   (--out folder)
   plain check <file.plain>    look for mistakes without running it
+  plain pack <file>           everything it needs, in one folder to copy
   plain words                 list every sentence Plain understands
   plain learn                 lessons and projects, in your browser
   plain translate <file>      write it in 11 other languages        (--to rust)
