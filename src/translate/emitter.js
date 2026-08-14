@@ -310,7 +310,7 @@ export class Emitter {
   }
 
   target(node) {
-    if (node.type === 'Var') return this.identifier(node.name);
+    if (node.type === 'Var') return this.variable(node.name);
     if (node.type === 'Field') return this.fieldAccess(this.expression(node.object), this.fieldName(node.name));
     if (node.type === 'PhraseValue' && node.spec === 'item $index of $list') {
       return this.helper('at', [this.expression(node.args.list), this.expression(node.args.index)]);
@@ -408,7 +408,7 @@ export class Emitter {
     this.chain(this.catchHeader('_problem'));
     if (node.rescue) {
       this.remember('problem');
-      this.writeLine(this.declare('problem', this.problemText('_problem')));
+      this.writeLine(this.declare(this.variable('problem'), this.problemText('_problem')));
       this.block(node.rescue);
     } else {
       this.emptyBlock();

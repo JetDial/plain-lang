@@ -905,6 +905,13 @@ function sameEverywhere(name, source) {
         assert.equal(fromJava, expected, 'Java said something different');
       }
 
+      if (PHP) {
+        const phpFile = path.join(folder, 'program.php');
+        fs.writeFileSync(phpFile, written(source, 'php'), 'utf8');
+        const fromPHP = execFileSync(PHP, [phpFile], { encoding: 'utf8' }).replace(new RegExp(String.fromCharCode(13), 'g'), '').trimEnd();
+        assert.equal(fromPHP, expected, 'PHP said something different');
+      }
+
       if (GO) {
         const goFolder = path.join(folder, 'go');
         fs.mkdirSync(goFolder, { recursive: true });
@@ -974,6 +981,7 @@ const TYPESCRIPT = (() => {
 
 const RUBY = lookFor('ruby', ['-v'], /ruby \d/);
 const GO = lookFor('go', ['version'], /go version/);
+const PHP = lookFor('php', ['--version'], /PHP \d/);
 // --version writes to stdout; the older -version writes to stderr.
 const JAVA = lookFor('java', ['--version'], /\d+\.\d+/);
 
@@ -993,6 +1001,7 @@ if (!TYPESCRIPT) skipped.push('TypeScript (this Node cannot run .ts directly)');
 if (!RUBY) skipped.push('Ruby (no ruby on this machine)');
 if (!JAVA) skipped.push('Java (no java on this machine)');
 if (!GO) skipped.push('Go (no go on this machine)');
+if (!PHP) skipped.push('PHP (no php on this machine)');
 if (!PYTHON) skipped.push('Python (no python 3 on this machine)');
 if (!LUA) skipped.push('Lua (no lua interpreter on this machine)');
 if (!DOTNET) skipped.push('C# (dotnet has runtimes but no SDK on this machine)');
@@ -1283,8 +1292,8 @@ check('the command line translates a file', () => {
 // their shape rather than by running them. JavaScript and Python above are
 // checked by running them.
 
-check('it can write eight languages', () => {
-  assert.deepEqual(targetNames(), ['javascript', 'python', 'csharp', 'lua', 'typescript', 'ruby', 'java', 'go']);
+check('it can write nine languages', () => {
+  assert.deepEqual(targetNames(), ['javascript', 'python', 'csharp', 'lua', 'typescript', 'ruby', 'java', 'go', 'php']);
 });
 
 const SHOWCASE = [

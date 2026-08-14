@@ -941,6 +941,7 @@ plain translate mine.plain --to typescript
 plain translate mine.plain --to ruby
 plain translate mine.plain --to java
 plain translate mine.plain --to go
+plain translate mine.plain --to php
 plain translate mine.plain --to all --out translated
 ```
 
