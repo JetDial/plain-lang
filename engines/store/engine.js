@@ -43,6 +43,22 @@ export function createStore(host = {}) {
   const file = host.memoryFile;
   if (!fs || !file) return emptyStore();
 
+  // Only one program at a time may keep things in a given file. Two would
+  // each hold their own copy in memory and take it in turns to overwrite the
+  // other, and whichever wrote last would win - which looks like data going
+  // missing for no reason. So the second one is told, rather than left to
+  // find out.
+  if (host.claim) {
+    const other = host.claim(file);
+    if (other) {
+      throw new Error(
+        `Another Plain program (${other}) is already keeping things in ${path0(file)}.\n` +
+        'Two programs cannot share one of these: stop the other one first, or\n' +
+        'give this one a file of its own by putting it in another folder.'
+      );
+    }
+  }
+
   let held = null;
   const load = () => {
     if (held) return held;
@@ -61,11 +77,21 @@ export function createStore(host = {}) {
   let owing = false;
   let waiting = null;
 
+  // Written to one side and then moved into place, because a write that is
+  // interrupted halfway leaves a half a file, and half a file is worse than
+  // an old one. Moving is the one thing a disk does all at once.
   const writeNow = () => {
     owing = false;
     if (waiting) { clearTimeout(waiting); waiting = null; }
-    try { fs.writeFileSync(file, JSON.stringify(held, null, 2) + '\n', 'utf8'); }
-    catch { /* a read-only folder should not stop the program */ }
+    const beside = file + '.writing';
+    try {
+      fs.writeFileSync(beside, JSON.stringify(held, null, 2) + '\n', 'utf8');
+      fs.renameSync(beside, file);
+    } catch {
+      // A read-only folder should not stop the program, but a half-written
+      // file left lying about would confuse the next run.
+      try { if (fs.existsSync(beside)) fs.unlinkSync(beside); } catch { /* nothing more to do */ }
+    }
   };
 
   const save = () => {
@@ -100,6 +126,11 @@ function emptyStore() {
     remove: (key) => held.delete(key),
     keys: () => [...held.keys()].sort()
   };
+}
+
+// Just the last piece of a path, for a message a person has to read.
+function path0(file) {
+  return String(file).split(/[\\/]/).pop();
 }
 
 function parse(raw) {

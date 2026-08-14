@@ -16,7 +16,7 @@ import { installWorld } from '../engines/world/engine.js';
 import { installWeb } from '../engines/web/engine.js';
 import { installVideo } from '../engines/video/engine.js';
 import { installStore } from '../engines/store/engine.js';
-import { installNet, readSent, readCookies, readParts } from '../engines/net/engine.js';
+import { installNet, readSent, readCookies, readParts, readFrame, sixtyFour } from '../engines/net/engine.js';
 import { installData } from '../engines/data/engine.js';
 import { LESSONS, PROJECTS } from '../engines/learn/course.js';
 import { readList, save, checkPart, fingerprint, nameFrom } from '../bin/parts.js';
@@ -2092,6 +2092,89 @@ check('a lookup notices when the table has changed under it', () => {
   assert.deepEqual(said, ['1', '2', '1', '1', '0']);
 });
 
+check('a change that goes wrong halfway leaves nothing half done', () => {
+  const said = run([
+    'make money be a table called "money"',
+    'save { owner: "Ada", pennies: 500 } in money',
+    'save { owner: "Bob", pennies: 100 } in money',
+    'try',
+    '    do all of this together',
+    '        change row 1 of money to { owner: "Ada", pennies: 400 }',
+    '        change row 2 of money to { owner: "Bob", pennies: 200 }',
+    '        report a problem saying "the bank fell over"',
+    '    end',
+    'if it fails',
+    '    show the problem',
+    'end',
+    'show pennies of row 1 of money',
+    'show pennies of row 2 of money',
+    'do all of this together',
+    '    change row 1 of money to { owner: "Ada", pennies: 400 }',
+    '    change row 2 of money to { owner: "Bob", pennies: 200 }',
+    'end',
+    'show pennies of row 1 of money',
+    'show pennies of row 2 of money'
+  ].join('\n'));
+  assert.deepEqual(said, ['the bank fell over', '500', '100', '400', '200']);
+});
+
+check('putting a table back also puts back what was looked up in it', () => {
+  const said = run([
+    'make money be a table called "money"',
+    'save { owner: "Ada" } in money',
+    'show number of items in rows of money where "owner" is "Ada"',
+    'try',
+    '    do all of this together',
+    '        change row 1 of money to { owner: "Bob" }',
+    '        report a problem saying "no"',
+    '    end',
+    'if it fails',
+    'end',
+    'show number of items in rows of money where "owner" is "Ada"',
+    'show number of items in rows of money where "owner" is "Bob"'
+  ].join('\n'));
+  assert.deepEqual(said, ['1', '1', '0']);
+});
+
+check('two tables can be lined up against each other', () => {
+  const said = run([
+    'make people be a table called "people"',
+    'make orders be a table called "orders"',
+    'save { name: "Ada" } in people',
+    'save { name: "Bob" } in people',
+    'save { thing: "book", by: 1 } in orders',
+    'save { thing: "map", by: 2 } in orders',
+    'save { thing: "pen", by: 99 } in orders',
+    'make lines be every row of orders joined to people on "by"',
+    'show name of match of item 1 of lines',
+    'show name of match of item 2 of lines',
+    'show match of item 3 of lines',
+    'show thing of item 1 of lines',
+    // And matched on a field of their own rather than the id.
+    'make byName be every row of orders joined to people on "thing" matching "name"',
+    'show match of item 1 of byName'
+  ].join('\n'));
+  assert.deepEqual(said, ['Ada', 'Bob', 'nothing', 'book', 'nothing']);
+});
+
+check('rows written before a field existed can be filled in', () => {
+  const said = run([
+    'make notes be a table called "notes"',
+    'save { title: "one" } in notes',
+    'save { title: "two", done: yes } in notes',
+    'fill in "done" with no on every row of notes',
+    'show the number filled in',
+    'show done of row 1 of notes',
+    'show done of row 2 of notes',
+    'rename "title" to "words" in every row of notes',
+    'show words of row 1 of notes',
+    // Reading a field a thing has not got is a problem, so the gentler
+    // question is the one to ask about a field that has gone.
+    'show value "title" of row 1 of notes'
+  ].join('\n'));
+  assert.deepEqual(said, ['1', 'no', 'yes', 'one', 'nothing']);
+});
+
 // --------------------------------------------------------------- accounts
 
 const LOCKS = {
@@ -2404,6 +2487,72 @@ check('asking for a file that was not sent says so', () => {
   let error = null;
   try { other.routes[0].run(); } catch (problem) { error = problem; }
   assert.match(error.plainMessage, /Nothing was sent as picture/);
+});
+
+check('somebody hammering the door is noticed', () => {
+  const { server } = runNet([
+    'when someone visits "/"',
+    '    if this visitor has asked more than 2 times in 60 seconds',
+    '        answer with "slow down" and code 429',
+    '    otherwise',
+    '        answer with "hello"',
+    '    end',
+    'end'
+  ].join('\n'));
+
+  server.asked = { ...server.asked, tag: 'aaa' };
+  const answers = [];
+  for (let at = 0; at < 4; at++) { server.routes[0].run(); answers.push(server.answer.code || 200); }
+  // "more than 2" means the third is one too many.
+  assert.deepEqual(answers, [200, 200, 429, 429]);
+
+  // Somebody else starts from nothing.
+  server.asked = { ...server.asked, tag: 'bbb' };
+  server.routes[0].run();
+  assert.equal(server.answer.body, 'hello');
+});
+
+check('work can be put on a timer', () => {
+  const { server } = runNet('every 5 seconds on the server\n    show "tidying"\nend');
+  assert.equal(server.jobs.length, 1);
+  assert.equal(server.jobs[0].seconds, 5);
+  assert.equal(typeof server.jobs[0].run, 'function');
+});
+
+// A live connection is bytes on a wire, and getting the bytes wrong is the
+// one thing that cannot be noticed by reading the code.
+check('a frame off a live connection is read the way a browser sends it', () => {
+  const mask = Buffer.from([1, 2, 3, 4]);
+  const body = Buffer.from('hello', 'utf8');
+  const masked = Buffer.from(body);
+  for (let at = 0; at < masked.length; at++) masked[at] ^= mask[at % 4];
+  const frame = Buffer.concat([Buffer.from([0x81, 0x80 | body.length]), mask, masked]);
+
+  const read = readFrame(frame);
+  assert.equal(read.text, 'hello');
+  assert.equal(read.opcode, 1);
+  assert.equal(read.used, frame.length);
+
+  // Two frames at once, and a half-arrived one.
+  const two = Buffer.concat([frame, frame]);
+  const first = readFrame(two);
+  assert.equal(readFrame(two.slice(first.used)).text, 'hello');
+  assert.equal(readFrame(frame.slice(0, 4)), null, 'half a frame is not a frame');
+  assert.equal(readFrame(Buffer.from([0x81])), null);
+
+  // Longer than 125 letters uses two more bytes for the length.
+  const long = Buffer.from('x'.repeat(300), 'utf8');
+  const longMasked = Buffer.from(long);
+  for (let at = 0; at < longMasked.length; at++) longMasked[at] ^= mask[at % 4];
+  const big = Buffer.concat([
+    Buffer.from([0x81, 0x80 | 126, long.length >> 8, long.length & 255]), mask, longMasked
+  ]);
+  assert.equal(readFrame(big).text.length, 300);
+
+  // A goodbye, and a size nobody means honestly.
+  assert.equal(readFrame(Buffer.from([0x88, 0x80, 1, 2, 3, 4])).opcode, 8);
+  const silly = Buffer.concat([Buffer.from([0x81, 127]), sixtyFour(9e15), Buffer.alloc(4)]);
+  assert.equal(readFrame(silly).opcode, 8, 'an absurd length should be treated as a goodbye');
 });
 
 check('a server can be told to lock the conversation', () => {
@@ -2800,7 +2949,7 @@ check('every example still runs', () => {
   for (const file of fs.readdirSync(path.join(ROOT, 'examples'))) {
     if (!file.endsWith('.plain') || file === 'guess.plain') continue;
     const source = fs.readFileSync(path.join(ROOT, 'examples', file), 'utf8');
-    if (file === 'website-server.plain' || file === 'notes-app.plain') {
+    if (['website-server.plain', 'notes-app.plain', 'live-chat.plain'].includes(file)) {
       // These wait for visitors, which a test run has none of. Their routes
       // are checked above; here we only insist they read and build.
       const rt = createRuntime({ onOutput: () => {} });
@@ -2810,7 +2959,8 @@ check('every example still runs', () => {
       installData(rt, {});
       const server = installNet(rt, { serve: () => {} });
       rt.run(source, file);
-      assert.ok(server.routes.length >= 3, `${file} should set up several routes`);
+      const set = server.routes.length + server.onSay.length + server.jobs.length;
+      assert.ok(set >= 3, `${file} should set up several things to answer`);
       continue;
     }
     if (file === 'remember.plain') {

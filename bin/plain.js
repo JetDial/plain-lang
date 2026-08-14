@@ -24,7 +24,7 @@ import { installWorld } from '../engines/world/engine.js';
 import { installWeb } from '../engines/web/engine.js';
 import { installVideo } from '../engines/video/engine.js';
 import { installStore } from '../engines/store/engine.js';
-import { installNet, readCookies, readParts } from '../engines/net/engine.js';
+import { installNet, readCookies, readParts, readFrame, sixtyFour } from '../engines/net/engine.js';
 import { installData } from '../engines/data/engine.js';
 import { documentToHTML, hrefFor } from '../engines/web/render.js';
 import { TEMPLATES, templateNames } from './templates.js';
@@ -162,7 +162,13 @@ function buildRuntime(onOutput, baseFile = process.cwd()) {
   const keeping = storeHost(baseFile);
   const store = installStore(runtime, keeping);
   const tables = installData(runtime, locksmith());
-  const server = installNet(runtime, { ...netHost(runtime), putFile: keeping.putFile });
+  const server = installNet(runtime, {
+    ...netHost(runtime),
+    putFile: keeping.putFile,
+    tell: (who, words) => (server.host ? server.host.tell(who, words) : null),
+    tellAll: (words, except) => (server.host ? server.host.tellAll(words, except) : null),
+    connected: () => (server.host ? server.host.connected() : 0)
+  });
   return { runtime, game, site, world, studio, store, server, tables };
 }
 
@@ -334,6 +340,83 @@ function netHost(runtime) {
 
       const listener = locked ? https.createServer(locked, answering) : http.createServer(answering);
 
+      // ------------------------------------------------ staying connected
+      //
+      // A browser asks to change the subject from pages to a conversation,
+      // and proves it is really a browser by a small sum on a key it sends.
+      // After that both sides send frames: a couple of bytes of length, and
+      // the words, which from a browser are muddled with a four-byte mask.
+      const talking = new Set();
+
+      const speak = (socket, words) => {
+        const body = Buffer.from(String(words), 'utf8');
+        const head = body.length < 126
+          ? Buffer.from([0x81, body.length])
+          : body.length < 65536
+            ? Buffer.from([0x81, 126, body.length >> 8, body.length & 255])
+            : Buffer.concat([Buffer.from([0x81, 127]), sixtyFour(body.length)]);
+        try { socket.write(Buffer.concat([head, body])); } catch { /* they went away */ }
+      };
+
+      const say = (blocks, socket, words) => {
+        server.who = socket;
+        server.said = words === undefined ? '' : words;
+        for (const run of blocks) {
+          try { run(); }
+          catch (error) {
+            const said = error instanceof PlainError ? error.report(runtime.source) : String(error.message || error);
+            console.error('\n' + said + '\n');
+          }
+        }
+        server.who = null;
+      };
+
+      if (server.onOpen.length || server.onSay.length || server.onShut.length) {
+        listener.on('upgrade', (request, socket) => {
+          const key = request.headers['sec-websocket-key'];
+          if (!key) { socket.destroy(); return; }
+          const answer = crypto.createHash('sha1')
+            .update(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');
+          socket.write(
+            'HTTP/1.1 101 Switching Protocols\r\n' +
+            'Upgrade: websocket\r\nConnection: Upgrade\r\n' +
+            `Sec-WebSocket-Accept: ${answer}\r\n\r\n`
+          );
+          socket.setNoDelay(true);
+          talking.add(socket);
+          console.log(`  ~ someone connected (${talking.size} on the line)`);
+          say(server.onOpen, socket);
+
+          let held = Buffer.alloc(0);
+          socket.on('data', piece => {
+            held = Buffer.concat([held, piece]);
+            for (;;) {
+              const frame = readFrame(held);
+              if (!frame) break;
+              held = held.slice(frame.used);
+              if (frame.opcode === 8) { socket.end(); return; }         // goodbye
+              if (frame.opcode === 9) { socket.write(Buffer.from([0x8a, 0])); continue; }  // are you there
+              if (frame.opcode === 1) say(server.onSay, socket, frame.text);
+            }
+          });
+
+          const gone = () => {
+            if (!talking.delete(socket)) return;
+            say(server.onShut, socket);
+          };
+          socket.on('close', gone);
+          socket.on('error', gone);
+        });
+      }
+
+      server.host = {
+        tell: (socket, words) => { if (socket) speak(socket, words); },
+        tellAll: (words, except) => {
+          for (const one of talking) if (one !== except) speak(one, words);
+        },
+        connected: () => talking.size
+      };
+
       listener.on('error', (error) => {
         console.error(`\nI could not serve on port ${server.port}: ${error.message}\n`);
         process.exitCode = 1;
@@ -344,6 +427,21 @@ function netHost(runtime) {
         console.log(`\nPlain is answering at http${locked ? 's' : ''}://localhost:${server.port}`);
         if (swept) console.log(`  (forgot ${swept} visitor${swept === 1 ? '' : 's'} nobody has seen for a month)`);
         for (const route of server.routes) console.log(`  ${route.path}`);
+
+        // Work on a timer, once the door is open.
+        for (const job of server.jobs) {
+          const beat = setInterval(() => {
+            try { job.run(); }
+            catch (error) {
+              const said = error instanceof PlainError ? error.report(runtime.source) : String(error.message || error);
+              console.error('\n' + said + '\n');
+            }
+          }, job.seconds * 1000);
+          if (typeof beat.unref === 'function') { /* the server keeps us alive */ }
+        }
+        if (server.jobs.length) {
+          console.log(`  (${server.jobs.length} thing${server.jobs.length === 1 ? '' : 's'} done on a timer)`);
+        }
         console.log('\nPress Ctrl+C to stop.\n');
       });
       server.running = listener;
@@ -397,6 +495,25 @@ function storeHost(baseFile) {
     // Whatever is still owed gets written when the program ends, however it
     // ends: falling off the bottom, stopping itself, or Ctrl+C.
     atEnd: rememberToWrite,
+
+    // Says who else is already keeping things in this file, or nothing if
+    // it is free. A note is left beside it with this program's number in it,
+    // and taken away when the program ends. A note left behind by something
+    // that crashed is ignored, because the number in it belongs to nobody.
+    claim: (file) => {
+      const note = file + '.busy';
+      try {
+        if (fs.existsSync(note)) {
+          const who = Number(fs.readFileSync(note, 'utf8').trim());
+          if (who && who !== process.pid && alive(who)) return `process ${who}`;
+        }
+        fs.writeFileSync(note, String(process.pid), 'utf8');
+        rememberToWrite(() => { try { fs.unlinkSync(note); } catch { /* already gone */ } });
+      } catch {
+        return null;      // a folder that cannot be written to has no sharers
+      }
+      return null;
+    },
     files: {
       read: (name, ctx) => {
         const file = inside(name, ctx);
@@ -415,6 +532,13 @@ function storeHost(baseFile) {
       fs.writeFileSync(file, bytes);
     }
   };
+}
+
+// Is anybody actually running under that number? Signal 0 asks without
+// sending anything, which is exactly the question.
+function alive(who) {
+  try { process.kill(who, 0); return true; }
+  catch (problem) { return problem.code === 'EPERM'; }
 }
 
 // Scrambling a password, and checking one, are the two things a program must

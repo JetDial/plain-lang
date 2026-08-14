@@ -1,0 +1,31 @@
+make said be a table called "said"
+empty the table said
+
+when someone connects
+    tell them "welcome - {how many are connected} here"
+    tell everyone else "somebody joined"
+end
+
+when someone says something
+    make words be what they said
+    save { words: words } in said
+    tell everyone "someone said: {words}"
+end
+
+when someone disconnects
+    show "someone left, {how many are connected} left"
+end
+
+every 2 seconds on the server
+    show "tick - {number of rows in said} things said so far"
+end
+
+when someone visits "/"
+    if this visitor has asked more than 3 times in 10 seconds
+        answer with "slow down" and code 429
+    otherwise
+        answer with "hello"
+    end
+end
+
+start serving on port 3020

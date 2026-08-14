@@ -27,6 +27,12 @@ export class Server {
     this.answer = null;
     this.folder = null;        // files handed out as they are, if asked for
     this.visitors = new Map(); // what each visitor is carrying, by their tag
+    this.jobs = [];            // work done on a timer rather than when asked
+    this.onOpen = [];          // somebody stayed on the line
+    this.onSay = [];
+    this.onShut = [];
+    this.who = null;           // the connection being talked to right now
+    this.said = '';            // what it just said
   }
 
   // "/notes/{id}" matches "/notes/7" and remembers that id is 7. Anything
@@ -141,6 +147,46 @@ export function readParts(raw, kind) {
   return { files, written: written.join('&') };
 }
 
+// One frame off a live connection, or nothing if not all of it has arrived
+// yet. The shape: a byte of flags, a byte of length that may mean "the real
+// length is in the next two bytes, or the next eight", and - from a browser,
+// always - four bytes of mask that everything after is muddled with.
+export function readFrame(held) {
+  if (held.length < 2) return null;
+  const opcode = held[0] & 0x0f;
+  const masked = (held[1] & 0x80) !== 0;
+  let length = held[1] & 0x7f;
+  let at = 2;
+
+  if (length === 126) {
+    if (held.length < 4) return null;
+    length = held.readUInt16BE(2);
+    at = 4;
+  } else if (length === 127) {
+    if (held.length < 10) return null;
+    const big = held.readBigUInt64BE(2);
+    // Anything this large is a mistake or somebody trying it on.
+    if (big > 64n * 1024n * 1024n) return { used: held.length, opcode: 8, text: '' };
+    length = Number(big);
+    at = 10;
+  }
+
+  const mask = masked ? held.slice(at, at + 4) : null;
+  if (masked) at += 4;
+  if (held.length < at + length) return null;
+
+  const body = Buffer.from(held.slice(at, at + length));
+  if (mask) for (let n = 0; n < body.length; n++) body[n] ^= mask[n % 4];
+  return { used: at + length, opcode, text: body.toString('utf8') };
+}
+
+// The eight bytes a very long frame's length is written in.
+export function sixtyFour(length) {
+  const out = Buffer.alloc(8);
+  out.writeBigUInt64BE(BigInt(length));
+  return out;
+}
+
 export function readCookies(header) {
   const out = {};
   for (const pair of String(header || '').split(';')) {
@@ -245,6 +291,71 @@ export function installNet(rt, host = {}) {
   rt.define('answer with the website', (a, ctx) => {
     if (!host.siteHTML) ctx.fail('There is no website in this program to answer with');
     server.answer = { body: host.siteHTML(server.asked.path), kind: 'text/html; charset=utf-8' };
+  });
+
+  // ------------------------------------------------------- too much at once
+  //
+  // Somebody hammering a form a thousand times a second is either a mistake
+  // or somebody trying it on, and either way the answer is the same. What
+  // each visitor has done lately is remembered, and nothing older than the
+  // window is kept.
+
+  const knocks = new Map();
+
+  rt.defineValue('this visitor has asked more than $times times in $seconds seconds', (a) => {
+    const tag = server.asked.tag || 'nobody';
+    const many = Math.max(0, Math.round(toNumber(a.times)));
+    const window = Math.max(0, toNumber(a.seconds)) * 1000;
+    const now = Date.now();
+
+    const seen = (knocks.get(tag) || []).filter(when => now - when < window);
+    seen.push(now);
+    knocks.set(tag, seen);
+
+    // A busy server should not fill up with people who came once.
+    if (knocks.size > 4096) {
+      for (const [who, when] of knocks) {
+        if (!when.length || now - when[when.length - 1] > window) knocks.delete(who);
+      }
+    }
+    return seen.length > many;
+  });
+
+  // ------------------------------------------------------------ on a timer
+  //
+  // Tidying up, sending what is due, looking at something that changes:
+  // work a server does when nobody has asked it anything.
+
+  rt.define('every $seconds seconds on the server ...', (a, ctx) => {
+    server.jobs.push({ seconds: Math.max(0.05, toNumber(a.seconds)), run: ctx.block });
+  });
+
+  // ------------------------------------------------------- staying connected
+  //
+  // A page that has to be told the moment something happens cannot keep
+  // asking. These three are the whole of it: somebody arrives, somebody
+  // says something, somebody goes.
+
+  rt.define('when someone connects ...', (a, ctx) => { server.onOpen.push(ctx.block); });
+  rt.define('when someone says something ...', (a, ctx) => { server.onSay.push(ctx.block); });
+  rt.define('when someone disconnects ...', (a, ctx) => { server.onShut.push(ctx.block); });
+
+  rt.defineValue('what they said', () => server.said);
+  rt.defineValue('how many are connected', () => (host.connected ? host.connected() : 0));
+
+  rt.define('tell them $value', (a, ctx) => {
+    if (!host.tell) needTerminal(ctx, 'Talking to a connection');
+    host.tell(server.who, toText(a.value));
+  });
+
+  rt.define('tell everyone $value', (a, ctx) => {
+    if (!host.tellAll) needTerminal(ctx, 'Talking to a connection');
+    host.tellAll(toText(a.value));
+  });
+
+  rt.define('tell everyone else $value', (a, ctx) => {
+    if (!host.tellAll) needTerminal(ctx, 'Talking to a connection');
+    host.tellAll(toText(a.value), server.who);
   });
 
   rt.define('start serving on port $port', (a, ctx) => {

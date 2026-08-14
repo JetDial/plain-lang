@@ -581,6 +581,97 @@ answer with "no tea" and code 418      # any code you like
 hand out the files in "public"         # pictures, stylesheets, downloads
 ```
 
+### All of it, or none of it
+
+Taking money off one row and putting it on another is two changes, and a
+program that stops in between has done half a thing:
+
+```plain
+do all of this together
+    change row 1 of money to { owner: "Ada", pennies: 400 }
+    change row 2 of money to { owner: "Bob", pennies: 200 }
+end
+```
+
+If anything in there goes wrong, every table is put back as it was and the
+problem carries on its way.
+
+### Two tables at once
+
+```plain
+make lines be every row of orders joined to people on "by"
+show name of match of item 1 of lines
+```
+
+Each row that comes back is the one from the first table, with the one it
+was matched to under the name `match`, or `nothing` if there was none. The
+match is on the other table's id unless you say otherwise:
+
+```plain
+make lines be every row of orders joined to people on "who" matching "name"
+```
+
+### Rows written before you changed your mind
+
+```plain
+fill in "done" with no on every row of notes     # only the ones without it
+show the number filled in
+rename "title" to "words" in every row of notes
+```
+
+### Too much at once
+
+```plain
+when someone sends to "/notes"
+    if this visitor has asked more than 20 times in 60 seconds
+        answer with "slow down" and code 429
+    otherwise
+        save { title: the form field "title" } in notes
+        send them to "/"
+    end
+end
+```
+
+### Work on a timer
+
+```plain
+every 60 seconds on the server
+    show "{number of rows in notes} notes kept"
+end
+```
+
+### Staying connected
+
+A page that must be told the moment something happens cannot keep asking.
+Three sentences are the whole of it:
+
+```plain
+when someone connects
+    tell them "welcome - {how many are connected} here"
+    tell everyone else "somebody joined"
+end
+
+when someone says something
+    tell everyone "someone said: {what they said}"
+end
+
+when someone disconnects
+    show "someone left"
+end
+```
+
+`examples/live-chat.plain` is a working one. In the page, it is the ordinary
+browser thing - `new WebSocket("ws://localhost:3020")` - so anything that
+speaks WebSocket can join.
+
+### One at a time
+
+Only one program may keep things in a given file. A second is told so
+rather than left to find out, because both would hold their own copy and
+take it in turns to overwrite the other. Writes go to one side and are moved
+into place, so a program stopped mid-write leaves the old file, never half a
+new one.
+
 `examples/notes-app.plain` is all of it in one file: a list, a form that adds
 to it, a link that removes one, a name the server remembers for your browser,
 and everything kept when the program stops.

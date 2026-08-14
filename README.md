@@ -441,7 +441,18 @@ code 418`, and `hand out the files in "public"` for pictures and stylesheets.
 
 ```bash
 plain run examples/notes-app.plain     # then open localhost:3010
+plain run examples/live-chat.plain     # a room everyone hears at once
 ```
+
+And the parts a real one needs on top: `do all of this together` puts every
+table back if anything in the block goes wrong; `joined to ... on ...` lines
+two tables up; `fill in ... on every row of ...` catches up rows written
+before you added a field; `this visitor has asked more than 20 times in 60
+seconds` turns somebody away; `every 60 seconds on the server` does work
+nobody asked for; and `when someone connects` / `says something` /
+`disconnects` keeps a page on the line. Only one program may keep things in
+a given file, and it says so rather than letting two quietly overwrite each
+other.
 
 That example is a real one: write a note, it is there after a restart; remove
 one, it is gone; tell it your name, and the browser next to yours still says
@@ -646,7 +657,7 @@ tests/fake-dom.js      a small stand-in browser, so the pages can be tested
 engines/net/          fetching, and answering as a web server: routes,
                       forms, visitors, files
 bin/parts.js          fetching and recording parts other people wrote
-tests/run-tests.js     362 checks, no framework, 11 languages executed
+tests/run-tests.js     369 checks, no framework, 11 languages executed
 ```
 
 ## Tests

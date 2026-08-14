@@ -190,6 +190,83 @@ export function installData(rt, host = {}) {
     return table.read().rows.some(row => equals(pick(row, key), a.value));
   });
 
+  // ------------------------------------------------- all of it, or none of it
+  //
+  // Taking money from one row and adding it to another is two changes, and a
+  // program that stops between them has done half a thing. Inside this block
+  // every table is written down as it was first; if anything goes wrong they
+  // are all put back, and the problem carries on its way.
+
+  rt.define('do all of this together ...', (a, ctx) => {
+    const before = new Map();
+    for (const table of tables.values()) {
+      before.set(table, JSON.parse(JSON.stringify(table.read())));
+    }
+    try {
+      ctx.block();
+    } catch (problem) {
+      for (const [table, held] of before) table.write(held);
+      throw problem;
+    }
+  });
+
+  // ------------------------------------------------------ two tables at once
+  //
+  // Orders have a customer; comments have a post. Lining the two up by hand
+  // is a loop inside a loop, which is slow and easy to get wrong. Each row
+  // that comes back is the one from the first table, with the one it was
+  // matched to under the name "match".
+
+  rt.defineInfix('$rows joined to $table on $key', (a, ctx) => {
+    const table = need(a.table, ctx, 'Joining');
+    const key = toText(a.key);
+    const rows = Array.isArray(a.rows) ? a.rows : [];
+    // Matched on the other table's id unless the key names a field there.
+    const byId = table.lookup('id');
+    return rows.map(row => ({ ...row, match: (byId.get(sameAs(pick(row, key))) || [])[0] || null }));
+  });
+
+  rt.defineInfix('$rows joined to $table on $key matching $theirs', (a, ctx) => {
+    const table = need(a.table, ctx, 'Joining');
+    const key = toText(a.key);
+    const theirs = table.lookup(toText(a.theirs));
+    const rows = Array.isArray(a.rows) ? a.rows : [];
+    return rows.map(row => ({ ...row, match: (theirs.get(sameAs(pick(row, key))) || [])[0] || null }));
+  });
+
+  // --------------------------------------------------- changing what a row is
+  //
+  // A table written last month has rows without the field you added today.
+  // This fills them in, and leaves alone the ones that already have it.
+
+  rt.define('fill in $key with $value on every row of $table', (a, ctx) => {
+    const table = need(a.table, ctx, 'Filling in a field');
+    const key = toText(a.key);
+    const held = table.read();
+    let changed = 0;
+    for (const row of held.rows) {
+      if (pick(row, key) === null) { row[key] = a.value; changed += 1; }
+    }
+    if (changed) table.write(held);
+    rt.lastFilled = changed;
+  });
+
+  rt.defineValue('the number filled in', () => (rt.lastFilled === undefined ? 0 : rt.lastFilled));
+
+  rt.define('rename $key to $wanted in every row of $table', (a, ctx) => {
+    const table = need(a.table, ctx, 'Renaming a field');
+    const from = toText(a.key);
+    const to = toText(a.wanted);
+    const held = table.read();
+    for (const row of held.rows) {
+      const found = Object.keys(row).find(one => one.toLowerCase() === from.toLowerCase());
+      if (found === undefined || found === to) continue;
+      row[to] = row[found];
+      delete row[found];
+    }
+    table.write(held);
+  });
+
   // ------------------------------------------------------------- accounts
   //
   // Almost every program that keeps things also wants to know whose they
