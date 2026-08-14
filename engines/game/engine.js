@@ -144,6 +144,7 @@ export class Game {
     this.timers = [];                 // { every, next, run }
     this.leaving = [];                // { thing, run }
     this.keys = new Set();
+    this.pressed = '';                // the key that set the last press going
     this.mouse = { x: 0, y: 0, down: false };
     this.clicks = [];                 // { run }
     this.drawQueue = [];
@@ -265,6 +266,7 @@ export class Game {
   release(key) { this.keys.delete(String(key).toLowerCase()); }
   fireKey(key) {
     const name = String(key).toLowerCase();
+    this.pressed = name;
     for (const rule of this.keyPress) {
       if (rule.key === name || rule.key === 'any') this.safely(rule.run);
     }
@@ -619,6 +621,12 @@ export function installGame(rt, host = {}) {
   // ------------------------------------------------------------------ input
 
   rt.defineValue('key $key is held', (a) => game.keys.has(toText(a.key).toLowerCase()));
+
+  // "when any key is pressed" can tell you that something happened but not
+  // what, which is no use at all if a person is trying to type. This is the
+  // key that set it going: one letter for a letter, and a name like "enter",
+  // "backspace" or "left" for the ones that have no letter.
+  rt.defineValue('the key pressed', () => game.pressed);
   rt.defineValue('mouse x', () => game.mouse.x);
   rt.defineValue('mouse y', () => game.mouse.y);
   rt.defineValue('mouse is down', () => game.mouse.down);

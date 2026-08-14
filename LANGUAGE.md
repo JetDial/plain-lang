@@ -841,6 +841,25 @@ end
 `ball touches paddle`, `distance from ball to paddle`, `game width`,
 `game height`, `frame number`, `game time`.
 
+`the key pressed` is which key set off the `when any key is pressed` you are
+inside. A letter comes through as itself; the rest have names — `"enter"`,
+`"space"`, `"backspace"`, `"escape"`, `"left"`. It is what lets somebody type
+rather than only steer:
+
+```
+when any key is pressed
+    if the key pressed is "enter"
+        say what was typed
+        set typed to ""
+    otherwise if the key pressed is "backspace"
+        make shorter be (length of typed) minus 1
+        set typed to part of typed from 1 to shorter
+    otherwise if length of the key pressed is 1
+        set typed to typed joined with the key pressed
+    end
+end
+```
+
 ## Drawing on top
 
 Inside `every frame`:

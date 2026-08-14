@@ -290,6 +290,23 @@ check('key presses run their block', () => {
   assert.equal(rt.interpreter.globals.get('jumps'), 2);
 });
 
+check('a program can ask which key was pressed', () => {
+  const { rt, game } = runtimeFor([
+    'start a game called "G"',
+    'make typed be ""',
+    'when any key is pressed',
+    '    if the key pressed is "backspace"',
+    '        make shorter be (length of typed) minus 1',
+    '        set typed to part of typed from 1 to shorter',
+    '    otherwise if length of the key pressed is 1',
+    '        set typed to typed joined with the key pressed',
+    '    end',
+    'end'
+  ].join('\n'));
+  for (const key of ['h', 'i', 'x', 'backspace', 'space', '!']) game.press(key);
+  assert.equal(rt.interpreter.globals.get('typed'), 'hi!');
+});
+
 check('touching is also a question', () => {
   const { game } = runtimeFor([
     'start a game called "G"',
