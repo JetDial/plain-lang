@@ -13,6 +13,7 @@ import { installWeb } from '../engines/web/engine.js';
 import { installVideo } from '../engines/video/engine.js';
 import { installStore } from '../engines/store/engine.js';
 import { installData } from '../engines/data/engine.js';
+import { installParts } from '../engines/parts/engine.js';
 import { startDesigner } from '../engines/web/designer.js';
 import { startStudio } from '../engines/video/player.js';
 import { startLearning } from '../engines/learn/app.js';
@@ -41,6 +42,7 @@ export function runPageChecks(check) {
     const studio = installVideo(runtime, { window: win, document: doc });
     installStore(runtime, { window: win, document: doc });
     installData(runtime, {});
+    installParts(runtime);
     runtime.run(source, 'page.plain');
     return { win, doc, runtime, game, world, site, studio };
   }

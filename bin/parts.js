@@ -69,7 +69,7 @@ export function checkPart(text, url) {
   return null;
 }
 
-export function save(folder, name, text, url) {
+export function save(folder, name, text, url, about = null) {
   const parts = path.join(folder, FOLDER);
   fs.mkdirSync(parts, { recursive: true });
   const file = path.join(parts, name + '.plain');
@@ -78,8 +78,10 @@ export function save(folder, name, text, url) {
   const list = readList(folder);
   list.parts[name] = {
     url,
+    version: (about && about.version) || null,
     fingerprint: fingerprint(text),
     letters: text.length,
+    needs: (about && about.needs) || [],
     got: new Date().toISOString().slice(0, 10)
   };
   writeList(folder, list);

@@ -32,7 +32,8 @@ import { TEMPLATES, templateNames } from './templates.js';
 import { translate, targetNames, findTarget } from '../src/translate/index.js';
 import { syllabus, totalSteps } from '../engines/learn/course.js';
 import { format } from '../src/format.js';
-import { readList, save, peek, checkPart, fingerprint, nameFrom, FOLDER } from './parts.js';
+import { readList, writeList, save, peek, checkPart, fingerprint, nameFrom, FOLDER } from './parts.js';
+import { installParts, readAbout, atLeast } from '../engines/parts/engine.js';
 
 globalThis.__plainFS = fs;
 
@@ -93,9 +94,10 @@ try {
     case 'make': commandMake(rest[0], rest[1]); break;
     case 'translate': commandTranslate(target); break;
     case 'learn': case 'teach': await commandLearn(); break;
-    case 'get': commandGet(rest[0], rest[2]); break;
+    case 'get': commandGet(target, rest.filter(a => !a.startsWith('-'))[2]); break;
     case 'parts': commandParts(); break;
     case 'pack': commandPack(target); break;
+    case 'remove': case 'drop': commandRemove(target); break;
     case 'fmt': case 'tidy': commandTidy(rest.filter(a => !a.startsWith('-'))); break;
     case 'version': case '--version': case '-v': console.log(`Plain ${VERSION}`); break;
     default: commandHelp();
@@ -172,6 +174,7 @@ function buildRuntime(onOutput, baseFile = process.cwd()) {
     connected: () => (server.host ? server.host.connected() : 0)
   });
   const mail = installMail(runtime, { sendMail });
+  installParts(runtime);
   return { runtime, game, site, world, studio, store, server, tables, mail };
 }
 
@@ -759,6 +762,9 @@ function commandGet(url, asName) {
   const folder = partsFolder();
   const list = readList(folder);
 
+  // No address: put back exactly what this folder was using. Anything that
+  // has changed at the far end is refused rather than quietly taken, because
+  // "fetch what I had" has to mean what it says. --update takes the new one.
   if (!url) {
     const names = Object.keys(list.parts);
     if (!names.length) {
@@ -767,14 +773,75 @@ function commandGet(url, asName) {
       return;
     }
     console.log(`\nFetching ${names.length} part${names.length === 1 ? '' : 's'} again.\n`);
-    for (const name of names) getOne(folder, list.parts[name].url, name, list.parts[name].fingerprint);
+    let changed = 0;
+    for (const name of names) {
+      const held = list.parts[name];
+      if (!getOne(folder, held.url, name, held.fingerprint, { quiet: true })) changed++;
+    }
+    if (changed && !flags.update) {
+      console.log(`\n${changed} part${changed === 1 ? ' has' : 's have'} changed since you fetched them,`);
+      console.log('and were not taken. To look, open the address. To accept them:\n');
+      console.log('    plain get --update\n');
+      process.exitCode = 1;
+    } else {
+      console.log('');
+    }
     return;
   }
 
-  getOne(folder, url, asName || nameFrom(url), null);
+  // An address: fetch it, and everything it says it needs.
+  const wanted = [{ url, name: asName || nameFrom(url) }];
+  const done = new Map();
+
+  while (wanted.length) {
+    const one = wanted.shift();
+    if (done.has(one.name)) continue;
+
+    const about = getOne(folder, one.url, one.name, null);
+    if (!about) continue;
+    done.set(one.name, about);
+
+    for (const need of about.needs) {
+      if (!need.name || !need.where) continue;
+      const already = done.get(need.name);
+      if (already) {
+        if (!atLeast(already.version, need.version)) {
+          console.log(`\n  ${one.name} needs ${need.name} ${need.version}, but ${already.version} is here.`);
+          console.log('  The older one wins, which may not be what either of them wanted.');
+        }
+        continue;
+      }
+      if (done.size > 32) fail('That part leads to more parts than Plain will fetch at once.');
+      console.log(`    (needs ${need.name} ${need.version})`);
+      wanted.push({ url: need.where, name: need.name });
+    }
+  }
+  console.log('');
 }
 
-function getOne(folder, url, name, expected) {
+function commandRemove(name) {
+  if (!name) fail('Which part? Try: plain remove dates');
+  const folder = partsFolder();
+  const list = readList(folder);
+  if (!list.parts[name]) fail(`This folder does not use a part called "${name}"`);
+
+  // Anything still leaning on it should be said out loud.
+  const leaning = Object.entries(list.parts)
+    .filter(([other, one]) => other !== name && (one.needs || []).some(need => need.name === name))
+    .map(([other]) => other);
+
+  delete list.parts[name];
+  writeList(folder, list);
+  const file = path.join(folder, FOLDER, name + '.plain');
+  try { if (fs.existsSync(file)) fs.unlinkSync(file); } catch { /* already gone */ }
+
+  console.log(`\nRemoved ${name}.`);
+  if (leaning.length) console.log(`  ${leaning.join(', ')} said they needed it, and are still here.`);
+  console.log('');
+}
+
+// Gives back what the part says about itself, or nothing if it was refused.
+function getOne(folder, url, name, expected, options = {}) {
   if (!/^https?:\/\//i.test(url)) fail(`"${url}" is not a web address. It should start with http:// or https://`);
 
   const host = netHost(createRuntime({}));
@@ -791,16 +858,37 @@ function getOne(folder, url, name, expected) {
 
   const mark = fingerprint(got.text);
   if (expected && mark !== expected) {
-    console.log(`  ${name}: CHANGED since you last fetched it`);
-    console.log(`    was ${expected}, is now ${mark}`);
+    if (!flags.update) {
+      console.log(`  ${name}  REFUSED - it has changed since you fetched it`);
+      console.log(`    was ${expected}`);
+      console.log(`    is  ${mark}`);
+      console.log(`    ${url}`);
+      return null;
+    }
+    console.log(`  ${name}  changed, and taken because you said --update`);
   }
 
-  const file = save(folder, name, got.text, url);
-  console.log(`  ${name}  ${got.text.length} letters  ${mark}`);
-  console.log(`    from ${url}`);
-  console.log(`    into ${path.relative(process.cwd(), file)}`);
-  for (const line of peek(got.text)) console.log(`    | ${line}`);
-  console.log(`\nUse it with:  use "${name}"\n`);
+  // Read before it is trusted: what a part says about itself is read off the
+  // file by the parser, without running a line of it.
+  let about = { name: null, version: null, needs: [] };
+  try {
+    const rt = createRuntime({ onOutput: () => {} });
+    installParts(rt);
+    about = readAbout(rt.parse(got.text, name + '.plain'));
+  } catch (error) {
+    fail(`${url} is not a Plain file I can read: ${error.plainMessage || error.message}`);
+  }
+
+  const file = save(folder, name, got.text, url, about);
+  const said = about.version ? `${about.name || name} ${about.version}` : name;
+  console.log(`  ${said.padEnd(20)} ${String(got.text.length).padStart(6)} letters  ${mark}`);
+  if (!options.quiet) {
+    console.log(`    from ${url}`);
+    console.log(`    into ${path.relative(process.cwd(), file)}`);
+    for (const line of peek(got.text, 4)) console.log(`    | ${line}`);
+    console.log(`    use it with:  use "${name}"`);
+  }
+  return about;
 }
 
 function commandParts() {
@@ -1365,6 +1453,7 @@ Plain ${VERSION} - a language you write like a normal sentence.
   plain build <file.plain>    write HTML files you can publish   (--out folder)
   plain check <file.plain>    look for mistakes without running it
   plain pack <file>           everything it needs, in one folder to copy
+  plain remove <name>         stop using a part
   plain words                 list every sentence Plain understands
   plain learn                 lessons and projects, in your browser
   plain translate <file>      write it in 11 other languages        (--to rust)

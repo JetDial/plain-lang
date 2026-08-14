@@ -18,6 +18,7 @@ import { installVideo } from '../engines/video/engine.js';
 import { installStore } from '../engines/store/engine.js';
 import { installNet, readSent, readCookies, readParts, readFrame, sixtyFour } from '../engines/net/engine.js';
 import { installData } from '../engines/data/engine.js';
+import { installParts, readAbout, compareVersions, atLeast } from '../engines/parts/engine.js';
 import { installMail, buildMessage, looksLikeAddress } from '../engines/mail/engine.js';
 import { LESSONS, PROJECTS } from '../engines/learn/course.js';
 import { readList, save, checkPart, fingerprint, nameFrom } from '../bin/parts.js';
@@ -52,6 +53,7 @@ function runtimeFor(source, options = {}) {
   const studio = installVideo(rt, {});
   installStore(rt, {});
   installData(rt, {});
+  installParts(rt);
   installNet(rt, {});
   rt.run(source, 'test.plain');
   return { rt, game, world, site, studio };
@@ -2255,6 +2257,66 @@ check('using something that is not a table is explained', () => {
   assert.match(error.plainMessage, /needs a table/);
 });
 
+// ----------------------------------------------------------------- parts
+
+check('a part says what it is and what it leans on', () => {
+  const rt = createRuntime({ onOutput: () => {} });
+  installParts(rt);
+  const about = readAbout(rt.parse([
+    'this part is called "dates" version "1.2.0"',
+    'this part needs "money" version "1.0.0" from "https://example.com/money.plain"',
+    'this part needs "words" version "2.0.0" from "https://example.com/words.plain"',
+    '',
+    'to day of with when',
+    '    give back part of when from 9 to 10',
+    'end'
+  ].join('\n'), 'dates.plain'));
+
+  assert.equal(about.name, 'dates');
+  assert.equal(about.version, '1.2.0');
+  assert.deepEqual(about.needs.map(one => one.name), ['money', 'words']);
+  assert.equal(about.needs[0].where, 'https://example.com/money.plain');
+});
+
+check('a part that says nothing about itself is still a part', () => {
+  const rt = createRuntime({ onOutput: () => {} });
+  installParts(rt);
+  const about = readAbout(rt.parse('to double with n\n    give back n times 2\nend', 'x.plain'));
+  assert.deepEqual(about, { name: null, version: null, needs: [] });
+});
+
+// Reading it off the file rather than running it is the whole point: the
+// only safe moment to decide whether to trust a part is before it runs.
+check('what a part claims cannot be smuggled in', () => {
+  const rt = createRuntime({ onOutput: () => {} });
+  installParts(rt);
+  const about = readAbout(rt.parse([
+    '# this part is called "trustme" version "9.9.9"',
+    'make pretend be "this part is called \\"trustme\\" version \\"9.9.9\\""',
+    'show pretend'
+  ].join('\n'), 'sneaky.plain'));
+  assert.equal(about.name, null, 'a comment or a piece of text is not a claim');
+});
+
+check('1.2.10 comes after 1.2.9', () => {
+  assert.equal(compareVersions('1.2.10', '1.2.9'), 1);
+  assert.equal(compareVersions('1.2.9', '1.2.10'), -1);
+  assert.equal(compareVersions('2.0.0', '1.9.9'), 1);
+  assert.equal(compareVersions('1.0', '1.0.0'), 0);
+  assert.ok(atLeast('1.1.0', '1.0.0'));
+  assert.ok(atLeast('1.0.0', '1.0.0'));
+  assert.ok(!atLeast('0.9.0', '1.0.0'));
+});
+
+check('the sentences a part uses to describe itself do nothing when run', () => {
+  const said = run([
+    'this part is called "dates" version "1.2.0"',
+    'this part needs "money" version "1.0.0" from "https://example.com/money.plain"',
+    'show "still here"'
+  ].join('\n'));
+  assert.deepEqual(said, ['still here']);
+});
+
 // ----------------------------------------------------------------- email
 
 function runMail(source, host = {}) {
@@ -2995,7 +3057,7 @@ function readable(source) {
   const rt = createRuntime({ onOutput: () => {} });
   installGame(rt, {}); installWorld(rt, {}); installWeb(rt, {});
   installVideo(rt, {}); installStore(rt, {}); installData(rt, {}); installNet(rt, {});
-  installMail(rt, {});
+  installMail(rt, {}); installParts(rt);
   rt.parse(source, 'shown.plain');
 }
 

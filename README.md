@@ -58,7 +58,8 @@ plain edit <file>    open the designer or the video studio
 plain build <file>   write HTML you can publish        (--out folder)
 plain translate <f>  write it in 11 other languages     (--to rust)
 plain fmt <file>     tidy the indenting                (--check to just look)
-plain get <url>      fetch a part into this folder     (plain parts to list)
+plain get <url>      fetch a part, and what it needs    (plain parts to list)
+plain remove <name>  stop using one
 plain pack <file>    one folder to copy to a server
 plain check <file>   look for mistakes without running
 plain words          list every sentence Plain understands
@@ -682,7 +683,8 @@ engines/net/          fetching, and answering as a web server: routes,
                       forms, visitors, files, live connections
 engines/mail/         sending email, and the shape a message goes in
 bin/parts.js          fetching and recording parts other people wrote
-tests/run-tests.js     375 checks, no framework, 11 languages executed
+engines/parts/        what a part says about itself, read before it is run
+tests/run-tests.js     380 checks, no framework, 11 languages executed
 ```
 
 ## Tests

@@ -294,8 +294,33 @@ plain parts                                    # what this folder uses
 plain get                                      # fetch them all again, and check
 ```
 
+A part is one .plain file. Two sentences at the top of it are how it says
+what it is and what it leans on:
+
+```plain
+this part is called "dates" version "1.2.0"
+this part needs "money" version "1.0.0" from "https://example.com/money.plain"
+```
+
+Those are ordinary sentences, not a comment and not a separate manifest, so
+they are checked by the same parser as everything else - and `plain get`
+reads them off a fetched file **without running a line of it**, which is the
+only safe moment to decide whether to trust it. A comment that says the same
+words is not a claim. Fetching one part fetches everything it needs, and
+says so as it goes.
+
 A part lands in `plain-parts/` and is written down in `plain-parts.json` with
-its size and fingerprint, so `plain parts` can tell you when one has changed.
+its version, its size, its fingerprint and what it needs.
+
+`plain get` with no address puts back exactly what this folder was using.
+Anything that has changed at the far end is **refused**, not quietly taken:
+
+    money  REFUSED - it has changed since you fetched it
+      was 7913d33ade401cc5
+      is  c2077a5227811d1d
+
+`plain get --update` takes the new one on purpose. `plain remove dates`
+stops using one, and says if anything else claimed to need it.
 Then:
 
 ```plain

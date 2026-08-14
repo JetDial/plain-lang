@@ -1,0 +1,78 @@
+// Plain - what a part says about itself.
+//
+//     this part is called "dates" version "1.2.0"
+//     this part needs "money" version "1.0.0" from "https://example.com/money.plain"
+//
+// A part is a .plain file somebody else wrote. Two sentences at the top of
+// it are how it says what it is and what it leans on, so `plain get` can
+// fetch the whole family rather than one file and a surprise.
+//
+// They are ordinary sentences, not a comment and not a separate manifest
+// file, for three reasons: a part is one file and stays one file, the
+// sentences are checked by the same parser as everything else, and they can
+// be read off a file that has been fetched but not yet run - which is the
+// only safe moment to decide whether to trust it.
+//
+// Running them does nothing but remember. Nobody has to call them.
+
+import { toText } from '../../src/values.js';
+
+export function installParts(rt) {
+  if (rt.libraries.has('parts')) return rt.part;
+  rt.libraries.add('parts');
+
+  const part = { name: null, version: null, needs: [] };
+  rt.part = part;
+
+  rt.define('this part is called $name version $version', (a) => {
+    part.name = toText(a.name);
+    part.version = toText(a.version);
+  });
+
+  rt.define('this part needs $name version $version from $where', (a) => {
+    part.needs.push({ name: toText(a.name), version: toText(a.version), where: toText(a.where) });
+  });
+
+  return part;
+}
+
+// The same two sentences, read off a file that has been fetched and not run.
+// The real parser does the reading, so a part cannot pretend to be something
+// else by putting the words in a comment or inside a piece of text.
+export function readAbout(program) {
+  const about = { name: null, version: null, needs: [] };
+  const words = (node) => (node && node.type === 'Text' ? String(node.value) : null);
+
+  for (const node of program.body) {
+    if (node.type !== 'Phrase') continue;
+    if (node.spec === 'this part is called $name version $version') {
+      about.name = words(node.args.name);
+      about.version = words(node.args.version);
+    }
+    if (node.spec === 'this part needs $name version $version from $where') {
+      about.needs.push({
+        name: words(node.args.name),
+        version: words(node.args.version),
+        where: words(node.args.where)
+      });
+    }
+  }
+  return about;
+}
+
+// 1.2.10 comes after 1.2.9, which is not what comparing the words would say.
+export function compareVersions(one, other) {
+  const bits = (text) => String(text || '0').split('.').map(piece => Number(piece.replace(/\D.*$/, '')) || 0);
+  const a = bits(one);
+  const b = bits(other);
+  for (let at = 0; at < Math.max(a.length, b.length); at++) {
+    const left = a[at] || 0;
+    const right = b[at] || 0;
+    if (left !== right) return left < right ? -1 : 1;
+  }
+  return 0;
+}
+
+export function atLeast(have, wanted) {
+  return compareVersions(have, wanted) >= 0;
+}

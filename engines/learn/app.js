@@ -11,6 +11,7 @@ import { installWeb } from '../web/engine.js';
 import { installVideo } from '../video/engine.js';
 import { installStore } from '../store/engine.js';
 import { installData } from '../data/engine.js';
+import { installParts } from '../parts/engine.js';
 import { mountPage, stylesheet } from '../web/render.js';
 import { translate, targetNames } from '../../src/translate/index.js';
 import { PROGRAM_STARTS } from '../../src/translate/runtimes.js';
@@ -273,6 +274,7 @@ export function startLearning(doc, win) {
     const studio = installVideo(runtime, { window: win, document: doc });
     installStore(runtime, { window: win, document: doc });
     installData(runtime, {});
+    installParts(runtime);
 
     try {
       runtime.run(source, 'your-program.plain');
