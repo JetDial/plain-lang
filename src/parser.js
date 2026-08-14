@@ -944,7 +944,8 @@ export class Parser {
   textNode(token) {
     const raw = token.value;
     const line = token.line;
-    if (!raw.includes('{')) return { type: 'Text', value: clean(raw), line };
+    // Single quotes mean "exactly this", so nothing inside is filled in.
+    if (token.raw || !raw.includes('{')) return { type: 'Text', value: clean(raw), line };
 
     const pieces = [];
     let literal = '';

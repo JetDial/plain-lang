@@ -26,7 +26,8 @@ end
 | Kind | Written like | Notes |
 |---|---|---|
 | number | `42`, `3.5`, `1_000` | one kind of number |
-| text | `"hi"`, `'hi'` | `{...}` inside text is filled in |
+| text | `"hi"` | `{...}` inside is filled in; may run over several lines |
+| exact text | `'hi'` | single quotes: taken exactly as written |
 | yes/no | `yes`, `no` (`true`, `false`, `on`, `off`) | |
 | list | `a list of 1, 2, 3` or `[1, 2, 3]` | counts from **1** |
 | thing | `{ name: "Ada", age: 36 }` | named values |
@@ -320,7 +321,80 @@ show does file "notes.txt" exist
 Reading and writing files needs a terminal; in a browser Plain says so rather
 than failing quietly.
 
-## 16. Talking to the person running the program
+## 16. Patterns in text
+
+A pattern is written as text in **single quotes**, which are taken exactly as
+written — handy, because `{4}` in a pattern is not a value to fill in.
+
+```plain
+if note matches '[0-9]{4} [0-9]{3} [0-9]{4}'
+    show "there is a phone number in there"
+end
+
+show first match of '[0-9]+' in "room 214 please"
+show parts of note matching '[0-9]+'
+show replace pattern '[0-9]' with "x" in note
+```
+
+Double quotes fill in `{values}`; single quotes never do.
+
+## 17. The bits of a number
+
+```plain
+show bitwise and of 12 and 10        # 8
+show bitwise or of 12 and 10         # 14
+show bitwise xor of 12 and 10        # 6
+show bitwise not of 0                # -1
+show shift 1 left by 8               # 256
+show shift 256 right by 4            # 16
+```
+
+## 18. The internet
+
+Fetching waits for its answer, because that is what "fetch this and then use
+it" means:
+
+```plain
+fetch "https://example.com" into page
+show length of page
+
+fetch "https://api.github.com/repos/nodejs/node" as a thing into repo
+show "node has {stargazers_count of repo} stars"
+
+send { name: "Ada" } to "https://example.com/people" into answer
+```
+
+Answering is the other way round — the program finishes, and the server
+carries on:
+
+```plain
+when someone visits "/"
+    answer with "<h1>Hello from Plain</h1>"
+end
+
+when someone visits "/add"
+    answer with "{(number of asked for \"a\") plus (number of asked for \"b\")}"
+end
+
+when someone visits "/shout"
+    answer with uppercase of what they sent
+end
+
+when someone visits anything else
+    answer with "Nothing at {what was asked for}"
+end
+
+start serving on port 3000
+```
+
+Also: `what was asked for`, `asked for $name`, `what they sent`,
+`how they asked`, and `answer with the website` to hand over a website built
+in the same program.
+
+Both of these need a terminal. A page cannot be made to wait, and cannot open
+a port of its own, so in a browser Plain says so rather than half-working.
+
+## 19. Talking to the person running the program
 
 ```plain
 show "hello"                 # print a line
@@ -328,7 +402,7 @@ ask "Your name? " into name  # read a line (a number if it looks like one)
 stop the program
 ```
 
-## 17. Built-in values
+## 20. Built-in values
 
 **Numbers** — `round $n`, `round $n to $places places`, `floor of`,
 `ceiling of`, `absolute of`, `square root of`, `sine of`, `cosine of`,
@@ -819,6 +893,7 @@ plain translate mine.plain --to javascript
 plain translate mine.plain --to python
 plain translate mine.plain --to csharp
 plain translate mine.plain --to lua
+plain translate mine.plain --to typescript
 plain translate mine.plain --to all --out translated
 ```
 

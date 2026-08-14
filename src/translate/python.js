@@ -439,6 +439,13 @@ def plain_field(thing, name):
   randomNumber: { code: `def plain_random_number():\n    return random.random()`, imports: ['random'] },
   randomItem: { code: `def plain_random_item(collection):\n    all_items = plain_items(collection)\n    return random.choice(all_items) if all_items else None`, needs: ['items'], imports: ['random'] },
 
+  whole: { code: `def plain_whole(value):\n    return int(plain_number(value))`, needs: ['number'] },
+
+  matches: { code: `def plain_matches(text, mark):\n    return re.search(plain_text(mark), plain_text(text)) is not None`, needs: ['text'], imports: ['re'] },
+  firstMatch: { code: `def plain_first_match(text, mark):\n    found = re.search(plain_text(mark), plain_text(text))\n    return found.group(0) if found else ""`, needs: ['text'], imports: ['re'] },
+  allMatches: { code: `def plain_all_matches(text, mark):\n    return [found.group(0) for found in re.finditer(plain_text(mark), plain_text(text))]`, needs: ['text'], imports: ['re'] },
+  replacePattern: { code: `def plain_replace_pattern(text, mark, instead):\n    return re.sub(plain_text(mark), plain_text(instead), plain_text(text))`, needs: ['text'], imports: ['re'] },
+
   timeNow: { code: `def plain_time_now():\n    return int(time.time() * 1000)`, imports: ['time'] },
   today: { code: `def plain_today():\n    return datetime.date.today().isoformat()`, imports: ['datetime'] },
 

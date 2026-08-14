@@ -52,11 +52,11 @@ plain make video holiday   # a video timeline you can trim and export
 
 ```bash
 plain learn          open the course: 11 lessons and 6 projects
-plain run <file>     run it in the terminal
+plain run <file>     run it in the terminal            (--fast to go quicker)
 plain play <file>    open it in the browser
 plain edit <file>    open the designer or the video studio
 plain build <file>   write HTML you can publish        (--out folder)
-plain translate <f>  write it in JavaScript, Python, C# or Lua
+plain translate <f>  write it in JavaScript, TypeScript, Python, C# or Lua
 plain fmt <file>     tidy the indenting                (--check to just look)
 plain check <file>   look for mistakes without running
 plain words          list every sentence Plain understands
@@ -291,6 +291,21 @@ library.
 
 ---
 
+## The internet
+
+\
+Fetching waits for its answer, because that is what "fetch this and then use
+it" means. Serving is the other way round: the program finishes and the
+server carries on answering. A route can read , , and can fetch things of its own mid-request.
+
+ is a working one: a visitor counter that
+survives restarts, a page that adds two numbers, and a page that fetches a
+line from GitHub.
+
+Both need a terminal — a page cannot be made to wait, nor open a port.
+
+---
+
 ## Learning it
 
 ```bash
@@ -336,8 +351,8 @@ plain translate mine.plain --to python
 plain translate mine.plain --to all --out translated
 ```
 
-The same program, written out in **JavaScript**, **Python**, **C#** or
-**Lua** — real loops, real classes, real functions, with your names kept and a
+The same program, written out in **JavaScript**, **TypeScript**, **Python**,
+**C#** or **Lua** — real loops, real classes, real functions, with your names kept and a
 small set of helpers for the few places where Plain means something particular
 (lists that count from 1, text that joins with anything, refusing to divide by
 zero).
@@ -429,7 +444,8 @@ src/format.js         plain fmt
 engines/store/        remembering things, and reading and writing files
 engines/learn/        the course: lessons, projects and their checks
 tests/fake-dom.js      a small stand-in browser, so the pages can be tested
-tests/run-tests.js     279 checks, no framework
+engines/net/          fetching, and answering as a web server
+tests/run-tests.js     295 checks, no framework
 ```
 
 ## Tests

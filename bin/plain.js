@@ -11,8 +11,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 
 import { createRuntime } from '../src/runtime.js';
 import { PlainError } from '../src/errors.js';
@@ -21,6 +22,7 @@ import { installWorld } from '../engines/world/engine.js';
 import { installWeb } from '../engines/web/engine.js';
 import { installVideo } from '../engines/video/engine.js';
 import { installStore } from '../engines/store/engine.js';
+import { installNet } from '../engines/net/engine.js';
 import { documentToHTML, hrefFor } from '../engines/web/render.js';
 import { TEMPLATES, templateNames } from './templates.js';
 import { translate, targetNames, findTarget } from '../src/translate/index.js';
@@ -124,7 +126,116 @@ function buildRuntime(onOutput, baseFile = process.cwd()) {
   const world = installWorld(runtime, {});
   const studio = installVideo(runtime, {});
   const store = installStore(runtime, storeHost(baseFile));
-  return { runtime, game, site, world, studio, store };
+  const server = installNet(runtime, netHost(runtime));
+  return { runtime, game, site, world, studio, store, server };
+}
+
+// Fetching has to finish before the next line runs, and the interpreter does
+// not wait for anything. A short-lived helper process does the asking, which
+// is simple, and correct, and costs about the blink of an eye.
+function netHost(runtime) {
+  let last = null;
+
+  const HELPER = `
+    const [url, method, body, isJson] = process.argv.slice(1);
+    const options = { method, headers: {} };
+    if (body) {
+      options.body = body;
+      options.headers['content-type'] = isJson === 'yes' ? 'application/json' : 'text/plain';
+    }
+    fetch(url, options)
+      .then(async answer => {
+        const text = await answer.text();
+        process.stdout.write(JSON.stringify({ ok: answer.ok, status: answer.status, text }));
+      })
+      .catch(problem => {
+        process.stdout.write(JSON.stringify({ ok: false, status: 0, text: '', problem: String(problem && problem.message || problem) }));
+      });
+  `;
+
+  return {
+    fetchText(url, ctx, options = {}) {
+      if (!/^https?:\/\//i.test(url)) {
+        ctx.fail(`"${url}" is not a web address`, 'it should start with http:// or https://');
+      }
+      let raw;
+      try {
+        raw = execFileSync(process.execPath, [
+          '-e', HELPER, url, options.method || 'GET', options.body || '', options.json ? 'yes' : 'no'
+        ], { encoding: 'utf8', timeout: 30000, maxBuffer: 64 * 1024 * 1024 });
+      } catch (error) {
+        ctx.fail(`I could not reach ${url}`, 'check the address, and that you are online');
+      }
+      let answer;
+      try { answer = JSON.parse(raw); } catch { answer = { ok: false, status: 0, text: raw }; }
+      if (answer.problem) ctx.fail(`I could not reach ${url}: ${answer.problem}`);
+      last = { ok: answer.ok, status: answer.status, text: answer.text };
+      return last;
+    },
+
+    lastFetch: () => last,
+
+    siteHTML(path) {
+      const site = runtime.site;
+      if (!site) return '';
+      const wanted = String(path).replace(/^\//, '') || 'index.html';
+      const page = site.pages.find(one => hrefFor(one.path) === wanted) || site.pages[0];
+      return documentToHTML(site, page, {});
+    },
+
+    // The program has finished by now; the server keeps the process alive.
+    serve(server, ctx) {
+      const listener = http.createServer((request, response) => {
+        const url = new URL(request.url, `http://localhost:${server.port}`);
+        const chunks = [];
+        request.on('data', piece => chunks.push(piece));
+        request.on('end', () => {
+          server.asked = {
+            path: url.pathname,
+            query: Object.fromEntries(url.searchParams.entries()),
+            sent: Buffer.concat(chunks).toString('utf8'),
+            method: request.method
+          };
+          server.answer = null;
+
+          const route = server.routeFor(url.pathname);
+          const run = route ? route.run : server.notFound;
+          if (!run) {
+            response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+            response.end(`Nothing is at ${url.pathname}`);
+            return;
+          }
+
+          try {
+            run();
+          } catch (error) {
+            const message = error instanceof PlainError ? error.report(runtime.source) : String(error.message || error);
+            console.error('\n' + message + '\n');
+            response.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
+            response.end(message);
+            return;
+          }
+
+          const answer = server.answer || { body: '', kind: 'text/plain; charset=utf-8' };
+          response.writeHead(200, { 'content-type': answer.kind });
+          response.end(answer.body);
+          console.log(`  ${request.method} ${url.pathname} -> ${answer.body.length} bytes`);
+        });
+      });
+
+      listener.on('error', (error) => {
+        console.error(`\nI could not serve on port ${server.port}: ${error.message}\n`);
+        process.exitCode = 1;
+      });
+
+      listener.listen(server.port, () => {
+        console.log(`\nPlain is answering at http://localhost:${server.port}`);
+        for (const route of server.routes) console.log(`  ${route.path}`);
+        console.log('\nPress Ctrl+C to stop.\n');
+      });
+      server.running = listener;
+    }
+  };
 }
 
 // Remembered values live in one small file beside the program, and files a
@@ -182,8 +293,43 @@ function reportPlainError(error, source) {
 
 // ---------------------------------------------------------------------- run
 
+// Running a program by translating it to JavaScript first. The interpreter
+// reads the tree over and over; the translation is read once by a machine
+// that has spent twenty years learning to run JavaScript quickly.
+function runFast(program) {
+  const { runtime } = buildRuntime(() => {}, program.full);
+  let code;
+  try {
+    code = translate(runtime.parse(program.source, path.basename(program.full)), 'javascript', {
+      file: path.basename(program.full),
+      version: VERSION
+    }).code;
+  } catch (error) {
+    if (error instanceof PlainError) {
+      console.error('\n' + error.report(program.source));
+      console.error('\nRun it the ordinary way instead:\n');
+      console.error(`    plain run ${path.basename(program.full)}\n`);
+      process.exitCode = 1;
+      return;
+    }
+    throw error;
+  }
+
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'plain-fast-'));
+  const target = path.join(folder, path.basename(program.full, '.plain') + '.js');
+  fs.writeFileSync(target, code, 'utf8');
+  try {
+    execFileSync(process.execPath, [target], { stdio: 'inherit', cwd: path.dirname(program.full) });
+  } catch (error) {
+    process.exitCode = error.status ?? 1;
+  } finally {
+    fs.rmSync(folder, { recursive: true, force: true });
+  }
+}
+
 async function commandRun(file) {
   const program = readProgram(file);
+  if (flags.fast) return runFast(program);
   const { runtime, game, site, studio, world } = buildRuntime(text => console.log(text), program.full);
 
   try {
@@ -642,14 +788,14 @@ function commandHelp() {
   console.log(`
 Plain ${VERSION} - a language you write like a normal sentence.
 
-  plain run <file.plain>      run the program in this terminal
+  plain run <file.plain>      run the program in this terminal   (--fast)
   plain play <file.plain>     open a game, world, site or video in the browser
   plain edit <file.plain>     open the designer (sites) or the studio (videos)
   plain build <file.plain>    write HTML files you can publish   (--out folder)
   plain check <file.plain>    look for mistakes without running it
   plain words                 list every sentence Plain understands
   plain learn                 lessons and projects, in your browser
-  plain translate <file>      write it in JavaScript, Python, C# or Lua  (--to lua)
+  plain translate <file>      write it in JavaScript, TypeScript, Python, C# or Lua
   plain fmt <file|folder>     tidy the indenting                    (--check)
   plain new <name>            start a blank program
   plain make <kind> <name>    start a finished one: ${templateNames().join(', ')}

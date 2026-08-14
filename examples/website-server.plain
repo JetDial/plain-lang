@@ -1,0 +1,45 @@
+# A web server, written in Plain.
+# Start it with:  plain run examples/website-server.plain
+# Then open http://localhost:3000 in a browser, and press Ctrl+C to stop.
+#
+# It answers pages, reads what people type in the address, takes things sent
+# to it, and remembers the count between runs.
+
+make visits be remembered "visits" or 0
+
+when someone visits "/"
+    add 1 to visits
+    remember visits as "visits"
+    answer with "<h1>Hello from Plain</h1>
+        <p>You are visitor number {visits}.</p>
+        <p>Try <a href='/add?a=2&b=40'>adding two numbers</a>,
+        or <a href='/joke'>a joke from the internet</a>.</p>"
+end
+
+when someone visits "/add"
+    make a be number of asked for "a"
+    make b be number of asked for "b"
+    answer with "<h1>{a} plus {b} is {a plus b}</h1><p><a href='/'>back</a></p>"
+end
+
+# A server can be a visitor itself.
+when someone visits "/joke"
+    try
+        fetch "https://api.github.com/zen" into wisdom
+        answer with "<h1>{wisdom}</h1><p>straight from GitHub. <a href='/'>back</a></p>"
+    if it fails
+        answer with "<h1>The internet said no</h1><p>{the problem}</p>"
+    end
+end
+
+# Anything sent here comes back shouted.
+when someone visits "/shout"
+    answer with uppercase of what they sent
+end
+
+when someone visits anything else
+    answer with "<h1>Nothing at {what was asked for}</h1><p><a href='/'>back</a></p>"
+end
+
+show "Starting up. Visits so far: {visits}"
+start serving on port 3000

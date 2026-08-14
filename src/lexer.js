@@ -62,10 +62,13 @@ export function tokenize(source, file = '<input>') {
       let out = '';
       i++;
       while (true) {
-        if (i >= src.length || src[i] === '\n') {
+        if (i >= src.length) {
           throw new PlainError(`This text is missing its closing ${quote}`, startLine, file);
         }
         const c = src[i];
+        // Text may run over several lines, which HTML and long messages
+        // want. The line count keeps up so later errors still point right.
+        if (c === '\n') { line++; out += '\n'; i++; continue; }
         if (c === '\\') {
           const next = src[i + 1];
           if (next in ESCAPES) { out += ESCAPES[next]; i += 2; continue; }
@@ -76,7 +79,10 @@ export function tokenize(source, file = '<input>') {
         out += c;
         i++;
       }
-      push('text', out, startLine);
+      // Text in 'single quotes' is taken exactly as written, which is what
+      // a pattern like '[0-9]{4}' needs.
+      tokens.push({ type: 'text', value: out, line: startLine, file, raw: quote === "'" });
+      atLineStart = false;
       continue;
     }
 

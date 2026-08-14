@@ -308,6 +308,14 @@ const HELPERS = {
   randomNumber: { code: `  randomNumber() { return Math.random(); },` },
   randomItem: { code: `  randomItem(list) { const all = plain.items(list); return all.length ? all[Math.floor(Math.random() * all.length)] : null; },`, needs: ['items'] },
 
+  whole: { code: `  whole(value) { const n = plain.number(value); return Number.isFinite(n) ? Math.trunc(n) : 0; },`, needs: ['number'] },
+
+  pattern: { code: `  pattern(text, everywhere) { return new RegExp(plain.text(text), everywhere ? 'g' : ''); },`, needs: ['text'] },
+  matches: { code: `  matches(text, mark) { return plain.pattern(mark, false).test(plain.text(text)); },`, needs: ['pattern', 'text'] },
+  firstMatch: { code: `  firstMatch(text, mark) { const found = plain.text(text).match(plain.pattern(mark, false)); return found ? found[0] : ''; },`, needs: ['pattern', 'text'] },
+  allMatches: { code: `  allMatches(text, mark) { return plain.text(text).match(plain.pattern(mark, true)) || []; },`, needs: ['pattern', 'text'] },
+  replacePattern: { code: `  replacePattern(text, mark, instead) { return plain.text(text).replace(plain.pattern(mark, true), plain.text(instead)); },`, needs: ['pattern', 'text'] },
+
   timeNow: { code: `  timeNow() { return Date.now(); },` },
   today: { code: `  today() { return new Date().toISOString().slice(0, 10); },` },
   kindOf: {

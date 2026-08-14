@@ -558,9 +558,24 @@ export class Emitter {
 
   power(left, right) { return `Math.pow(${left}, ${right})`; }
 
+  // Whole numbers only, the way the bit sentences mean them.
+  bitwise(sign, left, right) {
+    return `(${this.helper('whole', [left])} ${sign} ${this.helper('whole', [right])})`;
+  }
+
+  bitwiseNot(value) { return `(~${this.helper('whole', [value])})`; }
+
+  // Sentences a particular language has no honest way to do.
+  get cannotDo() { return new Set(); }
+
   phraseValue(node) {
     const args = node.args;
     const value = (key) => this.expression(args[key]);
+
+    if (this.cannotDo.has(node.spec)) {
+      this.unsupported.push({ spec: `${node.spec}  (${this.name} has no such thing)`, line: node.line || 0 });
+      return this.nothingWord;
+    }
 
     switch (node.spec) {
       // lists
@@ -594,6 +609,21 @@ export class Emitter {
       case 'part of $text from $start to $finish': return this.helper('part', [value('text'), value('start'), value('finish')]);
       case 'replace $find with $replacement in $text': return this.helper('replace', [value('text'), value('find'), value('replacement')]);
       case 'does $text start with $prefix': return this.helper('startsWith', [value('text'), value('prefix')]);
+
+      // patterns
+      case '$text matches $pattern': return this.helper('matches', [value('text'), value('pattern')]);
+      case 'first match of $pattern in $text': return this.helper('firstMatch', [value('text'), value('pattern')]);
+      case 'parts of $text matching $pattern': return this.helper('allMatches', [value('text'), value('pattern')]);
+      case 'replace pattern $pattern with $replacement in $text':
+        return this.helper('replacePattern', [value('text'), value('pattern'), value('replacement')]);
+
+      // the bits
+      case 'bitwise and of $a and $b': return this.bitwise('&', value('a'), value('b'));
+      case 'bitwise or of $a and $b': return this.bitwise('|', value('a'), value('b'));
+      case 'bitwise xor of $a and $b': return this.bitwise('^', value('a'), value('b'));
+      case 'bitwise not of $a': return this.bitwiseNot(value('a'));
+      case 'shift $a left by $b': return this.bitwise('<<', value('a'), value('b'));
+      case 'shift $a right by $b': return this.bitwise('>>', value('a'), value('b'));
       case 'does $text end with $suffix': return this.helper('endsWith', [value('text'), value('suffix')]);
 
       // numbers

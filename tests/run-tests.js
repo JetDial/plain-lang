@@ -16,6 +16,7 @@ import { installWorld } from '../engines/world/engine.js';
 import { installWeb } from '../engines/web/engine.js';
 import { installVideo } from '../engines/video/engine.js';
 import { installStore } from '../engines/store/engine.js';
+import { installNet } from '../engines/net/engine.js';
 import { format } from '../src/format.js';
 import { documentToHTML } from '../engines/web/render.js';
 import { cubeMesh, sphereMesh, perspective, lookAt, multiply, toRGB } from '../engines/world/render.js';
@@ -46,6 +47,7 @@ function runtimeFor(source, options = {}) {
   const site = installWeb(rt, {});
   const studio = installVideo(rt, {});
   installStore(rt, {});
+  installNet(rt, {});
   rt.run(source, 'test.plain');
   return { rt, game, world, site, studio };
 }
@@ -871,6 +873,15 @@ function sameEverywhere(name, source) {
         assert.equal(fromPython, expected, 'Python said something different');
       }
 
+      // Node can run TypeScript directly by taking the types back off.
+      if (TYPESCRIPT) {
+        const tsFile = path.join(folder, 'program.ts');
+        fs.writeFileSync(tsFile, written(source, 'typescript'), 'utf8');
+        const fromTS = execFileSync(process.execPath, ['--experimental-strip-types', '--no-warnings', tsFile], { encoding: 'utf8' })
+          .replace(/\r/g, '').trimEnd();
+        assert.equal(fromTS, expected, 'TypeScript said something different');
+      }
+
       if (LUA) {
         const luaFile = path.join(folder, 'program.lua');
         fs.writeFileSync(luaFile, written(source, 'lua'), 'utf8');
@@ -922,7 +933,22 @@ const DOTNET = (() => {
   }
 })();
 
+// Node 22 and later can run TypeScript by stripping the types off it.
+const TYPESCRIPT = (() => {
+  try {
+    const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'plain-ts-'));
+    const file = path.join(folder, 'try.ts');
+    fs.writeFileSync(file, 'const x: number = 1;\nconsole.log(x);\n');
+    const said = execFileSync(process.execPath, ['--experimental-strip-types', '--no-warnings', file], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    fs.rmSync(folder, { recursive: true, force: true });
+    return said.trim() === '1';
+  } catch {
+    return false;
+  }
+})();
+
 const skipped = [];
+if (!TYPESCRIPT) skipped.push('TypeScript (this Node cannot run .ts directly)');
 if (!PYTHON) skipped.push('Python (no python 3 on this machine)');
 if (!LUA) skipped.push('Lua (no lua interpreter on this machine)');
 if (!DOTNET) skipped.push('C# (dotnet has runtimes but no SDK on this machine)');
@@ -1213,8 +1239,8 @@ check('the command line translates a file', () => {
 // their shape rather than by running them. JavaScript and Python above are
 // checked by running them.
 
-check('it can also write C# and Lua', () => {
-  assert.deepEqual(targetNames(), ['javascript', 'python', 'csharp', 'lua']);
+check('it can also write C#, Lua and TypeScript', () => {
+  assert.deepEqual(targetNames(), ['javascript', 'python', 'csharp', 'lua', 'typescript']);
 });
 
 const SHOWCASE = [
@@ -1598,6 +1624,139 @@ check('an unclosed block stops the reading there', () => {
   assert.match(error.plainMessage, /never closed/);
 });
 
+// -------------------------------------------------------- patterns, bits
+
+check('text can be matched against a pattern', () => {
+  assert.equal(first("if 'a1b2' matches '[0-9]'\n show \"yes\"\nend"), 'yes');
+  assert.equal(run("if 'abc' matches '[0-9]'\n show \"yes\"\nend").length, 0);
+});
+
+check('single quotes mean exactly what is written', () => {
+  assert.equal(first("make n be 3\nshow '{n} stays put'"), '{n} stays put');
+  assert.equal(first('make n be 3\nshow "{n} does not"'), '3 does not');
+});
+
+check('a pattern can be found and replaced', () => {
+  assert.equal(first("show first match of '[0-9]+' in \"room 214 please\""), '214');
+  assert.equal(first("show parts of \"a1 b22 c3\" matching '[0-9]+'"), '["1", "22", "3"]');
+  assert.equal(first("show replace pattern '[0-9]' with \"x\" in \"a1b2\""), 'axbx');
+});
+
+check('a pattern that makes no sense is explained', () => {
+  const error = broken("if \"x\" matches '[unclosed'\n show \"no\"\nend");
+  assert.match(error.plainMessage, /not a pattern/);
+});
+
+check('the bits of a number', () => {
+  assert.deepEqual(run([
+    'show bitwise and of 12 and 10',
+    'show bitwise or of 12 and 10',
+    'show bitwise xor of 12 and 10',
+    'show bitwise not of 0',
+    'show shift 1 left by 8',
+    'show shift 256 right by 4'
+  ].join('\n')), ['8', '14', '6', '-1', '256', '16']);
+});
+
+// ----------------------------------------------------------- the internet
+
+function runNet(source, host = {}) {
+  const rt = createRuntime({ onOutput: () => {} });
+  installGame(rt, {});
+  installWeb(rt, {});
+  const server = installNet(rt, host);
+  rt.run(source, 'net.plain');
+  return { rt, server };
+}
+
+check('routes are collected in the order they are written', () => {
+  const { server } = runNet([
+    'when someone visits "/"',
+    '    answer with "home"',
+    'end',
+    'when someone visits "/about"',
+    '    answer with "about"',
+    'end'
+  ].join('\n'));
+  assert.deepEqual(server.routes.map(route => route.path), ['/', '/about']);
+});
+
+check('a route answers with what it was told to', () => {
+  const { server } = runNet('when someone visits "/"\n    answer with "hello"\nend');
+  server.routes[0].run();
+  assert.equal(server.answer.body, 'hello');
+  assert.match(server.answer.kind, /text\/plain/);
+});
+
+check('an answer that looks like a page is served as one', () => {
+  const { server } = runNet('when someone visits "/"\n    answer with "<h1>hi</h1>"\nend');
+  server.routes[0].run();
+  assert.match(server.answer.kind, /text\/html/);
+});
+
+check('a route can read the question it was asked', () => {
+  const { server } = runNet([
+    'when someone visits "/add"',
+    '    answer with "{(number of asked for \\"a\\") plus (number of asked for \\"b\\")}"',
+    'end'
+  ].join('\n'));
+  server.asked = { path: '/add', query: { a: '2', b: '40' }, sent: '', method: 'GET' };
+  server.routes[0].run();
+  assert.equal(server.answer.body, '42');
+});
+
+check('a route can read what was sent to it', () => {
+  const { server } = runNet('when someone visits "/shout"\n    answer with uppercase of what they sent\nend');
+  server.asked = { path: '/shout', query: {}, sent: 'quiet', method: 'POST' };
+  server.routes[0].run();
+  assert.equal(server.answer.body, 'QUIET');
+});
+
+check('paths are tidied so /about/ and /about are the same', () => {
+  const { server } = runNet('when someone visits "/about/"\n    answer with "x"\nend');
+  assert.equal(server.routes[0].path, '/about');
+  assert.ok(server.routeFor('/about'));
+  assert.ok(server.routeFor('/about?q=1'));
+  assert.equal(server.routeFor('/nowhere'), null);
+});
+
+check('anything else can be caught', () => {
+  const { server } = runNet('when someone visits anything else\n    answer with "lost"\nend');
+  assert.ok(server.notFound);
+  server.notFound();
+  assert.equal(server.answer.body, 'lost');
+});
+
+check('fetching says plainly that it needs a terminal', () => {
+  let error = null;
+  try { runNet('fetch "https://example.com" into page'); }
+  catch (e) { error = e; }
+  assert.ok(error instanceof PlainError);
+  assert.match(error.plainMessage, /terminal/);
+});
+
+check('a made-up address is refused before anything is sent', () => {
+  let error = null;
+  const host = { fetchText: (url, ctx) => ctx.fail(`"${url}" is not a web address`) };
+  try { runNet('fetch "not a url" into page', host); }
+  catch (e) { error = e; }
+  assert.match(error.plainMessage, /not a web address/);
+});
+
+check('what comes back can be read as a thing', () => {
+  const host = { fetchText: () => ({ ok: true, status: 200, text: '{"stars": 7}' }) };
+  const { rt } = runNet('fetch "https://x.example" as a thing into repo\nshow stars of repo', host);
+  assert.equal(rt.lines[0], '7');
+});
+
+check('something that is not a thing is explained', () => {
+  const host = { fetchText: () => ({ ok: true, status: 200, text: 'not json at all' }) };
+  let error = null;
+  try { runNet('fetch "https://x.example" as a thing into repo', host); }
+  catch (e) { error = e; }
+  assert.match(error.plainMessage, /not a thing I can read/);
+});
+
 // --------------------------------------------------------------- tidying
 
 check('tidying fixes the indenting and leaves the words alone', () => {
@@ -1629,6 +1788,24 @@ check('tidying a tidy file changes nothing', () => {
     const tidy = format(source, rt.parse(source, file));
     assert.equal(tidy, source.replace(/\r\n?/g, '\n'), `${file} is not tidy`);
   }
+});
+
+check('tidying never reaches inside a piece of text', () => {
+  const messy = 'when someone visits "/"\nanswer with "<h1>hi</h1>\n        <p>indented on purpose</p>"\nend\n';
+  const rt = createRuntime({ onOutput: () => {} });
+  installGame(rt, {});
+  installWeb(rt, {});
+  installNet(rt, {});
+  const tidy = format(messy, rt.parse(messy, 'messy.plain'));
+  assert.match(tidy, /\n {8}<p>indented on purpose<\/p>"/, 'the text inside was moved');
+  assert.match(tidy, /\n {4}answer with/, 'the sentence itself was not indented');
+});
+
+check('text can run over several lines', () => {
+  assert.equal(first('show "one\ntwo"'), 'one\ntwo');
+  const error = broken('show "never closed\nmake x be 1');
+  assert.match(error.plainMessage, /missing its closing/);
+  assert.equal(error.line, 1, 'it should point at where the text opened');
 });
 
 check('tidying keeps comments with the lines they explain', () => {
@@ -1696,6 +1873,18 @@ check('every example still runs', () => {
   for (const file of fs.readdirSync(path.join(ROOT, 'examples'))) {
     if (!file.endsWith('.plain') || file === 'guess.plain') continue;
     const source = fs.readFileSync(path.join(ROOT, 'examples', file), 'utf8');
+    if (file === 'website-server.plain') {
+      // This one waits for visitors, which a test run has none of. Its
+      // routes are checked above; here we only insist it reads and builds.
+      const rt = createRuntime({ onOutput: () => {} });
+      installGame(rt, {});
+      installWeb(rt, {});
+      installStore(rt, {});
+      const server = installNet(rt, { serve: () => {} });
+      rt.run(source, file);
+      assert.ok(server.routes.length >= 3, 'the example should set up several routes');
+      continue;
+    }
     if (file === 'remember.plain') {
       // This one keeps things, so it needs somewhere to keep them.
       const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'plain-example-'));

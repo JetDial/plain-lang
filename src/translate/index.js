@@ -11,15 +11,17 @@ import { JavaScriptEmitter } from './javascript.js';
 import { PythonEmitter } from './python.js';
 import { CSharpEmitter } from './csharp.js';
 import { LuaEmitter } from './lua.js';
+import { TypeScriptEmitter } from './typescript.js';
 
-// `run` says whether Plain's own test suite runs the generated file and
-// compares what it prints. JavaScript and Python are checked that way on
-// every build; C# and Lua are generated and read, not executed here.
+// `run` says the test suite runs the generated file and compares what it
+// prints with what Plain printed. A language whose tool is not on the
+// machine is skipped, and the run says which ones it could not check.
 export const TARGETS = {
   javascript: { emitter: JavaScriptEmitter, also: ['js', 'node'], run: true },
   python: { emitter: PythonEmitter, also: ['py', 'python3'], run: true },
-  csharp: { emitter: CSharpEmitter, also: ['cs', 'c#', 'dotnet', 'unity'], run: false },
-  lua: { emitter: LuaEmitter, also: ['love', 'roblox'], run: false }
+  csharp: { emitter: CSharpEmitter, also: ['cs', 'c#', 'dotnet', 'unity'], run: true },
+  lua: { emitter: LuaEmitter, also: ['love', 'roblox'], run: true },
+  typescript: { emitter: TypeScriptEmitter, also: ['ts'], run: true }
 };
 
 export function targetNames() {
@@ -47,4 +49,4 @@ export function translate(program, targetName, meta = {}) {
 }
 
 export { Emitter } from './emitter.js';
-export { JavaScriptEmitter, PythonEmitter, CSharpEmitter, LuaEmitter };
+export { JavaScriptEmitter, PythonEmitter, CSharpEmitter, LuaEmitter, TypeScriptEmitter };

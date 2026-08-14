@@ -53,6 +53,12 @@ export class CSharpEmitter extends Emitter {
   }
   newInstance(kind, pairs) { return `new ${kind}(${this.recordLiteral(pairs)})`; }
 
+  // C# will only shift by an int, however whole the other number is.
+  bitwise(sign, left, right) {
+    const by = sign === '<<' || sign === '>>' ? `(int)${this.helper('whole', [right])}` : this.helper('whole', [right]);
+    return `(${this.helper('whole', [left])} ${sign} ${by})`;
+  }
+
   // A Plain thing may be a dictionary or one of your own kinds; a helper
   // decides which at the moment it is used.
   fieldAccess(object, field) {
@@ -506,6 +512,26 @@ const HELPERS = {
   randomBetween: { code: `    static readonly Random Dice = new Random();\n    public static int RandomBetween(dynamic low, dynamic high) { return Dice.Next((int)Math.Ceiling(Number(low)), (int)Math.Floor(Number(high)) + 1); }`, needs: ['number'] },
   randomNumber: { code: `    public static double RandomNumber() { return Dice.NextDouble(); }`, needs: ['randomBetween'] },
   randomItem: { code: `    public static dynamic RandomItem(dynamic collection) { var all = Items(collection); return all.Count > 0 ? all[Dice.Next(all.Count)] : null; }`, needs: ['items', 'randomBetween'] },
+
+  whole: { code: `    public static long Whole(dynamic value) { double n = Number(value); return double.IsFinite(n) ? (long)n : 0; }`, needs: ['number'] },
+
+  matches: { code: `    public static bool Matches(dynamic text, dynamic mark) { return System.Text.RegularExpressions.Regex.IsMatch(Text(text), Text(mark)); }`, needs: ['text'] },
+  firstMatch: {
+    code: `    public static string FirstMatch(dynamic text, dynamic mark) {
+        var found = System.Text.RegularExpressions.Regex.Match(Text(text), Text(mark));
+        return found.Success ? found.Value : "";
+    }`,
+    needs: ['text']
+  },
+  allMatches: {
+    code: `    public static List<dynamic> AllMatches(dynamic text, dynamic mark) {
+        var out_ = new List<dynamic>();
+        foreach (System.Text.RegularExpressions.Match found in System.Text.RegularExpressions.Regex.Matches(Text(text), Text(mark))) out_.Add(found.Value);
+        return out_;
+    }`,
+    needs: ['text']
+  },
+  replacePattern: { code: `    public static string ReplacePattern(dynamic text, dynamic mark, dynamic instead) { return System.Text.RegularExpressions.Regex.Replace(Text(text), Text(mark), Text(instead)); }`, needs: ['text'] },
 
   timeNow: { code: `    public static long TimeNow() { return DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); }` },
   today: { code: `    public static string Today() { return DateTime.Now.ToString("yyyy-MM-dd"); }` },

@@ -16,6 +16,7 @@ import { startDesigner } from '../engines/web/designer.js';
 import { startStudio } from '../engines/video/player.js';
 import { startLearning } from '../engines/learn/app.js';
 import { paint } from '../engines/learn/highlight.js';
+import { targetNames } from '../src/translate/index.js';
 import { FakeWindow } from './fake-dom.js';
 
 export function runPageChecks(check) {
@@ -306,7 +307,7 @@ export function runPageChecks(check) {
     editor.dispatchEvent({ type: 'input' });
     doc.querySelector('[data-translate]').click();
     const columns = doc.querySelectorAll('.pair pre');
-    assert.equal(columns.length, 4, 'there should be one column per language');
+    assert.equal(columns.length, targetNames().length, 'there should be one column per language');
     assert.match(columns[0].textContent, /let x = 2/);
     assert.match(columns[1].textContent, /^# Translated/m);
   });

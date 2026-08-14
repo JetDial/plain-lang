@@ -60,6 +60,31 @@ export function installCore(rt) {
     const finish = Math.floor(toNumber(a.finish));
     return text.slice(start - 1, finish);
   });
+  // ------------------------------------------------------ patterns in text
+
+  rt.defineInfix('$text matches $pattern', (a, ctx) =>
+    pattern(a.pattern, ctx).test(toText(a.text)));
+
+  rt.defineValue('first match of $pattern in $text', (a, ctx) => {
+    const found = toText(a.text).match(pattern(a.pattern, ctx));
+    return found ? found[0] : '';
+  });
+
+  rt.defineValue('parts of $text matching $pattern', (a, ctx) =>
+    toText(a.text).match(pattern(a.pattern, ctx, true)) || []);
+
+  rt.defineValue('replace pattern $pattern with $replacement in $text', (a, ctx) =>
+    toText(a.text).replace(pattern(a.pattern, ctx, true), toText(a.replacement)));
+
+  // ------------------------------------------------------------- the bits
+
+  rt.defineValue('bitwise and of $a and $b', a => toInt(a.a) & toInt(a.b));
+  rt.defineValue('bitwise or of $a and $b', a => toInt(a.a) | toInt(a.b));
+  rt.defineValue('bitwise xor of $a and $b', a => toInt(a.a) ^ toInt(a.b));
+  rt.defineValue('bitwise not of $a', a => ~toInt(a.a));
+  rt.defineValue('shift $a left by $b', a => toInt(a.a) << toInt(a.b));
+  rt.defineValue('shift $a right by $b', a => toInt(a.a) >> toInt(a.b));
+
   rt.defineValue('does $text start with $prefix', a => toText(a.text).startsWith(toText(a.prefix)));
   rt.defineValue('does $text end with $suffix', a => toText(a.text).endsWith(toText(a.suffix)));
   rt.defineValue('replace $find with $replacement in $text', a =>
@@ -152,11 +177,10 @@ export function installCore(rt) {
     else ctx.define(a.name, value);
   });
 
-  rt.define('show $value and stop', (a, ctx) => {
-    ctx.output(toText(a.value));
-    throw new StopProgram();
-  });
-
+  // There is deliberately no "show ... and stop": having one would make
+  // "and" a word that `show` has to watch for, which spoils every sentence
+  // that uses it, such as "show bitwise or of 12 and 10". Two lines is
+  // cheaper than that.
   rt.define('stop the program', () => { throw new StopProgram(); });
 
   // Waiting really does stop everything, which is what someone writing a
@@ -280,6 +304,20 @@ function sleep(milliseconds) {
     const until = Date.now() + milliseconds;
     while (Date.now() < until) { /* hold */ }
   }
+}
+
+// A pattern is written as text, the way it is in every other language.
+function pattern(value, ctx, everywhere = false) {
+  try {
+    return new RegExp(toText(value), everywhere ? 'g' : '');
+  } catch (problem) {
+    ctx.fail(`"${toText(value)}" is not a pattern I can read`, String(problem.message || problem));
+  }
+}
+
+function toInt(value) {
+  const number = toNumber(value);
+  return Number.isFinite(number) ? Math.trunc(number) : 0;
 }
 
 function list(value) {

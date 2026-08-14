@@ -24,6 +24,24 @@ export class LuaEmitter extends Emitter {
   get orWord() { return 'or'; }
   get notWord() { return 'not '; }
 
+  // Lua has patterns of its own, but they are not the patterns Plain means,
+  // and quietly writing something that behaves differently would be worse
+  // than saying so.
+  get cannotDo() {
+    return new Set([
+      '$text matches $pattern',
+      'first match of $pattern in $text',
+      'parts of $text matching $pattern',
+      'replace pattern $pattern with $replacement in $text'
+    ]);
+  }
+
+  // In Lua "^" raises to a power; the exclusive-or is "~".
+  bitwise(sign, left, right) {
+    const real = sign === '^' ? '~' : sign;
+    return `(${this.helper('whole', [left])} ${real} ${this.helper('whole', [right])})`;
+  }
+
   comment(text) { return '-- ' + text; }
   helperCall(name, args) { return `plain.${name}(${args.join(', ')})`; }
   declare(name, value) { return `local ${name} = ${value}`; }
@@ -560,6 +578,8 @@ end`,
   randomBetween: { code: `function plain.randomBetween(low, high)\n  return math.random(math.ceil(plain.number(low)), math.floor(plain.number(high)))\nend`, needs: ['number'] },
   randomNumber: { code: `function plain.randomNumber()\n  return math.random()\nend` },
   randomItem: { code: `function plain.randomItem(collection)\n  local all = plain.items(collection)\n  if #all == 0 then return nil end\n  return all[math.random(#all)]\nend`, needs: ['items'] },
+
+  whole: { code: `function plain.whole(value)\n  local n = plain.number(value)\n  return n >= 0 and math.floor(n) or -math.floor(-n)\nend`, needs: ['number'] },
 
   timeNow: { code: `function plain.timeNow()\n  return os.time() * 1000\nend` },
   today: { code: `function plain.today()\n  return os.date("%Y-%m-%d")\nend` },
