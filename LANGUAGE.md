@@ -456,6 +456,33 @@ stop the music
 set the sound volume to 0.5
 ```
 
+## Pictures that move
+
+A sprite sheet is one picture holding a grid of frames.
+
+```plain
+make hero be a sprite "walk.png" at 100 , 100 sized 32 by 32 with 4 by 2 frames
+make coin be a sprite "spin.png" at 200 , 100 sized 16 by 16 with 6 frames
+
+animate hero at 10 frames a second
+animate hero from 1 to 4 at 12 frames a second
+stop animating hero
+set the frame of hero to 3
+show frame of hero
+```
+
+## Waiting
+
+```plain
+after 2 seconds
+    show "two seconds later"
+end
+```
+
+That waits without stopping anything else — the game keeps running in the
+meantime. In a terminal program, where there is nothing else to keep running,
+`wait 2 seconds` stops and waits properly.
+
 Key names: `left`, `right`, `up`, `down`, `space`, `enter`, `escape`, `shift`,
 and any letter or digit as itself (`"a"`, `"7"`).
 
@@ -561,6 +588,17 @@ Asking: `video length`, `clip count`, `video width`, `video height`.
 ```bash
 plain play video.plain     # watch it
 plain edit video.plain     # the studio: scrub, drag, trim, export, save
+```
+
+A second track, laid over the clips wherever you like:
+
+```plain
+put the words "a caption" on top from 1 to 6 seconds
+put the words "later" on top at 8 seconds for 3 seconds
+put the picture "logo.png" on top from 0 to 4 seconds
+put the last thing on top middle          # top, middle or bottom
+fade the last thing on top over 0.5 seconds
+show things on top
 ```
 
 Sound:
@@ -716,7 +754,20 @@ Line 3: I do not know a name called "scoer"
 Try this: make scoer be <value> before using it
 ```
 
-`plain check file.plain` finds mistakes without running anything.
+`plain check file.plain` finds mistakes without running anything, and reports
+**all** of them at once rather than stopping at the first:
+
+```
+I found 2 things to fix.
+
+Line 2: I do not know how to start a line with "wibble"
+
+  2 | wibble 3
+
+Line 6: I expected a value but found the end of the line
+
+  6 |     show x +
+```
 
 ---
 

@@ -155,6 +155,30 @@ export function installCore(rt) {
 
   rt.define('stop the program', () => { throw new StopProgram(); });
 
+  // Waiting really does stop everything, which is what someone writing a
+  // terminal program means. A browser must never be frozen like that, so
+  // there it points at the sentence that does the right thing instead.
+  rt.define('wait $seconds seconds', (a, ctx) => {
+    const seconds = Math.max(0, toNumber(a.seconds));
+    if (!canSleep()) {
+      ctx.fail(
+        'Waiting stops everything, so it only works in a terminal',
+        'on a page use "after 2 seconds ... end", which carries on in the meantime'
+      );
+    }
+    sleep(seconds * 1000);
+  });
+
+  rt.define('wait a second', (a, ctx) => {
+    if (!canSleep()) {
+      ctx.fail(
+        'Waiting stops everything, so it only works in a terminal',
+        'on a page use "after 1 seconds ... end", which carries on in the meantime'
+      );
+    }
+    sleep(1000);
+  });
+
   // ------------------------------------------------- kinds of your own
 
   const tell = (a, ctx, args) =>
@@ -232,6 +256,26 @@ export function installCore(rt) {
 
 export class StopProgram extends Error {
   constructor() { super('stopped'); this.name = 'StopProgram'; }
+}
+
+// A real pause, without callbacks: Node can be told to hold this thread.
+function canSleep() {
+  return typeof SharedArrayBuffer !== 'undefined' &&
+    typeof Atomics !== 'undefined' &&
+    typeof process !== 'undefined' &&
+    Boolean(process.versions && process.versions.node) &&
+    typeof globalThis.window === 'undefined';
+}
+
+function sleep(milliseconds) {
+  if (milliseconds <= 0) return;
+  try {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
+  } catch {
+    // Busy waiting is horrible, but a short pause should still be a pause.
+    const until = Date.now() + milliseconds;
+    while (Date.now() < until) { /* hold */ }
+  }
 }
 
 function list(value) {

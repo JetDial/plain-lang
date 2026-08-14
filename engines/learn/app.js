@@ -13,6 +13,7 @@ import { installStore } from '../store/engine.js';
 import { mountPage, stylesheet } from '../web/render.js';
 import { translate, targetNames } from '../../src/translate/index.js';
 import { LESSONS, PROJECTS, totalSteps } from './course.js';
+import { colourEditor, HIGHLIGHT_STYLE } from './highlight.js';
 
 const STYLE = `
 :root { color-scheme: dark; }
@@ -42,11 +43,6 @@ body { margin: 0; background: #0b0d13; color: #e8ecf4;
   border-radius: 10px; padding: 14px 16px; margin: 20px 0 14px; }
 .task b { color: #9dc0ff; display: block; font-size: 12px; text-transform: uppercase;
   letter-spacing: .09em; margin-bottom: 5px; }
-.editor { position: relative; }
-.editor textarea { width: 100%; min-height: 260px; resize: vertical; tab-size: 4;
-  background: #0d1119; color: #e9edf6; border: 1px solid #232a3a; border-radius: 10px;
-  padding: 14px 16px; font: 13.5px/1.65 ui-monospace, "Cascadia Code", Consolas, monospace; }
-.editor textarea:focus { outline: 2px solid #2f4a7d; border-color: #2f4a7d; }
 .buttons { display: flex; gap: 9px; align-items: center; margin: 12px 0; flex-wrap: wrap; }
 button.act { border: 1px solid #2b3243; background: #161b27; color: #e8ecf4; font: inherit;
   padding: 8px 15px; border-radius: 9px; cursor: pointer; }
@@ -71,7 +67,7 @@ button.act.next { background: #7ee787; border-color: #7ee787; color: #06210c; fo
 `;
 
 export function startLearning(doc, win) {
-  ensureStyle(doc, STYLE);
+  ensureStyle(doc, STYLE + HIGHLIGHT_STYLE);
   doc.title = 'Learn Plain';
 
   const done = loadProgress(win);
@@ -196,6 +192,7 @@ export function startLearning(doc, win) {
     const starter = (isLesson ? item.start : step.start) || carryOver();
     editor.value = savedCode(state.kind, state.index, state.step) ?? starter ?? '';
 
+    const repaint = colourEditor(editor, doc);
     editor.addEventListener('input', () => saveCode(state.kind, state.index, state.step, editor.value));
     editor.addEventListener('keydown', event => {
       if (event.key === 'Tab') {
@@ -212,6 +209,7 @@ export function startLearning(doc, win) {
     page.querySelector('[data-reset]').addEventListener('click', () => {
       editor.value = starter ?? '';
       saveCode(state.kind, state.index, state.step, editor.value);
+      repaint();
     });
     page.querySelector('[data-next]').addEventListener('click', nextStep);
 

@@ -812,6 +812,18 @@ function sameEverywhere(name, source) {
         const fromPython = execFileSync(PYTHON, [pyFile], { encoding: 'utf8' }).replace(/\r/g, '').trimEnd();
         assert.equal(fromPython, expected, 'Python said something different');
       }
+
+      if (LUA) {
+        const luaFile = path.join(folder, 'program.lua');
+        fs.writeFileSync(luaFile, written(source, 'lua'), 'utf8');
+        const fromLua = execFileSync(LUA, [luaFile], { encoding: 'utf8' }).replace(/\r/g, '').trimEnd();
+        assert.equal(fromLua, expected, 'Lua said something different');
+      }
+
+      if (DOTNET) {
+        const fromCSharp = runCSharp(written(source, 'csharp'), folder).replace(/\r/g, '').trimEnd();
+        assert.equal(fromCSharp, expected, 'C# said something different');
+      }
     } finally {
       fs.rmSync(folder, { recursive: true, force: true });
     }
@@ -828,6 +840,57 @@ const PYTHON = (() => {
   }
   return null;
 })();
+
+// Lua and C# are checked the same way when the tools are on this machine.
+// They are not on every machine, so each one is looked for and skipped
+// quietly when missing - and what was skipped is said at the end.
+const LUA = (() => {
+  for (const candidate of ['lua', 'lua5.4', 'lua54', 'luajit']) {
+    try {
+      execFileSync(candidate, ['-v'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+      return candidate;
+    } catch { /* try the next one */ }
+  }
+  return null;
+})();
+
+const DOTNET = (() => {
+  try {
+    // Runtimes alone cannot build; this needs an SDK.
+    const sdks = execFileSync('dotnet', ['--list-sdks'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    return sdks.trim() ? 'dotnet' : null;
+  } catch {
+    return null;
+  }
+})();
+
+const skipped = [];
+if (!PYTHON) skipped.push('Python (no python 3 on this machine)');
+if (!LUA) skipped.push('Lua (no lua interpreter on this machine)');
+if (!DOTNET) skipped.push('C# (dotnet has runtimes but no SDK on this machine)');
+
+// Build and run the generated C# once, in a throwaway project.
+function runCSharp(code, folder) {
+  fs.writeFileSync(path.join(folder, 'Program.cs'), code, 'utf8');
+  fs.writeFileSync(path.join(folder, 'program.csproj'), [
+    '<Project Sdk="Microsoft.NET.Sdk">',
+    '  <PropertyGroup>',
+    '    <OutputType>Exe</OutputType>',
+    '    <TargetFramework>net8.0</TargetFramework>',
+    '    <Nullable>disable</Nullable>',
+    '    <AssemblyName>program</AssemblyName>',
+    '    <RootNamespace>program</RootNamespace>',
+    '    <EnableDefaultCompileItems>true</EnableDefaultCompileItems>',
+    '    <InvariantGlobalization>true</InvariantGlobalization>',
+    '  </PropertyGroup>',
+    '</Project>'
+  ].join('\n'), 'utf8');
+  return execFileSync(DOTNET, ['run', '--project', folder, '--verbosity', 'quiet', '--nologo'], {
+    encoding: 'utf8',
+    cwd: folder,
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+}
 
 check('it knows what it can write', () => {
   assert.ok(targetNames().includes('javascript'));
@@ -1351,6 +1414,124 @@ check('the new shapes draw without complaint', () => {
   assert.ok(calls.includes('stroke'), 'the ring was not drawn');
 });
 
+// -------------------------------------------------------------- sprites
+
+check('a sprite sheet is cut into frames', () => {
+  const { game } = runtimeFor([
+    'start a game called "G"',
+    'make hero be a sprite "walk.png" at 50 , 50 sized 32 by 32 with 4 by 2 frames'
+  ].join('\n'));
+  const hero = game.things[0];
+  assert.equal(hero.columns, 4);
+  assert.equal(hero.rows, 2);
+  assert.equal(hero.frameCount, 8);
+  assert.equal(hero.frame, 1);
+});
+
+check('a row of frames can be given on its own', () => {
+  const { game } = runtimeFor('start a game called "G"\nmake hero be a sprite "run.png" at 0 , 0 sized 16 by 16 with 6 frames');
+  assert.equal(game.things[0].frameCount, 6);
+});
+
+check('animating walks through the frames and loops', () => {
+  const { game } = runtimeFor([
+    'start a game called "G"',
+    'make hero be a sprite "walk.png" at 0 , 0 sized 16 by 16 with 4 frames',
+    'animate hero at 10 frames a second'
+  ].join('\n'));
+  const hero = game.things[0];
+  game.simulate(6, 1 / 60);      // 0.1s -> one frame on
+  assert.equal(hero.frame, 2);
+  game.simulate(18, 1 / 60);     // 0.3s more -> three more, wrapping
+  assert.equal(hero.frame, 1);
+});
+
+check('animating can be limited to some of the frames', () => {
+  const { game } = runtimeFor([
+    'start a game called "G"',
+    'make hero be a sprite "walk.png" at 0 , 0 sized 16 by 16 with 8 frames',
+    'animate hero from 5 to 6 at 10 frames a second'
+  ].join('\n'));
+  const hero = game.things[0];
+  assert.equal(hero.frame, 5);
+  game.simulate(6, 1 / 60);
+  assert.equal(hero.frame, 6);
+  game.simulate(6, 1 / 60);
+  assert.equal(hero.frame, 5, 'it should come back round to the first of the two');
+});
+
+check('a frame can be held still', () => {
+  const { rt, game } = runtimeFor([
+    'start a game called "G"',
+    'make hero be a sprite "walk.png" at 0 , 0 sized 16 by 16 with 4 frames',
+    'animate hero at 10 frames a second',
+    'stop animating hero',
+    'set the frame of hero to 3',
+    'show frame of hero'
+  ].join('\n'));
+  assert.equal(rt.lines[0], '3');
+  game.simulate(60, 1 / 60);
+  assert.equal(game.things[0].frame, 3);
+});
+
+// ---------------------------------------------------------------- waiting
+
+check('waiting really waits, in a terminal', () => {
+  const started = Date.now();
+  run('wait 0.2 seconds\nshow "done"');
+  assert.ok(Date.now() - started >= 150, 'it did not actually pause');
+});
+
+check('one-shot timers happen once', () => {
+  const { rt, game } = runtimeFor([
+    'start a game called "G"',
+    'make n be 0',
+    'after 1 seconds',
+    '    add 1 to n',
+    'end'
+  ].join('\n'));
+  game.simulate(30, 1 / 60);            // half a second
+  assert.equal(rt.interpreter.globals.get('n'), 0);
+  game.simulate(120, 1 / 60);           // two more seconds
+  assert.equal(rt.interpreter.globals.get('n'), 1, 'it should have happened exactly once');
+});
+
+check('repeating timers still repeat', () => {
+  const { rt, game } = runtimeFor('start a game called "G"\nmake n be 0\nevery 1 seconds\n    add 1 to n\nend');
+  game.simulate(180, 1 / 60);
+  assert.equal(rt.interpreter.globals.get('n'), 3);
+});
+
+// ------------------------------------------------------- several mistakes
+
+check('every mistake in a file is reported, not just the first', () => {
+  const error = broken('show "fine"\nwibble 3\nmake x be 1\nblah blah\nshow "end"');
+  assert.ok(error.errors, 'the mistakes were not gathered');
+  assert.equal(error.errors.length, 2);
+  assert.deepEqual(error.errors.map(one => one.line), [2, 4]);
+  const report = error.report('show "fine"\nwibble 3\nmake x be 1\nblah blah\nshow "end"');
+  assert.match(report, /I found 2 things to fix/);
+  assert.match(report, /Line 2/);
+  assert.match(report, /Line 4/);
+});
+
+check('mistakes inside a block are found too', () => {
+  const error = broken('repeat 2 times\n    wibble\n    show "ok"\nend\nnonsense here');
+  assert.deepEqual(error.errors.map(one => one.line), [2, 5]);
+});
+
+check('one mistake still reads like one mistake', () => {
+  const error = broken('show wobble');
+  const report = error.report('show wobble');
+  assert.ok(!/things to fix/.test(report), 'a single mistake should not be introduced as a list');
+  assert.match(report, /Line 1/);
+});
+
+check('an unclosed block stops the reading there', () => {
+  const error = broken('repeat 2 times\n    show "x"');
+  assert.match(error.plainMessage, /never closed/);
+});
+
 // --------------------------------------------------------------- tidying
 
 check('tidying fixes the indenting and leaves the words alone', () => {
@@ -1465,6 +1646,11 @@ check('every example still runs', () => {
 const { runCourseChecks } = await import('./course-tests.js');
 runCourseChecks(check);
 
+// ---------------------------------------------------------------- the pages
+
+const { runPageChecks } = await import('./page-tests.js');
+runPageChecks(check);
+
 // ---------------------------------------------------------------- the score
 
 if (failures.length) {
@@ -1478,3 +1664,7 @@ if (failures.length) {
 }
 
 console.log(`All ${passed} checks passed.`);
+if (skipped.length) {
+  console.log('\nRun three ways where the tools exist. Not checked by running here:');
+  for (const what of skipped) console.log('  - ' + what);
+}

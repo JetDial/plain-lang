@@ -27,6 +27,10 @@ as values, catching problems, and files that pull in other files.
 You need [Node.js](https://nodejs.org) 18 or newer. Nothing else — Plain has
 no dependencies and no build step.
 
+(Not on npm yet. The package is ready — `npm pack` builds a working tarball —
+but publishing is yours to run: `npm publish`. The name `plain-lang` was
+already taken, so package.json says `plainlang`.)
+
 ```bash
 node bin/plain.js run examples/hello.plain
 ```
@@ -177,7 +181,8 @@ Sprites, movement, gravity, per-frame code, timers, collisions, keyboard and
 mouse, drawing on top, and sound (`play the sound "jump.wav"`, `play music
 "tune.mp3"`). Shapes come built in — box, circle, star, heart, triangle,
 diamond, arrow, ring — so a game looks like a game before you have any
-artwork. The same engine runs headless in Node, so
+artwork, plus sprite sheets when you do (`with 4 by 2 frames`, `animate hero
+at 10 frames a second`). The same engine runs headless in Node, so
 `plain run game.plain --frames 300` simulates 300 frames with no window — which
 is how the tests check games.
 
@@ -292,7 +297,8 @@ plain learn
 
 Ten lessons and six projects, in the browser, with a real editor. Every step
 is checked by **running what you wrote** and looking at what it did — not by
-comparing your text to an answer. Get it wrong and you get a hint, not a red
+comparing your text to an answer. The editor colours code as you type, using
+Plain's own lexer, so it can never disagree with the language. Get it wrong and you get a hint, not a red
 cross:
 
 > *Holding right should move the basket: `if key "right" is held ... end`*
@@ -373,6 +379,10 @@ writing something that half works.
   breaks a program.
 - **The vocabulary is discoverable.** `plain words` prints every sentence the
   language knows, including the ones the engines add.
+- **Mistakes come all at once.** `plain check` lists every problem in the
+  file, not just the first one.
+- **It is not a dead end.** `plain translate` writes your program out in
+  JavaScript, Python, C# or Lua, so what you learn here carries over.
 - **The tools write the language.** The designer and the studio save Plain
   sentences, so nothing you drag becomes code you cannot read.
 - **It is not a dead end.**  writes your program out in
@@ -418,7 +428,8 @@ src/translate/        Plain -> JavaScript, Python, C# and Lua
 src/format.js         plain fmt
 engines/store/        remembering things, and reading and writing files
 engines/learn/        the course: lessons, projects and their checks
-tests/run-tests.js     239 checks, no framework
+tests/fake-dom.js      a small stand-in browser, so the pages can be tested
+tests/run-tests.js     272 checks, no framework
 ```
 
 ## Tests

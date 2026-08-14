@@ -233,7 +233,47 @@ export function startStudio(studio, doc, win) {
       ctx.textBaseline = 'middle';
       ctx.fillText(clip.overlay, width / 2, height - barHeight / 2);
     }
+
+    drawOverlays(width, height);
     ctx.restore();
+  }
+
+  // The second track, drawn over whatever the clips put down.
+  function drawOverlays(width, height) {
+    for (const one of studio.overlaysAt(state.time)) {
+      let alpha = 1;
+      if (one.fade > 0) {
+        const into = state.time - one.start;
+        const left = one.finish - state.time;
+        alpha = Math.min(1, into / one.fade, left / one.fade);
+      }
+      ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+
+      const middle = one.where === 'top' ? height / 6
+        : one.where === 'middle' ? height / 2
+        : height - height / 7 / 2;
+
+      if (one.kind === 'picture') {
+        const element = mediaFor({ kind: 'picture', source: one.source });
+        if (element && !element.failed && (element.naturalWidth || 0) > 0) {
+          const wide = Math.min(width * 0.4, element.naturalWidth);
+          const tall = wide * (element.naturalHeight / element.naturalWidth);
+          ctx.drawImage(element, (width - wide) / 2, middle - tall / 2, wide, tall);
+        }
+        continue;
+      }
+
+      ctx.font = `600 ${Math.round(height / 14)}px ui-sans-serif, system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const measured = ctx.measureText(one.text).width;
+      ctx.fillStyle = 'rgba(0,0,0,.45)';
+      const padding = height / 40;
+      ctx.fillRect((width - measured) / 2 - padding, middle - height / 22 - padding,
+        measured + padding * 2, height / 11 + padding * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(one.text, width / 2, middle);
+    }
   }
 
   // --------------------------------------------------------- the clock

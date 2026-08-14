@@ -4,7 +4,7 @@
 // statements.
 
 import { tokenize, ESCAPED } from './lexer.js';
-import { PlainError } from './errors.js';
+import { PlainError, gather } from './errors.js';
 import { stopsAfter } from './phrases.js';
 
 // Only "the" is skipped as decoration. "a" and "an" are left alone because
@@ -33,6 +33,7 @@ export class Parser {
     this.phrases = phrases; // { statement: PhraseTable, value: PhraseTable }
     this.file = file;
     this.userFunctions = new Map();
+    this.errors = [];   // mistakes found so far, so they can all be shown
   }
 
   // ---------------------------------------------------------------- helpers
@@ -103,10 +104,31 @@ export class Parser {
     const body = [];
     this.skipNewlines();
     while (this.peek().type !== 'end') {
-      body.push(this.parseStatement());
+      this.statementOrCarryOn(body);
       this.skipNewlines();
     }
+    if (this.errors.length) throw gather(this.errors, this.file);
     return { type: 'Program', body, file: this.file };
+  }
+
+  // One bad line should not hide the rest. The mistake is remembered, the
+  // rest of that line is skipped, and reading carries on - so a beginner
+  // sees everything that needs fixing, not just the first thing.
+  statementOrCarryOn(body) {
+    const before = this.i;
+    try {
+      body.push(this.parseStatement());
+    } catch (error) {
+      if (!(error instanceof PlainError) || error.fatal || this.errors.length >= 20) throw error;
+      this.errors.push(error);
+      this.skipToNextLine();
+      if (this.i === before) this.i++;   // always move on, whatever happened
+    }
+  }
+
+  skipToNextLine() {
+    while (this.peek().type !== 'newline' && this.peek().type !== 'end') this.i++;
+    if (this.peek().type === 'newline') this.i++;
   }
 
   // Functions may be used before they are written, so read every signature
@@ -137,10 +159,16 @@ export class Parser {
     while (true) {
       const t = this.peek();
       if (t.type === 'end') {
-        this.error(`This block was never closed. Add "end" on its own line.`);
+        // Nothing can be recovered from the end of the file.
+        const unclosed = new PlainError(
+          'This block was never closed. Add "end" on its own line.',
+          t.line, this.file
+        );
+        unclosed.fatal = true;
+        throw unclosed;
       }
       if (this.atTerminator(terminators)) break;
-      body.push(this.parseStatement());
+      this.statementOrCarryOn(body);
       this.skipNewlines();
     }
     // The lines this block covers, so tools can show and rewrite the code

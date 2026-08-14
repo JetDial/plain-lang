@@ -40,8 +40,14 @@ export class Studio {
     this.height = 720;
     this.fps = 30;
     this.clips = [];
+    this.overlays = [];          // a second track, laid over the clips
     this.music = [];
     this.volume = 1;
+  }
+
+  // What belongs on top at this moment.
+  overlaysAt(seconds) {
+    return this.overlays.filter(one => seconds >= one.start && seconds < one.finish);
   }
 
   get length() {
@@ -88,6 +94,18 @@ export class Studio {
       if (clip.fadeOut) lines.push(`fade the last clip out over ${round(clip.fadeOut)} seconds`);
       if (clip.volume === 0) lines.push('silence the last clip');
       else if (clip.volume !== 1) lines.push(`set the volume of the last clip to ${round(clip.volume)}`);
+    }
+    if (this.overlays.length) {
+      lines.push('');
+      for (const one of this.overlays) {
+        lines.push(one.kind === 'picture'
+          ? `put the picture ${quote(one.source)} on top from ${round(one.start)} to ${round(one.finish)} seconds`
+          : `put the words ${quote(one.text)} on top from ${round(one.start)} to ${round(one.finish)} seconds`);
+        if (one.where && one.where !== (one.kind === 'picture' ? 'middle' : 'bottom')) {
+          lines.push(`put the last thing on top ${one.where}`);
+        }
+        if (one.fade) lines.push(`fade the last thing on top over ${round(one.fade)} seconds`);
+      }
     }
     if (this.music.length) {
       lines.push('');
@@ -156,6 +174,46 @@ export function installVideo(rt, host = {}) {
     void add(new Clip({ kind: 'colour', color: toText(a.color), length: toNumber(a.seconds) })));
 
   rt.define('put the words $text on the last clip', (a, ctx) => { lastOr(ctx).overlay = toText(a.text); });
+
+  // A second track: things laid over the picture at a time of your choosing,
+  // rather than stuck to one clip.
+  rt.define('put the words $text on top from $start to $finish seconds', (a, ctx) => {
+    const start = toNumber(a.start);
+    const finish = toNumber(a.finish);
+    if (finish <= start) ctx.fail('That has to finish after it starts');
+    studio.overlays.push({ kind: 'words', text: toText(a.text), start, finish, where: 'bottom', fade: 0 });
+  });
+
+  rt.define('put the words $text on top at $start seconds for $length seconds', (a) => {
+    const start = toNumber(a.start);
+    studio.overlays.push({
+      kind: 'words', text: toText(a.text), start, finish: start + Math.max(0.1, toNumber(a.length)),
+      where: 'bottom', fade: 0
+    });
+  });
+
+  rt.define('put the picture $source on top from $start to $finish seconds', (a, ctx) => {
+    const start = toNumber(a.start);
+    const finish = toNumber(a.finish);
+    if (finish <= start) ctx.fail('That has to finish after it starts');
+    studio.overlays.push({ kind: 'picture', source: toText(a.source), start, finish, where: 'middle', fade: 0 });
+  });
+
+  rt.define('put the last thing on top #where', (a, ctx) => {
+    const last = studio.overlays[studio.overlays.length - 1];
+    if (!last) ctx.fail('There is nothing on the top track yet');
+    const where = String(a.where).toLowerCase();
+    if (!['top', 'middle', 'bottom'].includes(where)) ctx.fail(`"${a.where}" is not a place. Use top, middle or bottom.`);
+    last.where = where;
+  });
+
+  rt.define('fade the last thing on top over $seconds seconds', (a, ctx) => {
+    const last = studio.overlays[studio.overlays.length - 1];
+    if (!last) ctx.fail('There is nothing on the top track yet');
+    last.fade = Math.max(0, toNumber(a.seconds));
+  });
+
+  rt.defineValue('things on top', () => studio.overlays.length);
   rt.define('fade the last clip in over $seconds seconds', (a, ctx) => { lastOr(ctx).fadeIn = toNumber(a.seconds); });
   rt.define('fade the last clip out over $seconds seconds', (a, ctx) => { lastOr(ctx).fadeOut = toNumber(a.seconds); });
   rt.define('trim the last clip to $seconds seconds', (a, ctx) => {

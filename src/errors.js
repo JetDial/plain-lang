@@ -14,6 +14,17 @@ export class PlainError extends Error {
   // A friendly, multi-line report. `source` is optional; when given we show
   // the offending line with a marker under it.
   report(source) {
+    // When several mistakes were found in one go, show them all: fixing one
+    // at a time is a slow way to learn where the others are.
+    if (this.errors && this.errors.length > 1) {
+      const count = this.errors.length;
+      const heading = `I found ${count} things to fix.`;
+      return [heading, ...this.errors.map(one => one.reportOne(source))].join('\n\n');
+    }
+    return this.reportOne(source);
+  }
+
+  reportOne(source) {
     const where = this.line ? `Line ${this.line}` : 'Somewhere in your program';
     const lines = [`${where}: ${this.plainMessage}`];
     if (source && this.line) {
@@ -33,4 +44,12 @@ export class PlainError extends Error {
 
 export function fail(message, line, file, hint) {
   throw new PlainError(message, line, file, hint);
+}
+
+// Several mistakes, gathered into one thing to throw.
+export function gather(errors, file) {
+  const first = errors[0];
+  const together = new PlainError(first.plainMessage, first.line, file || first.file, first.hint);
+  together.errors = errors;
+  return together;
 }

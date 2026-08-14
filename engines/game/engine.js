@@ -38,6 +38,30 @@ export class Thing {
     this.gone = false;
     this.data = {};                        // anything the program invents
     this._image = null;
+
+    // A sprite sheet is one picture cut into a grid of frames.
+    this.columns = num(options.columns, 1);
+    this.rows = num(options.rows, 1);
+    this.frame = 1;
+    this.firstFrame = 1;
+    this.lastFrame = num(options.columns, 1) * num(options.rows, 1);
+    this.framesASecond = 0;                // 0 means "hold still"
+    this.frameClock = 0;
+  }
+
+  get frameCount() { return Math.max(1, this.columns * this.rows); }
+
+  // Move the animation on by however much time has passed.
+  advance(seconds) {
+    if (!this.framesASecond) return;
+    this.frameClock += seconds;
+    // The tiny allowance is the same one the timers use: without it, ten
+    // sixtieths of a second lands a hair under a tenth and drops a frame.
+    const each = 1 / this.framesASecond - 1e-9;
+    while (this.frameClock >= each) {
+      this.frameClock -= each;
+      this.frame = this.frame >= this.lastFrame ? this.firstFrame : this.frame + 1;
+    }
   }
 
   get left() { return this.x - this.width / 2; }
@@ -61,7 +85,9 @@ export class Thing {
     switch (key) {
       case 'x': case 'y': case 'width': case 'height': case 'color':
       case 'dx': case 'dy': case 'angle': case 'text': case 'name':
+      case 'frame':
         return this[key];
+      case 'frames': return this.frameCount;
       case 'size': return Math.max(this.width, this.height);
       case 'left': return this.left;
       case 'right': return this.right;
@@ -82,6 +108,8 @@ export class Thing {
       case 'x': case 'y': case 'width': case 'height':
       case 'dx': case 'dy': case 'angle':
         this[key] = toNumber(value); return;
+      case 'frame':
+        this.frame = Math.min(this.frameCount, Math.max(1, Math.round(toNumber(value)))); return;
       case 'size': this.width = toNumber(value); this.height = toNumber(value); return;
       case 'color': this.color = toText(value); return;
       case 'text': this.text = toText(value); return;
@@ -181,18 +209,22 @@ export class Game {
     for (const timer of this.timers) {
       // The small allowance keeps a "every 1 seconds" timer on the beat
       // instead of slipping a frame every time the clock lands just short.
+      if (timer.done) continue;
       if (this.time >= timer.next - 1e-9) {
         timer.next += timer.every;
         if (timer.next < this.time) timer.next = this.time + timer.every;
         this.safely(timer.run);
+        if (timer.once) timer.done = true;
       }
     }
+    if (this.timers.some(timer => timer.done)) this.timers = this.timers.filter(timer => !timer.done);
 
     for (const thing of this.things) {
       if (thing.gone) continue;
       thing.dy += this.gravity;
       thing.x += thing.dx;
       thing.y += thing.dy;
+      thing.advance(seconds);
     }
 
     // The 3D world, when there is one, moves on the same clock.
@@ -278,7 +310,23 @@ export class Game {
         ctx.textBaseline = 'middle';
         ctx.fillText(toText(thing.text), 0, 0);
       } else if (thing.shape === 'picture' && thing._image && thing._image.complete) {
-        ctx.drawImage(thing._image, -thing.width / 2, -thing.height / 2, thing.width, thing.height);
+        if (thing.frameCount > 1) {
+          // One frame out of the sheet's grid.
+          const sheetWidth = thing._image.naturalWidth || thing._image.width || 0;
+          const sheetHeight = thing._image.naturalHeight || thing._image.height || 0;
+          const frameWidth = sheetWidth / thing.columns;
+          const frameHeight = sheetHeight / thing.rows;
+          const at = Math.max(0, Math.min(thing.frameCount - 1, thing.frame - 1));
+          const column = at % thing.columns;
+          const row = Math.floor(at / thing.columns);
+          ctx.drawImage(
+            thing._image,
+            column * frameWidth, row * frameHeight, frameWidth, frameHeight,
+            -thing.width / 2, -thing.height / 2, thing.width, thing.height
+          );
+        } else {
+          ctx.drawImage(thing._image, -thing.width / 2, -thing.height / 2, thing.width, thing.height);
+        }
       } else {
         ctx.fillRect(-thing.width / 2, -thing.height / 2, thing.width, thing.height);
       }
@@ -395,6 +443,47 @@ export function installGame(rt, host = {}) {
   rt.define('make #name be a picture $source at $x , $y sized $width by $height', (a, ctx) =>
     void makeThing(ctx, a.name, { shape: 'picture', source: toText(a.source), x: a.x, y: a.y, width: a.width, height: a.height }));
 
+  // A sprite sheet: one picture holding a grid of frames.
+  rt.define('make #name be a sprite $source at $x , $y sized $width by $height with $columns by $rows frames', (a, ctx) =>
+    void makeThing(ctx, a.name, {
+      shape: 'picture', source: toText(a.source), x: a.x, y: a.y,
+      width: a.width, height: a.height,
+      columns: Math.max(1, Math.round(toNumber(a.columns))),
+      rows: Math.max(1, Math.round(toNumber(a.rows)))
+    }));
+
+  rt.define('make #name be a sprite $source at $x , $y sized $width by $height with $columns frames', (a, ctx) =>
+    void makeThing(ctx, a.name, {
+      shape: 'picture', source: toText(a.source), x: a.x, y: a.y,
+      width: a.width, height: a.height,
+      columns: Math.max(1, Math.round(toNumber(a.columns))), rows: 1
+    }));
+
+  rt.define('set the frame of $thing to $number', (a, ctx) => {
+    thingOf(a.thing, ctx).setPlainField('frame', a.number);
+  });
+
+  rt.define('animate $thing at $speed frames a second', (a, ctx) => {
+    const t = thingOf(a.thing, ctx);
+    t.firstFrame = 1;
+    t.lastFrame = t.frameCount;
+    t.framesASecond = Math.max(0, toNumber(a.speed));
+    t.frameClock = 0;
+  });
+
+  rt.define('animate $thing from $first to $last at $speed frames a second', (a, ctx) => {
+    const t = thingOf(a.thing, ctx);
+    t.firstFrame = Math.max(1, Math.round(toNumber(a.first)));
+    t.lastFrame = Math.min(t.frameCount, Math.round(toNumber(a.last)));
+    if (t.frame < t.firstFrame || t.frame > t.lastFrame) t.frame = t.firstFrame;
+    t.framesASecond = Math.max(0, toNumber(a.speed));
+    t.frameClock = 0;
+  });
+
+  rt.define('stop animating $thing', (a, ctx) => { thingOf(a.thing, ctx).framesASecond = 0; });
+
+  rt.defineValue('frame of $thing', (a, ctx) => thingOf(a.thing, ctx).frame);
+
   rt.define('make #name be words $text at $x , $y sized $size colored $color', (a, ctx) =>
     void makeThing(ctx, a.name, { shape: 'words', text: toText(a.text), x: a.x, y: a.y, width: toNumber(a.size) * 8, height: a.size, color: toText(a.color) }));
 
@@ -464,6 +553,13 @@ export function installGame(rt, host = {}) {
   rt.define('every $seconds seconds ...', (a, ctx) => {
     const every = Math.max(0.001, toNumber(a.seconds));
     game.timers.push({ every, next: game.time + every, run: ctx.block });
+  });
+
+  // The same clock, but it happens once. This is how a page waits: the rest
+  // of the program carries on in the meantime.
+  rt.define('after $seconds seconds ...', (a, ctx) => {
+    const wait = Math.max(0, toNumber(a.seconds));
+    game.timers.push({ every: wait, next: game.time + wait, run: ctx.block, once: true });
   });
 
   rt.define('when $one touches $other ...', (a, ctx) => {
