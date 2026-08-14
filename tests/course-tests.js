@@ -12,6 +12,9 @@ import { installWorld } from '../engines/world/engine.js';
 import { installWeb } from '../engines/web/engine.js';
 import { installVideo } from '../engines/video/engine.js';
 import { installStore } from '../engines/store/engine.js';
+import { installData } from '../engines/data/engine.js';
+import { installParts } from '../engines/parts/engine.js';
+import { installNet } from '../engines/net/engine.js';
 import { LESSONS, PROJECTS, totalSteps } from '../engines/learn/course.js';
 
 export function runCourseChecks(check) {
@@ -24,8 +27,11 @@ export function runCourseChecks(check) {
     const site = installWeb(runtime, {});
     const studio = installVideo(runtime, {});
     installStore(runtime, {});
+    const tables = installData(runtime, {});
+    installParts(runtime);
+    const server = installNet(runtime, {});
     runtime.run(source, 'answer.plain');
-    return { lines, source, runtime, game, world, site, studio, ...extra };
+    return { lines, source, runtime, game, world, site, studio, server, tables, ...extra };
   };
 
   const passes = (item, source, extra) => item.check(attempt(source, extra));
@@ -107,6 +113,31 @@ export function runCourseChecks(check) {
       'set the page background to "#0f1020"',
       'add a title "Handmade" named crown',
       "style crown with 'color: #ffd166'"
+    ].join('\n'),
+
+    serving: [
+      'when someone visits "/"',
+      '    answer with "<h1>Hello from me</h1>"',
+      'end',
+      'when someone visits "/about"',
+      '    answer with "<p>I am learning Plain.</p>"',
+      'end'
+    ].join('\n'),
+
+    tables: [
+      'make notes be a table called "practice"',
+      'empty the table notes',
+      'save { title: "Buy bread" } in notes',
+      'save { title: "Ring Bob" } in notes',
+      'show number of rows in notes',
+      'show title of row 1 of notes'
+    ].join('\n'),
+
+    forms: [
+      'when someone sends to "/hello"',
+      '    sign this visitor in as the form field "name"',
+      '    send them to "/"',
+      'end'
     ].join('\n'),
 
     problems: [
@@ -324,13 +355,91 @@ export function runCourseChecks(check) {
     'show join sorted scores with " < "'
   ].join('\n');
 
+
+  const BOOK_1 = [
+    'make book be a table called "guestbook"',
+    'empty the table book',
+    'when someone visits "/"',
+    '    answer with "{number of rows in book} so far"',
+    'end'
+  ].join('\n');
+
+  const BOOK_FORM = "<form method='post' action='/write'><input name='words'><button>Sign</button></form>";
+
+  const BOOK_2 = [
+    'make book be a table called "guestbook"',
+    'empty the table book',
+    'when someone visits "/"',
+    `    answer with "{number of rows in book} so far ${BOOK_FORM}"`,
+    'end',
+    'when someone sends to "/write"',
+    '    save { words: the form field "words" } in book',
+    '    send them to "/"',
+    'end'
+  ].join('\n');
+
+  // From here on the messages go on the page, so they have to be made safe
+  // first - which is the point of the step.
+  const SAFELY = [
+    'to safely with words',
+    '    make out be text of words',
+    '    set out to replace "&" with "&amp;" in out',
+    '    set out to replace "<" with "&lt;" in out',
+    '    give back out',
+    'end'
+  ].join('\n');
+
+  const BOOK_3 = [
+    'make book be a table called "guestbook"',
+    'empty the table book',
+    SAFELY,
+    'when someone visits "/"',
+    '    make page be ""',
+    '    for each one in every row of book',
+    '        set page to page joined with "<p>{safely with words of one}</p>"',
+    '    end',
+    `    answer with "${BOOK_FORM}{page}"`,
+    'end',
+    'when someone sends to "/write"',
+    '    save { words: the form field "words" } in book',
+    '    send them to "/"',
+    'end'
+  ].join('\n');
+
+  const BOOK_4 = [
+    'make book be a table called "guestbook"',
+    'empty the table book',
+    SAFELY,
+    'when someone visits "/"',
+    '    make page be ""',
+    '    for each one in every row of book',
+    // Not "who": a name of your own beats a phrase that starts with the same
+    // word, and "who is signed in" would stop being a phrase.
+    '        make named be value "by" of one',
+    '        if named is nothing',
+    '            set named to "somebody"',
+    '        end',
+    '        set page to page joined with "<p>{safely with named} wrote {safely with words of one}</p>"',
+    '    end',
+    `    answer with "${BOOK_FORM}{page}"`,
+    'end',
+    'when someone sends to "/write"',
+    '    make said be the form field "words"',
+    '    sign this visitor in as the form field "who"',
+    '    make caller be who is signed in',
+    '    save { words: said, by: caller } in book',
+    '    send them to "/"',
+    'end'
+  ].join('\n');
+
   const PROJECT_ANSWERS = {
     quiz: [QUIZ, QUIZ_LISTED, QUIZ_MARKED, QUIZ_DONE],
     site: [SITE_1, SITE_2, SITE_3, SITE_4],
     game: [GAME_1, GAME_2, GAME_3, GAME_4],
     world: [WORLD_1, WORLD_2, WORLD_3, WORLD_4],
     video: [FILM_1, FILM_2, FILM_3],
-    translate: [TRANSLATE_1, TRANSLATE_1, TRANSLATE_1, TRANSLATE_SORTED, TRANSLATE_SORTED]
+    translate: [TRANSLATE_1, TRANSLATE_1, TRANSLATE_1, TRANSLATE_SORTED, TRANSLATE_SORTED],
+    guestbook: [BOOK_1, BOOK_2, BOOK_3, BOOK_4]
   };
 
   for (const project of PROJECTS) {

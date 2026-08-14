@@ -51,7 +51,7 @@ plain make video holiday   # a video timeline you can trim and export
 ```
 
 ```bash
-plain learn          open the course: 13 lessons and 6 projects
+plain learn          open the course: 16 lessons and 7 projects
 plain run <file>     run it in the terminal            (--fast to go quicker)
 plain play <file>    open it in the browser
 plain edit <file>    open the designer or the video studio
@@ -507,7 +507,7 @@ neural network above goes from **1.20s to 0.20s**.
 plain learn
 ```
 
-Thirteen lessons and six projects, in the browser, with a real editor. Every step
+Sixteen lessons and seven projects, in the browser, with a real editor. Every step
 is checked by **running what you wrote** and looking at what it did — not by
 comparing your text to an answer. The editor colours code as you type, using
 Plain's own lexer, so it can never disagree with the language. Get it wrong and you get a hint, not a red
@@ -517,7 +517,10 @@ cross:
 
 The lessons cover showing things, names, text, questions, loops, lists,
 things, actions, kinds, catching problems, the shapes data arrives in (JSON
-and CSV), and writing your own HTML, CSS and markdown. Then you build:
+and CSV), writing your own HTML, CSS and markdown, and then the back end: a
+program that answers, a table that keeps what people typed, and forms. Every
+line of every example is explained in ordinary words, one line at a time.
+Then you build:
 
 | Project | What you make | What it teaches |
 |---|---|---|
@@ -527,6 +530,7 @@ and CSV), and writing your own HTML, CSS and markdown. Then you build:
 | A world in three dimensions | A 3D world you walk around | the world engine |
 | A title sequence | A film with fades and captions | the video engine |
 | The same program in eleven languages | Your own program in all of them, and the runtime under Rust and C | how it all maps over, and the price each language charges |
+| A guest book | A page anybody can write on, still there tomorrow | routes, forms, tables, visitors, and not being vandalised |
 
 Plus a lesson on keeping things after the program stops, so a high score can
 actually survive.
@@ -684,7 +688,7 @@ engines/net/          fetching, and answering as a web server: routes,
 engines/mail/         sending email, and the shape a message goes in
 bin/parts.js          fetching and recording parts other people wrote
 engines/parts/        what a part says about itself, read before it is run
-tests/run-tests.js     380 checks, no framework, 11 languages executed
+tests/run-tests.js     391 checks, no framework, 11 languages executed
 ```
 
 ## Tests

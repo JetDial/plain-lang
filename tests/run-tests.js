@@ -3062,8 +3062,9 @@ function readable(source) {
 }
 
 function plainBlocks(html) {
-  // Blocks marked as shell are lines to type in a terminal, not Plain.
-  return [...String(html || '').matchAll(/<pre(?! class="shell")[^>]*>([\s\S]*?)<\/pre>/g)]
+  // Only an unmarked <pre> holds Plain. A marked one is something else:
+  // lines to type in a terminal, or a piece of markup being pointed at.
+  return [...String(html || '').matchAll(/<pre>([\s\S]*?)<\/pre>/g)]
     .map(found => found[1]
       .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
       .replace(/&quot;/g, '"').replace(/&#39;/g, "'")

@@ -15,16 +15,29 @@ const has = (source, ...words) =>
 const said = (lines, text) =>
   lines.some(line => String(line).toLowerCase().includes(String(text).toLowerCase()));
 
+// Every lesson shows a few lines and then says, in ordinary words, what each
+// one is doing. Reading code is a skill of its own, and it is learned by
+// being shown line by line - not by being told the names of things.
+const walk = (rows) => '<div class="lines">' + rows.map(([code, means]) =>
+  `<div><code>${String(code).replace(/&/g, '&amp;').replace(/</g, '&lt;')}</code><span>${means}</span></div>`
+).join('') + '</div>';
+
 export const LESSONS = [
   {
     id: 'showing',
     title: 'Showing things',
-    teach: `
-<p>A Plain program is a list of sentences, one to a line. The first one to
-learn is <code>show</code>, which writes something out.</p>
+    teach: `<p>A Plain program is a list of instructions, one to a line, and the computer
+does them from the top down like a recipe.</p>
+<p>The first instruction to learn is <code>show</code>. It means: put this on
+the screen where I can see it.</p>
 <pre>show "Hello!"
 show 6 times 7</pre>
-<p>Text goes in "double quotes". Numbers do not.</p>`,
+` + walk([
+      ['show "Hello!"', 'Put the words <b>Hello!</b> on the screen. The quote marks say "these are words, not an instruction" - so Plain does not try to understand them, it just shows them.'],
+      ['show 6 times 7', 'Work out 6 times 7, then show the answer: <b>42</b>. No quote marks, so Plain does the sum instead of writing "6 times 7".']
+    ]) + `
+<p>That is the whole difference between the two lines: <b>quotes mean words,
+no quotes means work it out</b>.</p>`,
     task: 'Show a greeting of your own, then show what 12 times 12 is.',
     start: 'show "Hello!"\n',
     check: ({ lines }) => {
@@ -37,15 +50,21 @@ show 6 times 7</pre>
   {
     id: 'names',
     title: 'Names hold values',
-    teach: `
-<p><code>make</code> gives a value a name. <code>set</code> changes one that
-already exists.</p>
+    teach: `<p>A program needs somewhere to put things it will want again - a score, a
+name, a total. That is what a <i>name</i> is: a labelled box.</p>
 <pre>make score be 0
 set score to 10
 show score</pre>
-<p>There are shortcuts for the two things people do most:</p>
-<pre>add 5 to score
-take 2 from score</pre>`,
+` + walk([
+      ['make score be 0', 'Get a box, write <b>score</b> on the side, and put <b>0</b> in it. "make" is for the first time only.'],
+      ['set score to 10', 'The box already exists. Take out what was in it and put <b>10</b> in instead.'],
+      ['show score', 'Show what is <i>in</i> the box - 10 - not the word "score". No quote marks, remember.']
+    ]) + `
+<p>Two shortcuts, because adding and taking away is what people do most:</p>
+` + walk([
+      ['add 5 to score', 'Whatever is in the box, make it 5 bigger.'],
+      ['take 2 from score', 'Whatever is in the box, make it 2 smaller.']
+    ]) + ``,
     task: 'Make a name called <code>score</code>, add 10 to it twice, then show it. It should end up as 20.',
     start: 'make score be 0\n',
     check: ({ lines, source }) => {
@@ -58,12 +77,18 @@ take 2 from score</pre>`,
   {
     id: 'text',
     title: 'Putting values inside text',
-    teach: `
-<p>Curly braces drop a value into the middle of some text.</p>
+    teach: `<p>You often want to show words and a value together - "Hello, Ada" rather
+than "Ada" on its own. Curly braces do that.</p>
 <pre>make name be "Ada"
 show "Hello, {name}!"</pre>
-<p>Anything can go in the braces, even a sum:</p>
-<pre>show "Two dozen is {2 times 12}"</pre>`,
+` + walk([
+      ['make name be "Ada"', 'A box called <b>name</b> with the word Ada in it.'],
+      ['show "Hello, {name}!"', 'Everything inside the quotes is words - <i>except</i> what is in the curly braces. Plain swaps <code>{name}</code> for what is in the box, and shows <b>Hello, Ada!</b>']
+    ]) + `
+<p>Think of the braces as a gap you leave for Plain to fill in. Anything can
+go in the gap, even a sum:</p>
+<pre>show "Two dozen is {2 times 12}"</pre>
+<p>which shows <b>Two dozen is 24</b>.</p>`,
     task: 'Make a name and an age, then show one sentence that uses both.',
     start: 'make name be "Ada"\nmake age be 36\n',
     check: ({ lines, source }) => {
@@ -78,17 +103,26 @@ show "Hello, {name}!"</pre>
   {
     id: 'questions',
     title: 'Asking questions',
-    teach: `
-<p><code>if</code> runs some lines only when something is true. Blocks always
-finish with <code>end</code>.</p>
+    teach: `<p>So far every line has happened. Often you want a line to happen
+<i>only sometimes</i> - only if the score is high enough, only if the person
+is old enough. That is what <code>if</code> is for.</p>
 <pre>if score is above 10
     show "well done"
 otherwise
     show "keep going"
 end</pre>
-<p>Questions read the way you say them: <code>is</code>, <code>is not</code>,
-<code>is above</code>, <code>is below</code>, <code>is at least</code>,
-<code>is at most</code>.</p>`,
+` + walk([
+      ['if score is above 10', 'Ask a question. If the answer is yes, do the lines underneath.'],
+      ['&nbsp;&nbsp;&nbsp;&nbsp;show "well done"', 'This happens only when the answer was yes. It is pushed in from the left so you can see at a glance which lines belong to the question.'],
+      ['otherwise', 'And if the answer was no, do these instead.'],
+      ['&nbsp;&nbsp;&nbsp;&nbsp;show "keep going"', 'This happens only when the answer was no.'],
+      ['end', 'The question is finished. Lines after this happen either way.']
+    ]) + `
+<p><b>Every block in Plain finishes with <code>end</code></b>, so you can
+always see where something stops.</p>
+<p>The questions read the way you would say them out loud: <code>is</code>,
+<code>is not</code>, <code>is above</code>, <code>is below</code>,
+<code>is at least</code>, <code>is at most</code>.</p>`,
     task: 'Make a name called <code>age</code>. Show "grown up" if it is at least 18, "teenager" if it is at least 13, and "child" otherwise.',
     start: 'make age be 15\n',
     check: ({ lines, source }) => {
@@ -102,21 +136,30 @@ end</pre>
   {
     id: 'repeating',
     title: 'Doing something again',
-    teach: `
-<p>Three ways to repeat, all of them saying what they do:</p>
+    teach: `<p>Computers are good at doing the same thing over and over. Rather than
+writing a line ten times, you write it once and say how often.</p>
 <pre>repeat 3 times
     show "again"
-end
-
-repeat with n from 1 to 5
-    show n
-end
-
-while lives is above 0
-    take 1 from lives
 end</pre>
-<p><code>stop</code> leaves a loop early. <code>next</code> skips to the next
-turn.</p>`,
+` + walk([
+      ['repeat 3 times', 'Do the lines underneath, three times over.'],
+      ['&nbsp;&nbsp;&nbsp;&nbsp;show "again"', 'This is the line being repeated. It runs three times, so "again" appears three times.'],
+      ['end', 'The end of what is being repeated.']
+    ]) + `
+<p>Usually you want to know <i>which</i> turn you are on - to number a list,
+or build a times table. Then you give the turn a name:</p>
+` + walk([
+      ['repeat with n from 1 to 5', 'Do the lines underneath five times. On the first turn <b>n</b> is 1, then 2, and so on up to 5.'],
+      ['&nbsp;&nbsp;&nbsp;&nbsp;show n', 'Shows 1, then 2, then 3, then 4, then 5 - one on each turn.'],
+      ['end', '']
+    ]) + `
+<p>And when you do not know how many turns it will take, you repeat until
+something changes:</p>
+` + walk([
+      ['while lives is above 0', 'Keep going for as long as that stays true. Check the question, do the lines, check again.'],
+      ['&nbsp;&nbsp;&nbsp;&nbsp;take 1 from lives', 'Something in here has to change, or it never stops.'],
+      ['end', '']
+    ]) + ``,
     task: 'Show the 7 times table, from 7 up to 70, one line each.',
     start: 'repeat with n from 1 to 10\n\nend\n',
     check: ({ lines }) => {
@@ -133,16 +176,22 @@ turn.</p>`,
   {
     id: 'lists',
     title: 'Lists',
-    teach: `
-<p>A list holds several values in order. Lists count from 1.</p>
+    teach: `<p>One box holds one thing. A <i>list</i> is a box that holds several, in
+order - a shopping list, the scores in a game, the people in a room.</p>
 <pre>make shopping be a list of "bread", "milk"
 add "apples" to shopping
-show item 1 of shopping
-show length of shopping</pre>
-<p>To go through the whole list:</p>
-<pre>for each item in shopping
-    show item
-end</pre>`,
+show item 1 of shopping</pre>
+` + walk([
+      ['make shopping be a list of "bread", "milk"', 'A box called <b>shopping</b> holding two things, in that order.'],
+      ['add "apples" to shopping', 'Put another one on the end. The list is now three long.'],
+      ['show item 1 of shopping', 'Show the first thing: <b>bread</b>. Plain counts from 1, because that is how people count - the first is item 1, not item 0.']
+    ]) + `
+<p>Doing something to every one of them is a loop that names each in turn:</p>
+` + walk([
+      ['for each item in shopping', 'Go through the list from the front. Each time round, <b>item</b> is the next thing on it.'],
+      ['&nbsp;&nbsp;&nbsp;&nbsp;show item', 'Runs once for each thing on the list: bread, then milk, then apples.'],
+      ['end', '']
+    ]) + ``,
     task: 'Build a list of at least three things, add one more, then show each one on its own line.',
     start: 'make shopping be a list of "bread", "milk"\n',
     check: ({ lines, source }) => {
@@ -155,12 +204,20 @@ end</pre>`,
   {
     id: 'things',
     title: 'Things with named values',
-    teach: `
-<p>When several values belong together, keep them in one thing.</p>
+    teach: `<p>Sometimes several values belong together: a person has a name <i>and</i> an
+age <i>and</i> a town. Keeping them in three separate boxes gets confusing
+fast. A <i>thing</i> keeps them in one, each with a label.</p>
 <pre>make player be { name: "Ada", health: 100 }
 show name of player
 set the health of player to 80</pre>
-<p><code>something of something</code> is how you read a value out.</p>`,
+` + walk([
+      ['make player be { name: "Ada", health: 100 }', 'One box called <b>player</b> holding two labelled values. The curly braces gather them up; the labels are on the left of each colon.'],
+      ['show name of player', 'Reach into the box and read the one labelled <b>name</b>. Shows Ada.'],
+      ['set the health of player to 80', 'Reach in and change the one labelled <b>health</b>. The name is untouched.']
+    ]) + `
+<p><code>something of something</code> is the shape to remember: the label
+first, then what it belongs to - the way you would say "the name of the
+player" out loud.</p>`,
     task: 'Make a thing with a name and a health. Take 30 off its health, then show a sentence with both values in it.',
     start: 'make player be { name: "Ada", health: 100 }\n',
     check: ({ lines, source }) => {
@@ -173,16 +230,22 @@ set the health of player to 80</pre>
   {
     id: 'actions',
     title: 'Actions of your own',
-    teach: `
-<p>An action is a sentence you teach Plain. It reads the same when you write
-it and when you use it.</p>
+    teach: `<p>When you find yourself writing the same handful of lines again, give them a
+name and write them once. That is an <i>action</i>: your own instruction,
+which then works exactly like Plain's own.</p>
 <pre>to greet with person
     give back "Hello, " joined with person
 end
 
 show greet with "world"</pre>
-<p><code>give back</code> hands a value to whoever asked. An action can also
-just do something, with no <code>give back</code> at all.</p>`,
+` + walk([
+      ['to greet with person', 'Teach Plain a new instruction called <b>greet</b>. It expects one thing to be handed to it, and inside these lines that thing is called <b>person</b>.'],
+      ['&nbsp;&nbsp;&nbsp;&nbsp;give back "Hello, " joined with person', '<b>joined with</b> glues two pieces of text together. <b>give back</b> hands the answer to whoever asked, and stops here.'],
+      ['end', 'The end of the instruction.'],
+      ['show greet with "world"', 'Use it. "world" goes in as <b>person</b>, "Hello, world" comes back, and show puts it on the screen.']
+    ]) + `
+<p>An action does not have to give anything back - some just do something. And
+you can use one anywhere in your program, even above the place you wrote it.</p>`,
     task: 'Write an action that takes a number and gives back double it, then show it used twice with different numbers.',
     start: 'to double with n\n\nend\n',
     check: ({ lines, source }) => {
@@ -195,8 +258,9 @@ just do something, with no <code>give back</code> at all.</p>`,
   {
     id: 'kinds',
     title: 'Kinds of your own',
-    teach: `
-<p>A kind is a sort of thing: the values it always has, and what it can do.</p>
+    teach: `<p>A <i>thing</i> is one bag of labelled values. A <i>kind</i> is a pattern for
+making lots of them the same shape - and it can carry instructions of its
+own, so a dog knows how to bark without you writing it out each time.</p>
 <pre>a kind called Dog
     has name
     has sound be "woof"
@@ -208,8 +272,16 @@ end
 
 make rex be a new Dog with name "Rex"
 tell rex to speak</pre>
-<p>Inside an action, <code>me</code> is the thing itself. Another kind can be
-<code>based on</code> this one and keep everything it has.</p>`,
+` + walk([
+      ['a kind called Dog', 'Describe a sort of thing. Nothing is made yet - this is the pattern, not a dog.'],
+      ['&nbsp;&nbsp;&nbsp;&nbsp;has name', 'Every Dog has a name. No value here, so it must be filled in when one is made.'],
+      ['&nbsp;&nbsp;&nbsp;&nbsp;has sound be "woof"', 'Every Dog has a sound, and unless you say otherwise it is "woof".'],
+      ['&nbsp;&nbsp;&nbsp;&nbsp;to speak', 'An instruction that belongs to Dogs. Inside it, <b>me</b> means the particular dog being spoken to.'],
+      ['make rex be a new Dog with name "Rex"', 'Now make one, and fill in the name. It gets "woof" for free.'],
+      ['tell rex to speak', 'Ask that dog to do its own instruction. Shows <b>Rex says woof</b>.']
+    ]) + `
+<p><code>tell</code> when you just want it done; <code>ask</code> when you want
+the answer back: <code>show ask rex to fetch with "ball"</code>.</p>`,
     task: 'Write a kind with at least one value and one action, make two of them with different values, and tell both to do something.',
     start: 'a kind called Dog\n    has name\n\nend\n',
     check: ({ lines, source }) => {
@@ -223,18 +295,19 @@ tell rex to speak</pre>
   {
     id: 'keeping',
     title: 'Keeping things after the program stops',
-    teach: `
-<p>Everything a program makes is forgotten when it finishes - unless you ask
-Plain to remember it.</p>
-<pre>remember 12 as "best score"
-show remembered "best score"</pre>
-<p>The first time a program runs there is nothing there yet, so say what to
-use instead:</p>
-<pre>make best be remembered "best score" or 0</pre>
-<p>And because keeping the highest of something is so common:</p>
-<pre>remember score as "best score" if it is bigger</pre>
-<p>Also: <code>forget "best score"</code>, <code>everything remembered</code>,
-and <code>if "best score" is remembered</code>.</p>`,
+    teach: `<p>When a program stops, everything it was holding is gone. That is fine for a
+sum and hopeless for a high score. <code>remember</code> puts something
+somewhere it will still be next time.</p>
+<pre>make best be remembered "best score" or 0
+remember 12 as "best score"</pre>
+` + walk([
+      ['make best be remembered "best score" or 0', 'Look for something kept under the label <b>best score</b>. If this is the very first run there is nothing there, so use 0 instead. Without the "or 0" the first run would have nothing to work with.'],
+      ['remember 12 as "best score"', 'Put 12 away under that label. Next time the program runs, it is still there.']
+    ]) + `
+<p>The label is just a word you choose, and it has nothing to do with the name
+of any box - it is how you find the value again later.</p>
+<p>In a terminal this lives in a small file beside your program; on a page it
+lives in the browser. Either way you do not have to set anything up.</p>`,
     task: 'Keep a best score. Read it with a fallback of 0, make up a score, keep it only if it beats the old one, then show both.',
     start: 'make best be remembered "best score" or 0\n',
     check: ({ lines, source }) => {
@@ -248,15 +321,23 @@ and <code>if "best score" is remembered</code>.</p>`,
   {
     id: 'problems',
     title: 'When things go wrong',
-    teach: `
-<p>Some things fail: dividing by zero, a value that is not there. Instead of
-stopping the whole program, catch it.</p>
+    teach: `<p>Some lines can go wrong through no fault of yours: a sum divides by zero, a
+file is not there, somebody types letters where a number should be. Left
+alone, that stops the whole program. <code>try</code> catches it instead.</p>
 <pre>try
     show 1 divided by 0
 if it fails
     show "I could not do that: {the problem}"
 end</pre>
-<p>You can raise your own, too:</p>
+` + walk([
+      ['try', 'Do the lines underneath, but be ready for them to go wrong.'],
+      ['&nbsp;&nbsp;&nbsp;&nbsp;show 1 divided by 0', 'This cannot be done. Normally the program would stop right here.'],
+      ['if it fails', 'It went wrong, so carry on from here instead of stopping.'],
+      ['&nbsp;&nbsp;&nbsp;&nbsp;show "I could not do that: {the problem}"', '<b>the problem</b> holds what went wrong, in words. Showing it is how you find out.'],
+      ['end', '']
+    ]) + `
+<p>You can raise one yourself when something is wrong in a way only you can
+know about:</p>
 <pre>report a problem saying "there is nobody to share with"</pre>`,
     task: 'Write an action that shares sweets between people, and reports a problem when there are no people. Call it twice: once that works, once that fails, and catch the failure.',
     start: 'to share with sweets and people\n\nend\n',
@@ -271,28 +352,27 @@ end</pre>
   {
     id: 'shapes',
     title: 'The shapes data comes in',
-    teach: `
-<p>Two ways nearly every program on earth writes things down. Plain reads and
-writes both, so what a web service sends back, or a spreadsheet saves, can be
-worked with as ordinary lists and things.</p>
-<p><b>JSON</b> is what web services speak:</p>
+    teach: `<p>Data written down by other programs nearly always arrives in one of two
+shapes. Plain reads and writes both, so you do not have to pick them apart
+by hand.</p>
+<p><b>JSON</b> is what web services send back. It is labelled values, like a
+thing, written as text:</p>
 <pre>make person be thing from json '{"name": "Ada", "years": [1815, 1852]}'
-show value "name" of person
-show item 1 of value "years" of person
-show json of a list of 1, "two", yes</pre>
-<p><b>CSV</b> is what spreadsheets speak. <code>rows of</code> hands back a
-list of rows, and each row is a list of what was in it:</p>
+show value "name" of person</pre>
+` + walk([
+      ['make person be thing from json \'...\'', 'Take that text and turn it into a real thing you can read from. Note the <b>single</b> quotes: JSON is full of curly braces, and inside "double quotes" Plain would think braces were gaps to fill in.'],
+      ['show value "name" of person', 'Read the labelled value out. Shows Ada.']
+    ]) + `
+<p><b>CSV</b> is what spreadsheets save. It is rows of values with commas
+between them:</p>
 <pre>make table be rows of "name,note
 Ada,\\"likes, commas\\"
 Bob,two"
-show item 1 of item 2 of table        # Ada
-show item 2 of item 2 of table        # likes, commas
-show csv of table</pre>
-<p>Notice the second one: a comma inside quotes stays part of the text
-rather than splitting the row. That is the part people usually get wrong.</p>
-<p>Single quotes are used for the JSON above because JSON is full of curly
-braces, and Plain fills in braces inside "double quotes". Single quotes are
-taken exactly as typed.</p>`,
+show item 2 of item 2 of table</pre>
+` + walk([
+      ['make table be rows of "..."', 'Turn that text into a list of rows, and each row into a list of what was in it.'],
+      ['show item 2 of item 2 of table', 'Row 2, then column 2 of that row: <b>likes, commas</b>. Notice the comma inside it did not split the row, because it was in quotes - that is the part people usually get wrong by hand.']
+    ]) + ``,
     task: 'Read the JSON below into a name, show the town, then show the whole thing back as JSON.',
     start: `make place be thing from json '{"town": "Bath", "founded": 60}'
 `,
@@ -307,23 +387,21 @@ taken exactly as typed.</p>`,
   {
     id: 'ownmarkup',
     title: 'Your own HTML, CSS and markdown',
-    teach: `
-<p>Plain writes web pages for you, and gets out of the way when you want your
-own. Styling can be said as sentences:</p>
+    teach: `<p>Plain writes web pages for you. But sometimes you already know exactly what
+you want, and it should get out of the way. It does.</p>
+<p>Styling can be said as sentences:</p>
 <pre>make a website called "Mine"
 set the page background to "#0f1020"
 set the font to "Georgia, serif"</pre>
-<p>or written as the CSS you already know. <b>Use single quotes</b> - they are
-taken exactly as typed, which matters because CSS is mostly braces:</p>
-<pre>add style '.badge { border-radius: 999px; background: #ffd166 }'
-add html '&lt;p&gt;&lt;span class="badge"&gt;your own markup&lt;/span&gt;&lt;/p&gt;'</pre>
-<p>Anything you have named can be styled by that name:</p>
+<p>Or written as the CSS you already know. <b>Use single quotes here</b>:</p>
+` + walk([
+      ["add style '.badge { border-radius: 999px }'", 'Your own styling, taken exactly as typed. Single quotes matter: CSS is mostly curly braces, and inside "double quotes" Plain treats braces as gaps to fill in - so your CSS would come out mangled.'],
+      ['add html \'&lt;p&gt;&lt;b&gt;mine&lt;/b&gt;&lt;/p&gt;\'', 'Your own markup, put on the page exactly as written.'],
+      ['add markdown \'## A heading with **bold**\'', 'The marks people already type. This one is <i>read</i> and turned into a page, so a stray &lt; in your writing stays a &lt;.']
+    ]) + `
+<p>Anything you have named can be styled by that name later:</p>
 <pre>add a title "Handmade" named crown
-style crown with 'color: #ffd166'</pre>
-<p>And when the words matter more than the markup, write markdown. It is
-<i>read</i> rather than passed through, so a stray &lt; in your writing stays
-a &lt;:</p>
-<pre>add markdown '## A heading with **bold** and [a link](https://example.com)'</pre>`,
+style crown with 'color: #ffd166'</pre>`,
     task: 'Make a website, give it a background of your choosing, add a title with a name, and style that title by its name.',
     start: `make a website called "Mine"
 set the page background to "#0f1020"
@@ -334,6 +412,163 @@ add a title "Handmade" named crown
       if (!site || !site.styles || !site.styles.length) return 'Set a background, or add some style of your own.';
       if (!has(source, 'named')) return 'Give the title a name: add a title "..." named crown';
       if (!has(source, 'style ')) return 'Now style it by that name: style crown with \'color: #ffd166\'';
+      return true;
+    }
+  },
+  {
+    id: 'serving',
+    title: 'A program that answers',
+    teach: `
+<p>Everything so far has run once, top to bottom, and stopped. A program
+behind a website is the other way round: it starts, and then <i>waits</i>.
+Somebody opens an address, the program wakes up, works out an answer, and
+goes back to waiting.</p>
+<p>So instead of one list of instructions, you write several small ones and
+say which address each belongs to.</p>
+<pre>when someone visits "/"
+    answer with "&lt;h1&gt;Hello&lt;/h1&gt;"
+end
+
+when someone visits "/about"
+    answer with "&lt;p&gt;A page about me.&lt;/p&gt;"
+end</pre>
+` + walk([
+      ['when someone visits "/"', 'Not "do this now". It means: <b>keep this, and do it whenever</b> somebody opens the front page. The "/" is the address, the bit after the site name.'],
+      ['&nbsp;&nbsp;&nbsp;&nbsp;answer with "..."', 'What to send back. Whatever you answer with is what appears in their browser.'],
+      ['end', 'The end of that one. The next "when someone visits" is a different address.']
+    ]) + `
+<p>In your terminal you would finish with <code>start serving on port
+3000</code> and open <code>localhost:3000</code>. Here in the course there is
+no port to open, so <b>Run</b> just sets the answers up and shows you what
+each one would send back.</p>
+<p>Two things worth having straight away:</p>
+` + walk([
+      ['answer with "..."', 'Anything - a whole page of markup, or a single word.'],
+      ['send them to "/"', 'Do not answer at all; tell their browser to go and look at a different address instead. This is what you do after somebody fills in a form.'],
+      ['answer that nothing is there', 'The "404" everybody has seen. Use it when they ask for something that does not exist.']
+    ]) + ``,
+    task: 'Set up two addresses: <code>"/"</code> answering with a greeting, and <code>"/about"</code> answering with something about you.',
+    start: `when someone visits "/"
+    answer with "<h1>Hello</h1>"
+end
+`,
+    check: ({ runtime }) => {
+      const server = runtime.server;
+      if (!server || server.routes.length < 2) return 'Two addresses are wanted: "/" and "/about".';
+      const paths = server.routes.map(route => route.path);
+      if (!paths.includes('/')) return 'One of them should be "/", the front page.';
+      if (!paths.includes('/about')) return 'The other should be "/about".';
+      for (const route of server.routes) {
+        server.answer = null;
+        route.run();
+        if (!server.answer || !String(server.answer.body).trim()) {
+          return `The address "${route.path}" does not answer with anything yet.`;
+        }
+      }
+      return true;
+    }
+  },
+
+  {
+    id: 'tables',
+    title: 'Keeping things people typed',
+    teach: `
+<p>A list is forgotten the moment the program stops. <code>remember</code>
+keeps one value. But a website needs to keep <i>many</i> of something - every
+note, every order, every comment - and be able to find one again later.</p>
+<p>That is a <b>table</b>. Think of a notebook with numbered lines: you write
+things on new lines, and the line number is how you find one again.</p>
+<pre>make notes be a table called "notes"
+save { title: "Buy bread", done: no } in notes
+show number of rows in notes</pre>
+` + walk([
+      ['make notes be a table called "notes"', 'Open the notebook called <b>notes</b>. If it does not exist yet, it is started. If it does, everything already in it is still there - including from the last time the program ran.'],
+      ['save { title: "Buy bread", done: no } in notes', 'Write a new line in it. What you save is a thing - labelled values, as in an earlier lesson. Plain gives it a number of its own, called its <b>id</b>.'],
+      ['show number of rows in notes', 'How many lines the notebook has.']
+    ]) + `
+<p>Getting things back out is the part that matters. There are four questions
+you will ask over and over:</p>
+` + walk([
+      ['every row of notes', 'All of them, as a list you can go through with "for each".'],
+      ['row 3 of notes', 'The one numbered 3 - the id it was given when it was saved.'],
+      ['rows of notes where "done" is no', 'Only the ones that match. This is the one you will use most.'],
+      ['rows of notes sorted by "title"', 'All of them, in order.']
+    ]) + `
+<p>And two for changing what is there:</p>
+` + walk([
+      ['change row 3 of notes to { title: "Buy two loaves", done: no }', 'Replace line 3 with something else. It keeps the same number.'],
+      ['remove row 3 from notes', 'Cross that line out.']
+    ]) + `
+<p>Every row is an ordinary thing, so <code>title of note</code> works exactly
+the way it did in the lesson on things.</p>`,
+    task: 'Make a table, save two things in it, then show how many there are and the title of the first one.',
+    start: `make notes be a table called "practice"
+empty the table notes
+`,
+    check: ({ lines, source, runtime }) => {
+      if (!has(source, 'a table called')) return 'Start with: make notes be a table called "practice"';
+      if (!has(source, 'save ')) return 'Put something in it: save { title: "..." } in notes';
+      if (!lines.some(line => String(line).trim() === '2')) return 'Show how many rows there are - it should be 2.';
+      if (lines.length < 2) return 'Show the title of one of them as well.';
+      return true;
+    }
+  },
+
+  {
+    id: 'forms',
+    title: 'Taking what somebody typed, and knowing who they are',
+    teach: `
+<p>A page that only shows things is half a website. The other half is a
+<b>form</b>: a box somebody types in and a button they press.</p>
+<p>When they press it, their browser sends what they typed to an address of
+your choosing. So you need two pieces: one that shows the form, and one that
+catches what was sent.</p>
+<pre>when someone visits "/"
+    answer with "&lt;form method='post' action='/notes'&gt;
+        &lt;input name='title'&gt;&lt;button&gt;Add&lt;/button&gt;&lt;/form&gt;"
+end
+
+when someone sends to "/notes"
+    save { title: the form field "title" } in notes
+    send them to "/"
+end</pre>
+` + walk([
+      ['when someone <b>visits</b> "/"', 'Somebody is <i>looking</i>. Send back the page with the form on it.'],
+      ["&lt;input name='title'&gt;", 'The box they type in. The <b>name</b> is the label their browser puts on it, and it is how you fetch it back on the other side.'],
+      ["action='/notes'", 'Where the browser should send it when the button is pressed.'],
+      ['when someone <b>sends</b> to "/notes"', 'Somebody is <i>sending</i>, not looking. A different sentence, so the two never get confused.'],
+      ['the form field "title"', 'What they typed in the box labelled title.'],
+      ['send them to "/"', 'Do not answer with a page. Tell their browser to go back to the front page, which will now show the new note. Without this, pressing refresh would send it all over again.']
+    ]) + `
+<p><b>Never put what somebody typed straight onto a page.</b> They can type
+markup, and it will be treated as markup. Turn the dangerous letters into
+harmless ones first - the guest book project does exactly that.</p>
+<p>The other half of a real site is knowing <i>who</i> is asking. Every
+browser is quietly given a tag, and Plain keeps things against that tag:</p>
+` + walk([
+      ['sign this visitor in as "Ada"', 'Remember, for this browser only, that it is Ada.'],
+      ['who is signed in', 'Gives back "Ada" for that browser, and <b>nothing</b> for anybody else. This is how one person sees their things and not yours.'],
+      ['keep 3 as "basket" for this visitor', 'Keep anything you like against them, not only a name.']
+    ]) + `
+<p>None of it leaves the machine your program runs on - the browser only
+carries the tag.</p>`,
+    task: 'Set up an address people can send to. Take a form field called <code>name</code>, sign the visitor in under it, then send them back to "/".',
+    start: `when someone sends to "/hello"
+
+end
+`,
+    check: ({ runtime }) => {
+      const server = runtime.server;
+      if (!server || !server.routes.length) return 'Start with: when someone sends to "/hello"';
+      const posting = server.routes.find(route => route.method === 'POST');
+      if (!posting) return 'Use "when someone sends to", not "when someone visits" - a form is sending, not looking.';
+      server.asked = { ...server.asked, tag: 'learner', sent: 'name=Ada', kind: 'application/x-www-form-urlencoded' };
+      server.answer = null;
+      posting.run();
+      const who = server.visitors.get('learner') || {};
+      if (who.signedIn === undefined) return 'Sign them in with what they typed: sign this visitor in as the form field "name"';
+      if (String(who.signedIn) !== 'Ada') return `They typed "Ada", but you signed them in as "${who.signedIn}" - read the field called name.`;
+      if (!server.answer || server.answer.code !== 303) return 'Finish by sending them somewhere: send them to "/"';
       return true;
     }
   }
@@ -685,6 +920,145 @@ they get real Go, not a pile of Plain they have to learn first.</p>
 <p>Tick this off once you have opened one of those files.</p>`,
         check: ({ translated }) => {
           if (!translated) return 'Have a translate open here too, so you can compare it with the file.';
+          return true;
+        }
+      }
+    ]
+  },
+  {
+    id: 'guestbook',
+    title: 'Project: a guest book',
+    about: 'A page anybody can write on, that is still there tomorrow.',
+    steps: [
+      {
+        task: 'Make a table for the messages, and an address that shows how many there are.',
+        teach: `
+<p>This is a whole small website: a page, a form, somewhere to keep what
+people write, and their name against it. Four steps.</p>
+<p>Start at the back. Before there is anything to show, there has to be
+somewhere to keep it.</p>`,
+        start: `make book be a table called "guestbook"
+empty the table book
+
+when someone visits "/"
+
+end
+`,
+        check: ({ runtime }) => {
+          const server = runtime.server;
+          if (!runtime.tables || !server || !server.routes.length) {
+            return 'Two things: a table called "guestbook", and "when someone visits /".';
+          }
+          server.answer = null;
+          server.routes[0].run();
+          if (!server.answer || !String(server.answer.body).includes('0')) {
+            return 'Answer with how many messages there are: answer with "{number of rows in book} so far"';
+          }
+          return true;
+        }
+      },
+      {
+        task: 'Add the form to that page, and an address it sends to that saves the message.',
+        teach: `
+<p>The form goes on the page you already have. Its <code>action</code> is the
+address you are about to write, and its <code>method</code> is
+<code>post</code> - which is what makes it a <i>sending</i> rather than a
+<i>looking</i>.</p>
+<pre class="markup">&lt;form method='post' action='/write'&gt;
+    &lt;input name='words'&gt;&lt;button&gt;Sign&lt;/button&gt;
+&lt;/form&gt;</pre>
+<p>Then catch it with <code>when someone sends to "/write"</code>, save what
+they typed, and send them back to "/".</p>`,
+        check: ({ runtime }) => {
+          const server = runtime.server;
+          const posting = server && server.routes.find(route => route.method === 'POST');
+          if (!posting) return 'You need "when someone sends to ..." to catch the form.';
+          const looking = server.routes.find(route => !route.method || route.method === 'GET');
+          if (!looking) return 'Keep the page that shows the form as well.';
+          server.answer = null;
+          looking.run();
+          if (!/<form/i.test(String(server.answer && server.answer.body))) {
+            return 'The page should answer with a form in it.';
+          }
+          server.asked = { ...server.asked, tag: 'learner', sent: 'words=hello+there', kind: 'application/x-www-form-urlencoded' };
+          server.answer = null;
+          posting.run();
+          const table = [...runtime.tables.tables.values()][0];
+          if (!table || !table.read().rows.length) return 'Save what they typed: save { words: the form field "words" } in book';
+          if (!server.answer || server.answer.code !== 303) return 'Send them back afterwards: send them to "/"';
+          return true;
+        }
+      },
+      {
+        task: 'Show the messages on the page - and make what people typed safe to show.',
+        teach: `
+<p>Now put them on the page. Go through the table and glue a line together for
+each one.</p>
+<p>And here is the part that matters. Somebody will type
+<code>&lt;b&gt;shouting&lt;/b&gt;</code>, or worse, and if you put it straight
+on the page the browser will obey it. Swap the dangerous letters for harmless
+ones first:</p>
+<pre>to safely with words
+    make out be text of words
+    set out to replace "&amp;" with "&amp;amp;" in out
+    set out to replace "&lt;" with "&amp;lt;" in out
+    give back out
+end</pre>
+<p>Do the <code>&amp;</code> first, or you will go back over your own work.</p>`,
+        check: ({ runtime }) => {
+          const server = runtime.server;
+          const looking = server && server.routes.find(route => !route.method || route.method === 'GET');
+          const posting = server && server.routes.find(route => route.method === 'POST');
+          if (!looking || !posting) return 'Keep both addresses from the last step.';
+
+          server.asked = { ...server.asked, tag: 'learner', sent: 'words=%3Cb%3Eshouting%3C%2Fb%3E', kind: 'application/x-www-form-urlencoded' };
+          server.answer = null;
+          posting.run();
+
+          server.answer = null;
+          looking.run();
+          const page = String(server.answer && server.answer.body);
+          if (!/shouting/.test(page)) return 'The messages people wrote should appear on the page.';
+          if (/<b>shouting<\/b>/.test(page)) {
+            return 'Somebody typed markup and it went straight onto the page. Swap < and & for &lt; and &amp; first.';
+          }
+          return true;
+        }
+      },
+      {
+        task: 'Last: let people say who they are, and show each message with a name against it.',
+        teach: `
+<p>Add a second box to the form for a name, sign the visitor in with it, and
+put the name next to each message when you save it.</p>
+<pre>sign this visitor in as the form field "who"
+save { words: the form field "words", by: who is signed in } in book</pre>
+<p>Somebody who has not said their name yet gets <code>nothing</code> back
+from <code>who is signed in</code>, so check for that and call them
+"somebody".</p>
+<p>That is a working website: it keeps what people write, it survives being
+restarted, it knows one visitor from another, and it cannot be vandalised by
+what somebody types.</p>`,
+        check: ({ runtime }) => {
+          const server = runtime.server;
+          const posting = server && server.routes.find(route => route.method === 'POST');
+          const looking = server && server.routes.find(route => !route.method || route.method === 'GET');
+          if (!posting || !looking) return 'Keep both addresses.';
+
+          server.asked = { ...server.asked, tag: 'learner', sent: 'words=hello&who=Ada', kind: 'application/x-www-form-urlencoded' };
+          server.answer = null;
+          posting.run();
+          const who = server.visitors.get('learner') || {};
+          if (who.signedIn === undefined) return 'Sign them in: sign this visitor in as the form field "who"';
+
+          const table = [...runtime.tables.tables.values()][0];
+          const row = table.read().rows[table.read().rows.length - 1];
+          if (!row || row.by === undefined) return 'Save the name with the message: save { words: the form field "words", by: who is signed in } in book';
+
+          server.answer = null;
+          looking.run();
+          if (!/Ada/.test(String(server.answer && server.answer.body))) {
+            return 'Show the name next to the message on the page.';
+          }
           return true;
         }
       }

@@ -12,6 +12,7 @@ import { installVideo } from '../video/engine.js';
 import { installStore } from '../store/engine.js';
 import { installData } from '../data/engine.js';
 import { installParts } from '../parts/engine.js';
+import { installNet } from '../net/engine.js';
 import { mountPage, stylesheet } from '../web/render.js';
 import { translate, targetNames } from '../../src/translate/index.js';
 import { PROGRAM_STARTS } from '../../src/translate/runtimes.js';
@@ -44,6 +45,12 @@ body { margin: 0; background: #0b0d13; color: #e8ecf4;
   padding: 14px 16px; overflow-x: auto; font: 13.5px/1.6 ui-monospace, Consolas, monospace; color: #cfd6e6; }
 /* Lines to type in a terminal, not lines of Plain. */
 .teach pre.shell { background: #0c1016; border-color: #223046; color: #9fd0b4; }
+.teach .lines { margin: 14px 0 18px; border-left: 2px solid #223046; }
+.teach .lines > div { padding: 6px 0 6px 15px; }
+.teach .lines code { background: #10141e; color: #9fd0e6; padding: 2px 7px; border-radius: 5px;
+  display: inline-block; margin-bottom: 3px; }
+.teach .lines span { display: block; color: #a9b1c2; font-size: 14.5px; }
+.teach .lines b { color: #e8ecf4; font-weight: 600; }
 .teach pre.shell::before { content: "in your terminal"; display: block; color: #63788c;
   font-size: 11px; text-transform: uppercase; letter-spacing: .09em; margin-bottom: 7px; }
 .task { background: #101a2c; border: 1px solid #22344f; border-left: 3px solid #4c8dff;
@@ -275,6 +282,7 @@ export function startLearning(doc, win) {
     installStore(runtime, { window: win, document: doc });
     installData(runtime, {});
     installParts(runtime);
+    installNet(runtime, {});
 
     try {
       runtime.run(source, 'your-program.plain');
