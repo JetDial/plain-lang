@@ -14,6 +14,7 @@ import { startStudio } from '../engines/video/player.js';
 import { startDesigner } from '../engines/web/designer.js';
 import { startLearning } from '../engines/learn/app.js';
 import { mountPage, stylesheet, hrefFor } from '../engines/web/render.js';
+import { setRuntimeSource, hasRuntimeSource } from './translate/runtimes.js';
 
 const KEY_NAMES = {
   ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down',
@@ -95,7 +96,25 @@ export function editPlain(source, options = {}) {
 export function learnPlain(options = {}) {
   const win = options.window || window;
   const doc = options.document || document;
+  // Rust and C are built on real files in runtime/. A terminal reads them off
+  // the disk; here they are fetched, so the course can show your program in
+  // those two as well. The course opens either way - if these do not arrive,
+  // those two languages say so and the other nine are unaffected.
+  fetchRuntimes(win);
   return startLearning(doc, win);
+}
+
+function fetchRuntimes(win) {
+  const wanted = { rust: '/plain/runtime/rust/plain.rs', c: '/plain/runtime/c/plain.c' };
+  for (const [name, where] of Object.entries(wanted)) {
+    if (hasRuntimeSource(name)) continue;
+    const asking = (win.fetch || fetch)(where);
+    if (!asking || typeof asking.then !== 'function') continue;
+    asking
+      .then(answer => (answer.ok ? answer.text() : null))
+      .then(text => { if (text) setRuntimeSource(name, text); })
+      .catch(() => { /* the other nine languages do not mind */ });
+  }
 }
 
 // ------------------------------------------------------------------- games

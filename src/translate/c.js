@@ -17,14 +17,8 @@
 // name is written to through plain_keep, which lets go of what was there
 // before taking hold of what is arriving.
 
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 import { Emitter } from './emitter.js';
-
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const RUNTIME = path.resolve(HERE, '..', '..', 'runtime', 'c', 'plain.c');
+import { runtimeSource, PROGRAM_STARTS } from './runtimes.js';
 
 const RESERVED = new Set([
   'auto', 'break', 'case', 'char', 'const', 'continue', 'default', 'do',
@@ -393,7 +387,9 @@ export class CEmitter extends Emitter {
       this.comment('Plain is the source; this file is what it means in C.'),
       this.comment('Build it with:  cc -O2 program.c -o program -lm'),
       '',
-      readRuntime(),
+      runtimeSource('c'),
+      '',
+      `/* ----- ${PROGRAM_STARTS} ----- */`,
       ''
     ];
 
@@ -509,9 +505,3 @@ function cText(text) {
   return out + '"';
 }
 
-let held = null;
-
-function readRuntime() {
-  if (held === null) held = fs.readFileSync(RUNTIME, 'utf8').trimEnd();
-  return held;
-}

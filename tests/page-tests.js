@@ -344,10 +344,21 @@ export function runPageChecks(check) {
     editor.value = 'make x be 2\nshow x times 3';
     editor.dispatchEvent({ type: 'input' });
     doc.querySelector('[data-translate]').click();
-    const columns = doc.querySelectorAll('.pair pre');
+    const columns = doc.querySelectorAll('.pair > div');
     assert.equal(columns.length, targetNames().length, 'there should be one column per language');
-    assert.match(columns[0].textContent, /let x = 2/);
-    assert.match(columns[1].textContent, /^# Translated/m);
+    const shown = (at) => columns[at].querySelectorAll('pre')[columns[at].querySelectorAll('pre').length - 1].textContent;
+    assert.match(shown(0), /let x = 2/);
+    assert.match(shown(1), /^# Translated/m);
+
+    // Rust and C carry a runtime longer than the whole course. It is folded
+    // away, and what is left is the program the learner just wrote.
+    const rust = columns[targetNames().indexOf('rust')];
+    assert.ok(rust.querySelector('details'), 'the Rust runtime should be folded away');
+    assert.match(rust.querySelector('summary').textContent, /runtime underneath - \d+ lines/);
+    const program = rust.querySelectorAll('pre')[1].textContent;
+    assert.ok(!program.includes('fn plain_show'), 'the runtime leaked into the program');
+    assert.ok(program.split('\n').length < 40, 'the program should be short enough to read');
+    assert.match(program, /fn main\(\)/);
   });
 
   check('page: progress is kept for next time', () => {

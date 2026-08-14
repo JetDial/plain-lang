@@ -12,6 +12,7 @@ import { installVideo } from '../video/engine.js';
 import { installStore } from '../store/engine.js';
 import { mountPage, stylesheet } from '../web/render.js';
 import { translate, targetNames } from '../../src/translate/index.js';
+import { PROGRAM_STARTS } from '../../src/translate/runtimes.js';
 import { LESSONS, PROJECTS, totalSteps } from './course.js';
 import { colourEditor, HIGHLIGHT_STYLE } from './highlight.js';
 
@@ -63,6 +64,9 @@ button.act.next { background: #7ee787; border-color: #7ee787; color: #06210c; fo
 .pair pre { background: #0d1119; border: 1px solid #232a3a; border-radius: 10px; padding: 12px 14px;
   overflow: auto; max-height: 320px; font: 12px/1.55 ui-monospace, Consolas, monospace; color: #cfd6e6; }
 .pair h4 { margin: 0 0 6px; font-size: 12px; color: #8f97a9; text-transform: uppercase; letter-spacing: .09em; }
+.pair details { margin-bottom: 6px; }
+.pair summary { cursor: pointer; color: #8f97a9; font-size: 12px; padding: 4px 0; }
+.pair details[open] summary { color: #c3c9d6; }
 @media (max-width: 900px) { .learn { grid-template-columns: 1fr; } .pair { grid-template-columns: 1fr; } }
 `;
 
@@ -170,9 +174,13 @@ export function startLearning(doc, win) {
       ? `<h2>${item.title}</h2>`
       : `<h2>${item.title}</h2><p class="about">${item.about} &nbsp;·&nbsp; step ${state.step + 1} of ${item.steps.length}</p>`;
 
+    // A lesson teaches once; a project step can teach too, because some steps
+    // are worth a word of explanation before you are asked to do them.
+    const teaching = isLesson ? item.teach : (step.teach || '');
+
     page.innerHTML = `
       ${heading}
-      ${isLesson ? `<div class="teach">${item.teach}</div>` : ''}
+      ${teaching ? `<div class="teach">${teaching}</div>` : ''}
       <div class="task"><b>Your turn</b>${isLesson ? item.task : step.task}</div>
       <div class="editor"><textarea spellcheck="false"></textarea></div>
       <div class="buttons">
@@ -465,9 +473,28 @@ export function startLearning(doc, win) {
       }
       const title = doc.createElement('h4');
       title.textContent = target;
+      column.appendChild(title);
+
+      // Rust and C carry a runtime much longer than the program. Showing it
+      // first would bury the thing you came to look at, so it is folded up
+      // with a note saying how long it is - open it if you want it.
+      const split = code.indexOf(PROGRAM_STARTS);
+      if (split >= 0) {
+        const ends = code.indexOf('\n', split) + 1;
+        const runtime = code.slice(0, ends);
+        const fold = doc.createElement('details');
+        const label = doc.createElement('summary');
+        label.textContent = `the ${target} runtime underneath - ${runtime.split('\n').length} lines`;
+        const held = doc.createElement('pre');
+        held.textContent = runtime;
+        fold.appendChild(label);
+        fold.appendChild(held);
+        column.appendChild(fold);
+        code = code.slice(ends).replace(/^\n+/, '');
+      }
+
       const block = doc.createElement('pre');
       block.textContent = code;
-      column.appendChild(title);
       column.appendChild(block);
       pair.appendChild(column);
     }

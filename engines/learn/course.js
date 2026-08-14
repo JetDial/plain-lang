@@ -266,6 +266,76 @@ end</pre>
       if (lines.length < 2) return 'Show both the answer that works and the message you caught.';
       return true;
     }
+  },
+
+  {
+    id: 'shapes',
+    title: 'The shapes data comes in',
+    teach: `
+<p>Two ways nearly every program on earth writes things down. Plain reads and
+writes both, so what a web service sends back, or a spreadsheet saves, can be
+worked with as ordinary lists and things.</p>
+<p><b>JSON</b> is what web services speak:</p>
+<pre>make person be thing from json '{"name": "Ada", "years": [1815, 1852]}'
+show value "name" of person
+show item 1 of value "years" of person
+show json of a list of 1, "two", yes</pre>
+<p><b>CSV</b> is what spreadsheets speak. <code>rows of</code> hands back a
+list of rows, and each row is a list of what was in it:</p>
+<pre>make table be rows of "name,note
+Ada,\\"likes, commas\\"
+Bob,two"
+show item 1 of item 2 of table        # Ada
+show item 2 of item 2 of table        # likes, commas
+show csv of table</pre>
+<p>Notice the second one: a comma inside quotes stays part of the text
+rather than splitting the row. That is the part people usually get wrong.</p>
+<p>Single quotes are used for the JSON above because JSON is full of curly
+braces, and Plain fills in braces inside "double quotes". Single quotes are
+taken exactly as typed.</p>`,
+    task: 'Read the JSON below into a name, show the town, then show the whole thing back as JSON.',
+    start: `make place be thing from json '{"town": "Bath", "founded": 60}'
+`,
+    check: ({ lines, source }) => {
+      if (!has(source, 'thing from json')) return 'Start with: make place be thing from json \'...\'';
+      if (!said(lines, 'Bath')) return 'Show the town: show value "town" of place';
+      if (!lines.some(line => String(line).includes('{'))) return 'Show it back out with: show json of place';
+      return true;
+    }
+  },
+
+  {
+    id: 'ownmarkup',
+    title: 'Your own HTML, CSS and markdown',
+    teach: `
+<p>Plain writes web pages for you, and gets out of the way when you want your
+own. Styling can be said as sentences:</p>
+<pre>make a website called "Mine"
+set the page background to "#0f1020"
+set the font to "Georgia, serif"</pre>
+<p>or written as the CSS you already know. <b>Use single quotes</b> - they are
+taken exactly as typed, which matters because CSS is mostly braces:</p>
+<pre>add style '.badge { border-radius: 999px; background: #ffd166 }'
+add html '&lt;p&gt;&lt;span class="badge"&gt;your own markup&lt;/span&gt;&lt;/p&gt;'</pre>
+<p>Anything you have named can be styled by that name:</p>
+<pre>add a title "Handmade" named crown
+style crown with 'color: #ffd166'</pre>
+<p>And when the words matter more than the markup, write markdown. It is
+<i>read</i> rather than passed through, so a stray &lt; in your writing stays
+a &lt;:</p>
+<pre>add markdown '## A heading with **bold** and [a link](https://example.com)'</pre>`,
+    task: 'Make a website, give it a background of your choosing, add a title with a name, and style that title by its name.',
+    start: `make a website called "Mine"
+set the page background to "#0f1020"
+add a title "Handmade" named crown
+`,
+    check: ({ source, site }) => {
+      if (!has(source, 'make a website')) return 'Start with: make a website called "Mine"';
+      if (!site || !site.styles || !site.styles.length) return 'Set a background, or add some style of your own.';
+      if (!has(source, 'named')) return 'Give the title a name: add a title "..." named crown';
+      if (!has(source, 'style ')) return 'Now style it by that name: style crown with \'color: #ffd166\'';
+      return true;
+    }
   }
 ];
 
@@ -518,11 +588,17 @@ add a title "My Film" for 3 seconds
 
   {
     id: 'translate',
-    title: 'Project: read your program in another language',
-    about: 'The same program, written out in JavaScript and Python.',
+    title: 'Project: the same program in eleven languages',
+    about: 'Write it once in Plain, read it in JavaScript, Python, Java, Go, Rust, C and five more.',
     steps: [
       {
-        task: 'Write a small program with a name, a loop and an action, and get it working here.',
+        task: 'Write a small program with a name, a loop and an action of your own, and get it working here.',
+        teach: `
+<p>Plain can write your program out in eleven other languages. Not a rough
+translation - real loops, real classes, real functions, with your names kept,
+and the same answers when you run them.</p>
+<p>The point is not to leave Plain. It is that what you learn here is not
+stuck here: the loop you are about to write is the same loop in all twelve.</p>`,
         start: `to double with n
     give back n times 2
 end
@@ -534,15 +610,81 @@ end
 show "total is {total}"
 `,
         check: ({ lines, source }) => {
-          if (!has(source, 'to ')) return 'Include an action of your own.';
+          if (!has(source, 'to ')) return 'Include an action of your own: to double with n ... end';
+          if (!has(source, 'repeat')) return 'Include a loop, so you can go looking for it in the other languages.';
           if (!lines.length) return 'Show something at the end so you can compare the answers.';
           return true;
         }
       },
       {
-        task: 'Press <b>Translate</b> below the editor and read the JavaScript and Python. Find the loop you wrote in both of them.',
+        task: 'Press <b>Translate</b> below the editor. Find <i>your</i> loop in the JavaScript, then in the Python, then in the Go.',
+        teach: `
+<p>Read three of them side by side and you will see the same shape three
+times over. That is worth more than any explanation of what a loop is.</p>
+<p>Look at what changes and what does not. Python has no braces, Go insists
+on types, Java wraps everything in a class - but the loop is the loop.</p>`,
         check: ({ translated }) => {
           if (!translated) return 'Press Translate to see your program in the other languages.';
+          return true;
+        }
+      },
+      {
+        task: 'Open the folded <b>runtime</b> under Rust or C, and have a look at what is underneath.',
+        teach: `
+<p>Nine of the languages need only a handful of small helpers. Two of them
+need a great deal more, and it is worth knowing why.</p>
+<p><b>Rust</b> wants to know the type of every value and who owns it. Plain
+does not work that way - a name holds whatever you put in it - so every Plain
+value becomes one Rust type, shared with <code>Rc</code>.</p>
+<p><b>C</b> has none of the pieces at all: no type that holds anything, no
+lists that grow, no text that joins, and no way to give memory back. So all
+four are built, and what your program made is swept up at the end of every
+turn of a loop.</p>
+<p>That is the honest price of those two languages, and now you have seen
+it rather than been told about it.</p>`,
+        check: ({ translated }) => {
+          if (!translated) return 'Press Translate first, then open the folded runtime under Rust or C.';
+          return true;
+        }
+      },
+      {
+        task: 'Change your program so it does something the other languages have to work at - use a list, sort it, and join it with a separator - then translate it again.',
+        teach: `
+<p>Try this, run it, then translate it:</p>
+<pre>make scores be a list of 5, 3, 9, 1
+show join sorted scores with " < "</pre>
+<p>Now compare. Lua has no sort like this. Go has to say what type it is
+sorting. C has to be handed a comparing function. Plain says
+<code>sorted</code>, and each language is left to keep its own promise.</p>`,
+        start: `make scores be a list of 5, 3, 9, 1
+show join sorted scores with " < "
+`,
+        check: ({ lines, source, translated }) => {
+          if (!has(source, 'sorted')) return 'Sort a list: show join sorted scores with " < "';
+          if (!said(lines, '<')) return 'Join it with a separator so the answer is one line.';
+          if (!translated) return 'Press Translate again and compare how each language sorts.';
+          return true;
+        }
+      },
+      {
+        task: 'Last step, in your terminal rather than here: run <code>plain translate yourfile.plain --to all --out translated</code> and open the folder.',
+        teach: `
+<p>The course can show you the code. Your terminal can hand you the files:</p>
+<pre>plain translate mine.plain --to python
+plain translate mine.plain --to rust --out mine.rs
+plain translate mine.plain --to all --out translated</pre>
+<p>What comes out is a real file you can build and run with nothing else
+installed:</p>
+<pre>python mine.py
+node mine.js
+rustc -O mine.rs && ./mine
+cc -O2 mine.c -o mine -lm && ./mine</pre>
+<p>So Plain is a fair place to start something. If the project outgrows it,
+or somebody on your team only writes Go, the way out is one command - and
+they get real Go, not a pile of Plain they have to learn first.</p>
+<p>Tick this off once you have opened one of those files.</p>`,
+        check: ({ translated }) => {
+          if (!translated) return 'Have a translate open here too, so you can compare it with the file.';
           return true;
         }
       }

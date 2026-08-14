@@ -259,17 +259,24 @@ export class FakeWindow {
 
 // --------------------------------------------------------------- matching
 
+// "a b" means anywhere inside a; "a > b" means directly inside a. A real
+// browser knows the difference, so this has to as well - a selector that
+// quietly matched nothing would make a test pass for the wrong reason.
 function matchAll(root, selector) {
-  const parts = selector.split(/\s+/).filter(Boolean);
+  const parts = String(selector).split(/\s+/).filter(Boolean);
   let level = [root];
+  let onlyChildren = false;
   for (const part of parts) {
+    if (part === '>') { onlyChildren = true; continue; }
     const next = [];
     for (const node of level) {
-      for (const found of descendants(node)) {
+      const looking = onlyChildren ? node.children : descendants(node);
+      for (const found of looking) {
         if (matches(found, part) && !next.includes(found)) next.push(found);
       }
     }
     level = next;
+    onlyChildren = false;
   }
   return level;
 }

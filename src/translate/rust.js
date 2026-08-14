@@ -14,14 +14,8 @@
 // nudges a counter - and it saves the generated code from having to reason
 // about who owns what.
 
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 import { Emitter } from './emitter.js';
-
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const RUNTIME = path.resolve(HERE, '..', '..', 'runtime', 'rust', 'plain.rs');
+import { runtimeSource, PROGRAM_STARTS } from './runtimes.js';
 
 const RESERVED = new Set([
   'as', 'async', 'await', 'break', 'const', 'continue', 'crate', 'dyn', 'else',
@@ -323,7 +317,9 @@ export class RustEmitter extends Emitter {
       '',
       '#![allow(dead_code, unused_mut, unused_variables, unused_parens, non_snake_case, unused_imports, unused_assignments)]',
       '',
-      readRuntime(),
+      runtimeSource('rust'),
+      '',
+      `// ----- ${PROGRAM_STARTS} -----`,
       '',
       ...this.kindTables(kinds),
       ''
@@ -406,9 +402,3 @@ function rustText(text) {
   return out + '"';
 }
 
-let held = null;
-
-function readRuntime() {
-  if (held === null) held = fs.readFileSync(RUNTIME, 'utf8').trimEnd();
-  return held;
-}

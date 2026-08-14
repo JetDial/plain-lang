@@ -96,6 +96,19 @@ export function runCourseChecks(check) {
       'show "best ever: {remembered \\"best score\\" or 0}"'
     ].join('\n'),
 
+    shapes: [
+      "make place be thing from json '{\"town\": \"Bath\", \"founded\": 60}'",
+      'show value "town" of place',
+      'show json of place'
+    ].join('\n'),
+
+    ownmarkup: [
+      'make a website called "Mine"',
+      'set the page background to "#0f1020"',
+      'add a title "Handmade" named crown',
+      "style crown with 'color: #ffd166'"
+    ].join('\n'),
+
     problems: [
       'to share with sweets and people',
       '    if people is 0',
@@ -306,13 +319,18 @@ export function runCourseChecks(check) {
     'show "total is {total}"'
   ].join('\n');
 
+  const TRANSLATE_SORTED = [
+    'make scores be a list of 5, 3, 9, 1',
+    'show join sorted scores with " < "'
+  ].join('\n');
+
   const PROJECT_ANSWERS = {
     quiz: [QUIZ, QUIZ_LISTED, QUIZ_MARKED, QUIZ_DONE],
     site: [SITE_1, SITE_2, SITE_3, SITE_4],
     game: [GAME_1, GAME_2, GAME_3, GAME_4],
     world: [WORLD_1, WORLD_2, WORLD_3, WORLD_4],
     video: [FILM_1, FILM_2, FILM_3],
-    translate: [TRANSLATE_1, TRANSLATE_1]
+    translate: [TRANSLATE_1, TRANSLATE_1, TRANSLATE_1, TRANSLATE_SORTED, TRANSLATE_SORTED]
   };
 
   for (const project of PROJECTS) {
@@ -326,7 +344,7 @@ export function runCourseChecks(check) {
       check(`course: "${project.id}" step ${index + 1} can be passed`, () => {
         const answer = answers[index];
         // The last step of the translate project needs the button pressed.
-        const extra = project.id === 'translate' && index === 1 ? { translated: true } : {};
+        const extra = project.id === 'translate' && index >= 1 ? { translated: true } : {};
         const verdict = passes(step, answer, extra);
         assert.equal(verdict, true, typeof verdict === 'string' ? verdict : 'the check said no');
       });

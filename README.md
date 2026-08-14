@@ -51,7 +51,7 @@ plain make video holiday   # a video timeline you can trim and export
 ```
 
 ```bash
-plain learn          open the course: 11 lessons and 6 projects
+plain learn          open the course: 13 lessons and 6 projects
 plain run <file>     run it in the terminal            (--fast to go quicker)
 plain play <file>    open it in the browser
 plain edit <file>    open the designer or the video studio
@@ -369,7 +369,7 @@ neural network above goes from **1.20s to 0.20s**.
 plain learn
 ```
 
-Ten lessons and six projects, in the browser, with a real editor. Every step
+Thirteen lessons and six projects, in the browser, with a real editor. Every step
 is checked by **running what you wrote** and looking at what it did — not by
 comparing your text to an answer. The editor colours code as you type, using
 Plain's own lexer, so it can never disagree with the language. Get it wrong and you get a hint, not a red
@@ -378,7 +378,8 @@ cross:
 > *Holding right should move the basket: `if key "right" is held ... end`*
 
 The lessons cover showing things, names, text, questions, loops, lists,
-things, actions, kinds and catching problems. Then you build:
+things, actions, kinds, catching problems, the shapes data arrives in (JSON
+and CSV), and writing your own HTML, CSS and markdown. Then you build:
 
 | Project | What you make | What it teaches |
 |---|---|---|
@@ -387,7 +388,7 @@ things, actions, kinds and catching problems. Then you build:
 | Catch the falling star | A playable 2D game | frames, keys, touching |
 | A world in three dimensions | A 3D world you walk around | the world engine |
 | A title sequence | A film with fades and captions | the video engine |
-| Read it in another language | Your own program in JS and Python | how it all maps over |
+| The same program in eleven languages | Your own program in all of them, and the runtime under Rust and C | how it all maps over, and the price each language charges |
 
 Plus a lesson on keeping things after the program stops, so a high score can
 actually survive.

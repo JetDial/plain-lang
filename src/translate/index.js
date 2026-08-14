@@ -19,6 +19,15 @@ import { PhpEmitter } from './php.js';
 import { RustEmitter } from './rust.js';
 import { CEmitter } from './c.js';
 
+// Rust and C are built on real files in runtime/, and reading files is a
+// terminal thing. In a terminal they are loaded here, once, so nothing else
+// has to remember. In a browser this never runs, so nothing here ever asks
+// for node:fs - which is what keeps the course working, since the course
+// shows your program in every language Plain can write.
+if (typeof process !== 'undefined' && process.versions && process.versions.node) {
+  await import('./runtime-files.js');
+}
+
 // `run` says the test suite runs the generated file and compares what it
 // prints with what Plain printed. A language whose tool is not on the
 // machine is skipped, and the run says which ones it could not check.
