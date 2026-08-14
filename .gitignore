@@ -1,5 +1,7 @@
 node_modules/
 out/
+# What "remember ... as ..." keeps, and what programs write next to themselves
+*.memory.json
 build/
 dist/
 *.log

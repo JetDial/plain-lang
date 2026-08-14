@@ -24,6 +24,7 @@ export class Clip {
     this.fadeIn = 0;
     this.fadeOut = 0;
     this.overlay = '';
+    this.volume = 1;             // how loud this clip's own sound is
   }
 
   toPlainText() {
@@ -85,10 +86,16 @@ export class Studio {
       if (clip.overlay) lines.push(`put the words ${quote(clip.overlay)} on the last clip`);
       if (clip.fadeIn) lines.push(`fade the last clip in over ${round(clip.fadeIn)} seconds`);
       if (clip.fadeOut) lines.push(`fade the last clip out over ${round(clip.fadeOut)} seconds`);
+      if (clip.volume === 0) lines.push('silence the last clip');
+      else if (clip.volume !== 1) lines.push(`set the volume of the last clip to ${round(clip.volume)}`);
     }
     if (this.music.length) {
       lines.push('');
-      for (const track of this.music) lines.push(`add music ${quote(track)}`);
+      for (const track of this.music) {
+        if (track.start) lines.push(`add music ${quote(track.source)} starting at ${round(track.start)} seconds`);
+        else if (track.volume !== 1) lines.push(`add music ${quote(track.source)} at volume ${round(track.volume)}`);
+        else lines.push(`add music ${quote(track.source)}`);
+      }
     }
     if (this.volume !== 1) lines.push(`set the volume to ${round(this.volume)}`);
     return lines.join('\n') + '\n';
@@ -155,7 +162,22 @@ export function installVideo(rt, host = {}) {
     lastOr(ctx).length = Math.max(0.1, toNumber(a.seconds));
   });
 
-  rt.define('add music $source', (a) => { studio.music.push(toText(a.source)); });
+  rt.define('add music $source', (a) => {
+    studio.music.push({ source: toText(a.source), start: 0, volume: 1 });
+  });
+
+  rt.define('add music $source starting at $seconds seconds', (a) => {
+    studio.music.push({ source: toText(a.source), start: Math.max(0, toNumber(a.seconds)), volume: 1 });
+  });
+
+  rt.define('add music $source at volume $level', (a) => {
+    studio.music.push({ source: toText(a.source), start: 0, volume: Math.min(1, Math.max(0, toNumber(a.level))) });
+  });
+
+  rt.define('silence the last clip', (a, ctx) => { lastOr(ctx).volume = 0; });
+  rt.define('set the volume of the last clip to $level', (a, ctx) => {
+    lastOr(ctx).volume = Math.min(1, Math.max(0, toNumber(a.level)));
+  });
 
   // -------------------------------------------------------------- asking
 

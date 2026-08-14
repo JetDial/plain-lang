@@ -11,6 +11,7 @@ import { installGame } from '../engines/game/engine.js';
 import { installWorld } from '../engines/world/engine.js';
 import { installWeb } from '../engines/web/engine.js';
 import { installVideo } from '../engines/video/engine.js';
+import { installStore } from '../engines/store/engine.js';
 import { LESSONS, PROJECTS, totalSteps } from '../engines/learn/course.js';
 
 export function runCourseChecks(check) {
@@ -22,6 +23,7 @@ export function runCourseChecks(check) {
     const world = installWorld(runtime, {});
     const site = installWeb(runtime, {});
     const studio = installVideo(runtime, {});
+    installStore(runtime, {});
     runtime.run(source, 'answer.plain');
     return { lines, source, runtime, game, world, site, studio, ...extra };
   };
@@ -84,6 +86,14 @@ export function runCourseChecks(check) {
       'make pip be a new Dog with name "Pip" and sound "yip"',
       'tell rex to speak',
       'tell pip to speak'
+    ].join('\n'),
+
+    keeping: [
+      'make best be remembered "best score" or 0',
+      'make score be 25',
+      'remember score as "best score" if it is bigger',
+      'show "this run: {score}"',
+      'show "best ever: {remembered \\"best score\\" or 0}"'
     ].join('\n'),
 
     problems: [

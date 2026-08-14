@@ -126,6 +126,44 @@ export class Game {
     this.over = false;
     this.overMessage = '';
     this.onError = null;
+    this.volume = 0.7;
+    this.music = null;
+    this.sounds = new Map();      // name -> audio, so a sound loads once
+    this.played = [];             // what was asked for, which the tests read
+  }
+
+  // Sound files sit next to the program. With no browser there is nothing
+  // to play, so the request is simply recorded.
+  playSound(name) {
+    this.played.push(name);
+    const w = this.host.window;
+    if (!w || !w.Audio) return;
+    try {
+      let audio = this.sounds.get(name);
+      if (!audio) { audio = new w.Audio(name); this.sounds.set(name, audio); }
+      const voice = audio.cloneNode ? audio.cloneNode() : audio;   // let it overlap
+      voice.volume = this.volume;
+      voice.play().catch(() => {});
+    } catch { /* sound is a nice-to-have */ }
+  }
+
+  playMusic(name) {
+    this.played.push(name);
+    const w = this.host.window;
+    if (!w || !w.Audio) { this.music = { name, volume: this.volume }; return; }
+    try {
+      this.stopMusic();
+      const audio = new w.Audio(name);
+      audio.loop = true;
+      audio.volume = this.volume;
+      audio.play().catch(() => {});
+      this.music = audio;
+    } catch { /* sound is a nice-to-have */ }
+  }
+
+  stopMusic() {
+    if (this.music && this.music.pause) { this.music.pause(); this.music.currentTime = 0; }
+    this.music = null;
   }
 
   add(thing) { this.things.push(thing); return thing; }
@@ -226,6 +264,14 @@ export class Game {
         ctx.beginPath();
         ctx.arc(0, 0, thing.width / 2, 0, Math.PI * 2);
         ctx.fill();
+      } else if (POLYGONS[thing.shape]) {
+        drawPolygon(ctx, POLYGONS[thing.shape](thing.width / 2, thing.height / 2));
+      } else if (thing.shape === 'ring') {
+        ctx.lineWidth = Math.max(2, thing.width / 8);
+        ctx.strokeStyle = thing.color;
+        ctx.beginPath();
+        ctx.arc(0, 0, thing.width / 2 - ctx.lineWidth / 2, 0, Math.PI * 2);
+        ctx.stroke();
       } else if (thing.shape === 'words') {
         ctx.font = `${Math.max(10, thing.height)}px system-ui, sans-serif`;
         ctx.textAlign = 'center';
@@ -336,6 +382,15 @@ export function installGame(rt, host = {}) {
 
   rt.define('make #name be a circle at $x , $y sized $size', (a, ctx) =>
     void makeThing(ctx, a.name, { shape: 'circle', x: a.x, y: a.y, width: a.size, height: a.size }));
+
+  // Shapes with no artwork needed: star, heart, triangle, diamond, arrow, ring.
+  for (const shape of ['star', 'heart', 'triangle', 'diamond', 'arrow', 'ring']) {
+    const article = /^[aeiou]/.test(shape) ? 'an' : 'a';
+    rt.define(`make #name be ${article} ${shape} at $x , $y sized $size colored $color`, (a, ctx) =>
+      void makeThing(ctx, a.name, { shape, x: a.x, y: a.y, width: a.size, height: a.size, color: toText(a.color) }));
+    rt.define(`make #name be ${article} ${shape} at $x , $y sized $width by $height colored $color`, (a, ctx) =>
+      void makeThing(ctx, a.name, { shape, x: a.x, y: a.y, width: a.width, height: a.height, color: toText(a.color) }));
+  }
 
   rt.define('make #name be a picture $source at $x , $y sized $width by $height', (a, ctx) =>
     void makeThing(ctx, a.name, { shape: 'picture', source: toText(a.source), x: a.x, y: a.y, width: a.width, height: a.height }));
@@ -475,12 +530,56 @@ export function installGame(rt, host = {}) {
   rt.define('play a beep', () => beep(host, 440));
   rt.define('play a beep at $pitch', (a) => beep(host, toNumber(a.pitch)));
 
+  // ------------------------------------------------------------- sound
+
+  rt.define('play the sound $name', (a) => game.playSound(toText(a.name)));
+  rt.define('play music $name', (a) => game.playMusic(toText(a.name)));
+  rt.define('stop the music', () => game.stopMusic());
+  rt.define('set the sound volume to $level', (a) => {
+    game.volume = Math.min(1, Math.max(0, toNumber(a.level)));
+    if (game.music) game.music.volume = game.volume;
+  });
+
   return game;
 }
 
 function num(value, fallback) {
   const n = toNumber(value);
   return Number.isNaN(n) ? fallback : n;
+}
+
+// Shapes that make a game look like a game without needing any artwork.
+// Each one is drawn inside a box of the thing's width and height.
+const POLYGONS = {
+  triangle: (w, h) => [[0, -h], [w, h], [-w, h]],
+  diamond: (w, h) => [[0, -h], [w, 0], [0, h], [-w, 0]],
+  star: (w, h) => {
+    const points = [];
+    for (let i = 0; i < 10; i++) {
+      const angle = (Math.PI / 5) * i - Math.PI / 2;
+      const reach = i % 2 === 0 ? 1 : 0.42;
+      points.push([Math.cos(angle) * w * reach, Math.sin(angle) * h * reach]);
+    }
+    return points;
+  },
+  heart: (w, h) => {
+    const points = [];
+    for (let i = 0; i <= 40; i++) {
+      const t = (i / 40) * Math.PI * 2;
+      const x = 16 * Math.sin(t) ** 3;
+      const y = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
+      points.push([(x / 17) * w, (y / 17) * h]);
+    }
+    return points;
+  },
+  arrow: (w, h) => [[w, 0], [0.1 * w, h], [0.1 * w, 0.4 * h], [-w, 0.4 * h], [-w, -0.4 * h], [0.1 * w, -0.4 * h], [0.1 * w, -h]]
+};
+
+function drawPolygon(ctx, points) {
+  ctx.beginPath();
+  points.forEach(([x, y], at) => (at === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)));
+  ctx.closePath();
+  ctx.fill();
 }
 
 function beep(host, frequency) {

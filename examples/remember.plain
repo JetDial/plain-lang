@@ -1,0 +1,39 @@
+# Keeping things after the program stops.
+# Run it with:  plain run examples/remember.plain
+# Run it twice - the second time it knows what happened the first time.
+
+make runs be remembered "runs" or 0
+add 1 to runs
+remember runs as "runs"
+
+show "You have run this {runs} times."
+
+make score be random 1 to 100
+show "Today's score: {score}"
+
+make best be remembered "best" or 0
+remember score as "best" if it is bigger
+
+if score is above best
+    show "A new best!"
+otherwise
+    show "The best so far is still {best}."
+end
+
+# Lists and things are kept whole, not squashed into text.
+make notes be remembered "notes" or a list
+add "run {runs} scored {score}" to notes
+remember notes as "notes"
+
+show "What has happened so far:"
+for each note in notes
+    show " - " joined with note
+end
+
+# Files sit next to this program. Nothing outside this folder can be reached.
+add "run {runs}: {score}" to file "scores.txt"
+show "scores.txt now has {length of lines of file \"scores.txt\"} lines"
+
+show ""
+show "Everything remembered: {everything remembered}"
+show "To start again, delete examples/remember.memory.json and scores.txt"

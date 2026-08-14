@@ -21,7 +21,9 @@ export const RESERVED = new Set([
   // by 1" needs it as a direction.
   'to', 'give', 'return', 'stop', 'next', 'skip', 'make', 'let', 'set',
   'show', 'with', 'and', 'or', 'not', 'is', 'in', 'of', 'be', 'then', 'times',
-  'plus', 'minus', 'joined', 'divided', 'by', 'from', 'note', 'the'
+  // "note" is not reserved: only a line that *starts* with it is a comment,
+  // so it still makes a perfectly good name.
+  'plus', 'minus', 'joined', 'divided', 'by', 'from', 'the'
 ]);
 
 export class Parser {
@@ -392,6 +394,7 @@ export class Parser {
     const fields = [];
     const actions = [];
     this.skipNewlines();
+    const bodyStart = this.line;
     while (!this.isWord('end')) {
       if (this.peek().type === 'end') this.error(`The kind "${name}" was never closed. Add "end".`, line);
       if (this.eatWord('has')) {
@@ -407,9 +410,10 @@ export class Parser {
       }
       this.skipNewlines();
     }
+    const bodyEnd = this.line - 1;
     this.expectWord('end', `to close the kind "${name}"`);
     this.endOfStatement();
-    return { type: 'Kind', name, base, fields, actions, line };
+    return { type: 'Kind', name, base, fields, actions, line, bodyStart, bodyEnd };
   }
 
   parseMethod(kindName) {

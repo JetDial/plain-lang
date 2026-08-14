@@ -16,6 +16,33 @@ export class Emitter {
     this.used = new Set();        // helpers this program actually needs
     this.unsupported = [];
     this.temporaries = 0;
+    // Plain lets you "make" a name that already exists; most languages do
+    // not, so we keep track and write an assignment instead.
+    this.scopes = [new Set()];
+  }
+
+  known(name) { return this.scopes.some(scope => scope.has(name)); }
+  remember(name) { this.scopes[this.scopes.length - 1].add(name); }
+
+  // Every kind in the program, so a target can see what a kind inherits.
+  collectKinds(program) {
+    this.kinds = this.kinds || new Map();
+    for (const node of program.body) {
+      if (node.type === 'Kind') this.kinds.set(String(node.name).toLowerCase(), node);
+    }
+  }
+
+  // The values a kind gets from the kinds it is based on.
+  inheritedFields(node) {
+    const found = new Set();
+    let level = node.base ? (this.kinds || new Map()).get(String(node.base).toLowerCase()) : null;
+    const seen = new Set();
+    while (level && !seen.has(level)) {
+      seen.add(level);
+      for (const field of level.fields) found.add(this.fieldName(field.name));
+      level = level.base ? this.kinds.get(String(level.base).toLowerCase()) : null;
+    }
+    return found;
   }
 
   // ------------------------------------------------------------ the shape
@@ -82,10 +109,15 @@ export class Emitter {
 
   writeLine(text) { this.write(text + this.lineEnd); }
 
-  open(header) { this.write(header); this.depth++; }
+  open(header) {
+    this.write(header);
+    this.depth++;
+    this.scopes.push(new Set());
+  }
 
   close(text = null) {
     this.depth--;
+    if (this.scopes.length > 1) this.scopes.pop();
     const closer = text === null ? this.closer() : text;
     if (closer) this.write(closer);
   }
@@ -129,6 +161,7 @@ export class Emitter {
   // ------------------------------------------------------------- the walk
 
   translate(program, meta = {}) {
+    this.collectKinds(program);
     const body = this.capture(() => this.statements(program.body));
 
     if (this.unsupported.length) {
@@ -204,7 +237,13 @@ export class Emitter {
   statement(node) {
     switch (node.type) {
       case 'Show': return this.writeLine(this.showStatement(this.text(node.value)));
-      case 'Make': return this.writeLine(this.declare(this.identifier(node.name), this.expression(node.value)));
+      case 'Make': {
+        const name = this.identifier(node.name);
+        const value = this.expression(node.value);
+        if (this.known(name)) return this.writeLine(this.assign(name, value));
+        this.remember(name);
+        return this.writeLine(this.declare(name, value));
+      }
       case 'Set': {
         const into = node.target;
         // "set item 2 of list to x" is a call, not an assignment.
@@ -263,6 +302,7 @@ export class Emitter {
   emitRepeat(node) {
     const times = this.expression(node.count);
     this.open(this.countHeader('count', '1', times, '1'));
+    this.remember('count');
     this.block(node.block);
     this.close();
   }
@@ -273,6 +313,7 @@ export class Emitter {
     const to = this.expression(node.to);
     const step = node.step ? this.expression(node.step) : '1';
     this.open(this.countHeader(name, from, to, step));
+    this.remember(name);
     this.block(node.block);
     this.close();
   }
@@ -285,6 +326,7 @@ export class Emitter {
 
   emitForEach(node) {
     this.open(this.forEachHeader(this.identifier(node.name), this.helper('items', [this.expression(node.list)])));
+    this.remember(this.identifier(node.name));
     this.block(node.block);
     this.close();
   }
@@ -322,6 +364,7 @@ export class Emitter {
     this.block(node.block);
     this.chain(this.catchHeader('_problem'));
     if (node.rescue) {
+      this.remember('problem');
       this.writeLine(this.declare('problem', this.problemText('_problem')));
       this.block(node.rescue);
     } else {

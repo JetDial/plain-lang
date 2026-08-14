@@ -9,10 +9,17 @@
 
 import { JavaScriptEmitter } from './javascript.js';
 import { PythonEmitter } from './python.js';
+import { CSharpEmitter } from './csharp.js';
+import { LuaEmitter } from './lua.js';
 
+// `run` says whether Plain's own test suite runs the generated file and
+// compares what it prints. JavaScript and Python are checked that way on
+// every build; C# and Lua are generated and read, not executed here.
 export const TARGETS = {
-  javascript: { emitter: JavaScriptEmitter, also: ['js', 'node'] },
-  python: { emitter: PythonEmitter, also: ['py', 'python3'] }
+  javascript: { emitter: JavaScriptEmitter, also: ['js', 'node'], run: true },
+  python: { emitter: PythonEmitter, also: ['py', 'python3'], run: true },
+  csharp: { emitter: CSharpEmitter, also: ['cs', 'c#', 'dotnet', 'unity'], run: false },
+  lua: { emitter: LuaEmitter, also: ['love', 'roblox'], run: false }
 };
 
 export function targetNames() {
@@ -40,4 +47,4 @@ export function translate(program, targetName, meta = {}) {
 }
 
 export { Emitter } from './emitter.js';
-export { JavaScriptEmitter, PythonEmitter };
+export { JavaScriptEmitter, PythonEmitter, CSharpEmitter, LuaEmitter };

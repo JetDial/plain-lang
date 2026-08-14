@@ -47,12 +47,13 @@ plain make video holiday   # a video timeline you can trim and export
 ```
 
 ```bash
-plain learn          open the course: 10 lessons and 6 projects
+plain learn          open the course: 11 lessons and 6 projects
 plain run <file>     run it in the terminal
 plain play <file>    open it in the browser
 plain edit <file>    open the designer or the video studio
 plain build <file>   write HTML you can publish        (--out folder)
-plain translate <f>  write the same program in JavaScript or Python
+plain translate <f>  write it in JavaScript, Python, C# or Lua
+plain fmt <file>     tidy the indenting                (--check to just look)
 plain check <file>   look for mistakes without running
 plain words          list every sentence Plain understands
 ```
@@ -135,6 +136,13 @@ show [1, 2, 3] changed by the action double     # [2, 4, 6]
 
 # Other files.
 use "helpers.plain"
+
+# Things worth keeping when the program stops.
+make best be remembered "best score" or 0
+remember score as "best score" if it is bigger
+
+write "hello" to file "notes.txt"
+show lines of file "notes.txt"
 ```
 
 The whole language fits on one page: **[LANGUAGE.md](LANGUAGE.md)**.
@@ -166,7 +174,10 @@ end
 ```
 
 Sprites, movement, gravity, per-frame code, timers, collisions, keyboard and
-mouse, drawing on top, and sound. The same engine runs headless in Node, so
+mouse, drawing on top, and sound (`play the sound "jump.wav"`, `play music
+"tune.mp3"`). Shapes come built in — box, circle, star, heart, triangle,
+diamond, arrow, ring — so a game looks like a game before you have any
+artwork. The same engine runs headless in Node, so
 `plain run game.plain --frames 300` simulates 300 frames with no window — which
 is how the tests check games.
 
@@ -264,12 +275,12 @@ plain edit examples/video.plain          # the studio
 
 The studio gives a preview, a scrubber, and a timeline you can drag: pull a
 clip's edge to change how long it lasts, reorder, retitle, set fades, delete.
-Save writes the timeline back as Plain sentences. Export records the picture
-track to a `.webm` file.
+Save writes the timeline back as Plain sentences. Export writes a `.webm` with
+the music and the clips' own sound **mixed in** — place music with `starting
+at 4 seconds`, quieten it `at volume 0.3`, or `silence the last clip`.
 
-Honest limits: export uses the browser's own recorder, so it captures the
-picture track in real time and does not mix the music in yet. Clips are laid
-end to end on one track.
+Honest limit: export uses the browser's own recorder, so it runs in real time
+— a two minute film takes two minutes. Clips are laid end to end on one track.
 
 ---
 
@@ -298,6 +309,9 @@ things, actions, kinds and catching problems. Then you build:
 | A title sequence | A film with fades and captions | the video engine |
 | Read it in another language | Your own program in JS and Python | how it all maps over |
 
+Plus a lesson on keeping things after the program stops, so a high score can
+actually survive.
+
 Games and websites you write in the lesson run **live in the page** — the game
 on a canvas you can play with the arrow keys, the site in a preview frame.
 Progress is kept in your browser, and `plain learn --list` prints the syllabus
@@ -314,10 +328,11 @@ plain translate mine.plain --to python
 plain translate mine.plain --to all --out translated
 ```
 
-The same program, written out in **JavaScript** or **Python** — real loops,
-real classes, real functions, with your names kept and a small set of helpers
-for the few places where Plain means something particular (lists that count
-from 1, text that joins with anything, refusing to divide by zero).
+The same program, written out in **JavaScript**, **Python**, **C#** or
+**Lua** — real loops, real classes, real functions, with your names kept and a
+small set of helpers for the few places where Plain means something particular
+(lists that count from 1, text that joins with anything, refusing to divide by
+zero).
 
 ```plain
 to double with n
@@ -337,7 +352,10 @@ print(plain_text(plain_changed_by([1, 2, 3], double)))
 
 The test suite runs ten programs three ways — in Plain, in the generated
 JavaScript, and in the generated Python — and insists all three print exactly
-the same thing.
+the same thing. C# and Lua are generated and checked by their shape, but there
+is no compiler for either here, so they are a very good first draft rather
+than a guarantee. That distinction is in the docs and in `TARGETS`, not
+buried.
 
 Sentences that belong to an engine (games, worlds, websites, videos) do not
 translate, and the translator says so with the line numbers rather than
@@ -396,9 +414,11 @@ engines/world/         the 3D world engine and its WebGL renderer
 engines/web/           the website engine, its HTML writer, and the designer
 engines/video/         the video timeline and the studio
 examples/              programs to read and run
-src/translate/        Plain -> JavaScript and Python
+src/translate/        Plain -> JavaScript, Python, C# and Lua
+src/format.js         plain fmt
+engines/store/        remembering things, and reading and writing files
 engines/learn/        the course: lessons, projects and their checks
-tests/run-tests.js     212 checks, no framework
+tests/run-tests.js     239 checks, no framework
 ```
 
 ## Tests

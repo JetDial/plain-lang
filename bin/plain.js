@@ -20,16 +20,18 @@ import { installGame } from '../engines/game/engine.js';
 import { installWorld } from '../engines/world/engine.js';
 import { installWeb } from '../engines/web/engine.js';
 import { installVideo } from '../engines/video/engine.js';
+import { installStore } from '../engines/store/engine.js';
 import { documentToHTML, hrefFor } from '../engines/web/render.js';
 import { TEMPLATES, templateNames } from './templates.js';
 import { translate, targetNames, findTarget } from '../src/translate/index.js';
 import { syllabus, totalSteps } from '../engines/learn/course.js';
+import { format } from '../src/format.js';
 
 globalThis.__plainFS = fs;
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
-const VERSION = '0.2.0';
+const VERSION = '0.3.0';
 
 // Declared up here because the command switch below runs as the file loads.
 const STARTER = `# A new Plain program. Run it with: plain run this-file.plain
@@ -66,6 +68,7 @@ try {
     case 'make': commandMake(rest[0], rest[1]); break;
     case 'translate': commandTranslate(target); break;
     case 'learn': case 'teach': await commandLearn(); break;
+    case 'fmt': case 'tidy': commandTidy(rest.filter(a => !a.startsWith('-'))); break;
     case 'version': case '--version': case '-v': console.log(`Plain ${VERSION}`); break;
     default: commandHelp();
   }
@@ -120,7 +123,38 @@ function buildRuntime(onOutput, baseFile = process.cwd()) {
   const site = installWeb(runtime, {});
   const world = installWorld(runtime, {});
   const studio = installVideo(runtime, {});
-  return { runtime, game, site, world, studio };
+  const store = installStore(runtime, storeHost(baseFile));
+  return { runtime, game, site, world, studio, store };
+}
+
+// Remembered values live in one small file beside the program, and files a
+// program reads or writes stay in that same folder.
+function storeHost(baseFile) {
+  const full = path.resolve(baseFile);
+  const folder = fs.existsSync(full) && fs.statSync(full).isDirectory() ? full : path.dirname(full);
+  const stem = path.basename(full, path.extname(full)) || 'plain';
+
+  const inside = (name, ctx) => {
+    const wanted = path.resolve(folder, String(name));
+    if (wanted !== folder && !wanted.startsWith(folder + path.sep)) {
+      ctx.fail(`"${name}" is outside this folder, and Plain only reads and writes files next to your program`);
+    }
+    return wanted;
+  };
+
+  return {
+    fs,
+    memoryFile: path.join(folder, `${stem}.memory.json`),
+    files: {
+      read: (name, ctx) => {
+        const file = inside(name, ctx);
+        return fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null;
+      },
+      exists: (name, ctx) => fs.existsSync(inside(name, ctx)),
+      write: (name, text, ctx) => fs.writeFileSync(inside(name, ctx), text, 'utf8'),
+      append: (name, text, ctx) => fs.appendFileSync(inside(name, ctx), text, 'utf8')
+    }
+  };
 }
 
 // Every file a program pulls in with `use`, so a built page can carry them.
@@ -229,6 +263,55 @@ function commandNew(name) {
   if (fs.existsSync(full)) fail(`"${file}" already exists.`);
   fs.writeFileSync(full, STARTER, 'utf8');
   console.log(`Made ${file}. Run it with:\n\n    plain run ${file}\n`);
+}
+
+// --------------------------------------------------------------------- tidy
+
+function commandTidy(files) {
+  const wanted = files.length ? files : ['.'];
+  const found = [];
+  for (const name of wanted) {
+    const full = path.resolve(process.cwd(), name);
+    if (!fs.existsSync(full)) fail(`I cannot find "${name}"`);
+    if (fs.statSync(full).isDirectory()) {
+      for (const entry of fs.readdirSync(full)) {
+        if (entry.endsWith('.plain')) found.push(path.join(full, entry));
+      }
+    } else {
+      found.push(full);
+    }
+  }
+  if (!found.length) fail('No .plain files here to tidy.');
+
+  let changed = 0;
+  let unreadable = 0;
+  for (const file of found) {
+    const source = fs.readFileSync(file, 'utf8');
+    const { runtime } = buildRuntime(() => {}, file);
+    let program;
+    try {
+      program = runtime.parse(source, path.basename(file));
+    } catch (error) {
+      // A file that does not parse cannot be tidied; say so and move on.
+      console.log(`${path.relative(process.cwd(), file)}: cannot tidy - ${error.plainMessage || error.message}`);
+      unreadable++;
+      continue;
+    }
+    const tidy = format(source, program);
+    const already = tidy === source.replace(/\r\n?/g, '\n');
+    if (already) continue;
+    changed++;
+    if (flags.check) {
+      console.log(`${path.relative(process.cwd(), file)}: needs tidying`);
+    } else {
+      fs.writeFileSync(file, tidy, 'utf8');
+      console.log(`Tidied ${path.relative(process.cwd(), file)}`);
+    }
+  }
+
+  if (unreadable) process.exitCode = 1;
+  if (!changed && !unreadable) console.log(`Nothing to do: ${found.length} file${found.length === 1 ? '' : 's'} already tidy.`);
+  if (flags.check && changed) process.exitCode = 1;
 }
 
 // -------------------------------------------------------------------- learn
@@ -566,7 +649,8 @@ Plain ${VERSION} - a language you write like a normal sentence.
   plain check <file.plain>    look for mistakes without running it
   plain words                 list every sentence Plain understands
   plain learn                 lessons and projects, in your browser
-  plain translate <file>      write it in JavaScript or Python  (--to python)
+  plain translate <file>      write it in JavaScript, Python, C# or Lua  (--to lua)
+  plain fmt <file|folder>     tidy the indenting                    (--check)
   plain new <name>            start a blank program
   plain make <kind> <name>    start a finished one: ${templateNames().join(', ')}
 

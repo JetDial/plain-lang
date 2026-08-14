@@ -9,6 +9,7 @@ import { installWorld } from '../world/engine.js';
 import { createRenderer } from '../world/render.js';
 import { installWeb } from '../web/engine.js';
 import { installVideo } from '../video/engine.js';
+import { installStore } from '../store/engine.js';
 import { mountPage, stylesheet } from '../web/render.js';
 import { translate, targetNames } from '../../src/translate/index.js';
 import { LESSONS, PROJECTS, totalSteps } from './course.js';
@@ -259,13 +260,12 @@ export function startLearning(doc, win) {
     const world = installWorld(runtime, { window: win, document: doc });
     const site = installWeb(runtime, { window: win, document: doc });
     const studio = installVideo(runtime, { window: win, document: doc });
+    installStore(runtime, { window: win, document: doc });
 
     try {
       runtime.run(source, 'your-program.plain');
     } catch (error) {
-      out.textContent = lines.join('\n') + (lines.length ? '\n\n' : '');
-      out.textContent += error instanceof PlainError ? error.report(source) : String(error.message || error);
-      say(verdict, 'wrong', 'The program stopped. Read the line above - it says where and why.');
+      showFailure(out, verdict, error, source);
       return;
     }
 
@@ -295,6 +295,44 @@ export function startLearning(doc, win) {
   function say(holder, kind, text) {
     holder.innerHTML = `<div class="verdict ${kind}"></div>`;
     holder.firstChild.textContent = text;
+  }
+
+  // A program that stopped: show the report, and make the line number take
+  // you straight to that line in the editor.
+  function showFailure(out, verdict, error, source) {
+    const report = error instanceof PlainError ? error.report(source) : String(error.message || error);
+    out.textContent = report;
+
+    const line = error instanceof PlainError ? error.line : null;
+    if (!line) {
+      say(verdict, 'wrong', 'The program stopped. The message above says why.');
+      return;
+    }
+
+    verdict.innerHTML = '<div class="verdict wrong"></div>';
+    const box = verdict.firstChild;
+    box.appendChild(doc.createTextNode('The program stopped at '));
+    const jump = doc.createElement('button');
+    jump.className = 'act';
+    jump.style.padding = '2px 9px';
+    jump.textContent = `line ${line}`;
+    jump.addEventListener('click', () => goToLine(line));
+    box.appendChild(jump);
+    box.appendChild(doc.createTextNode(' - press it to go there.'));
+    goToLine(line, false);
+  }
+
+  function goToLine(line, focus = true) {
+    const editor = page.querySelector('textarea');
+    if (!editor) return;
+    const lines = editor.value.split('\n');
+    const from = lines.slice(0, line - 1).join('\n').length + (line > 1 ? 1 : 0);
+    const to = from + (lines[line - 1] || '').length;
+    if (focus) editor.focus();
+    editor.setSelectionRange(from, to);
+    // Put the line roughly in the middle of the box.
+    const lineHeight = editor.scrollHeight / Math.max(1, lines.length);
+    editor.scrollTop = Math.max(0, (line - 1) * lineHeight - editor.clientHeight / 2);
   }
 
   const PRAISE = [
@@ -407,13 +445,13 @@ export function startLearning(doc, win) {
     installWorld(runtime, {});
     installWeb(runtime, {});
     installVideo(runtime, {});
+    installStore(runtime, {});
 
     let program;
     try {
       program = runtime.parse(source, 'your-program.plain');
     } catch (error) {
-      say(page.querySelector('[data-verdict]'), 'wrong',
-        error instanceof PlainError ? error.report(source) : String(error.message || error));
+      showFailure(page.querySelector('[data-out]'), page.querySelector('[data-verdict]'), error, source);
       return;
     }
 

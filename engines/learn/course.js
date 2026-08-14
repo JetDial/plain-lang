@@ -221,6 +221,31 @@ tell rex to speak</pre>
   },
 
   {
+    id: 'keeping',
+    title: 'Keeping things after the program stops',
+    teach: `
+<p>Everything a program makes is forgotten when it finishes - unless you ask
+Plain to remember it.</p>
+<pre>remember 12 as "best score"
+show remembered "best score"</pre>
+<p>The first time a program runs there is nothing there yet, so say what to
+use instead:</p>
+<pre>make best be remembered "best score" or 0</pre>
+<p>And because keeping the highest of something is so common:</p>
+<pre>remember score as "best score" if it is bigger</pre>
+<p>Also: <code>forget "best score"</code>, <code>everything remembered</code>,
+and <code>if "best score" is remembered</code>.</p>`,
+    task: 'Keep a best score. Read it with a fallback of 0, make up a score, keep it only if it beats the old one, then show both.',
+    start: 'make best be remembered "best score" or 0\n',
+    check: ({ lines, source }) => {
+      if (!has(source, 'remembered')) return 'Read the old one with: remembered "best score" or 0';
+      if (!has(source, 'remember ')) return 'Keep the new one with "remember ... as ...".';
+      if (lines.length < 2) return 'Show the score you made up and the best one.';
+      return true;
+    }
+  },
+
+  {
     id: 'problems',
     title: 'When things go wrong',
     teach: `

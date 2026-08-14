@@ -15,6 +15,8 @@ import { installGame } from '../engines/game/engine.js';
 import { installWorld } from '../engines/world/engine.js';
 import { installWeb } from '../engines/web/engine.js';
 import { installVideo } from '../engines/video/engine.js';
+import { installStore } from '../engines/store/engine.js';
+import { format } from '../src/format.js';
 import { documentToHTML } from '../engines/web/render.js';
 import { cubeMesh, sphereMesh, perspective, lookAt, multiply, toRGB } from '../engines/world/render.js';
 
@@ -42,6 +44,7 @@ function runtimeFor(source, options = {}) {
   const world = installWorld(rt, {});
   const site = installWeb(rt, {});
   const studio = installVideo(rt, {});
+  installStore(rt, {});
   rt.run(source, 'test.plain');
   return { rt, game, world, site, studio };
 }
@@ -689,6 +692,45 @@ check('a backwards clip is refused', () => {
   assert.match(error.plainMessage, /finish after it starts/);
 });
 
+check('music can start late and be quieter', () => {
+  const { studio } = runtimeFor([
+    'make a video called "V"',
+    'add a title "Hi" for 3 seconds',
+    'add music "song.mp3" starting at 2 seconds',
+    'add music "birds.mp3" at volume 0.3'
+  ].join('\n'));
+  assert.equal(studio.music.length, 2);
+  assert.equal(studio.music[0].start, 2);
+  assert.equal(studio.music[1].volume, 0.3);
+});
+
+check('a clip can be quietened or silenced', () => {
+  const { studio } = runtimeFor([
+    'make a video called "V"',
+    'add a clip "a.mp4" for 3 seconds',
+    'silence the last clip',
+    'add a clip "b.mp4" for 3 seconds',
+    'set the volume of the last clip to 0.5'
+  ].join('\n'));
+  assert.equal(studio.clips[0].volume, 0);
+  assert.equal(studio.clips[1].volume, 0.5);
+});
+
+check('sound settings survive being written back', () => {
+  const { studio } = runtimeFor([
+    'make a video called "V"',
+    'add a clip "a.mp4" for 3 seconds',
+    'silence the last clip',
+    'add music "song.mp3" starting at 2 seconds'
+  ].join('\n'));
+  const source = studio.toPlainSource();
+  assert.match(source, /silence the last clip/);
+  assert.match(source, /add music "song.mp3" starting at 2 seconds/);
+  const again = runtimeFor(source);
+  assert.equal(again.studio.clips[0].volume, 0);
+  assert.equal(again.studio.music[0].start, 2);
+});
+
 check('a timeline writes itself back as Plain', () => {
   const { studio } = runtimeFor(VIDEO);
   const source = studio.toPlainSource();
@@ -788,7 +830,8 @@ const PYTHON = (() => {
 })();
 
 check('it knows what it can write', () => {
-  assert.deepEqual(targetNames(), ['javascript', 'python']);
+  assert.ok(targetNames().includes('javascript'));
+  assert.ok(targetNames().includes('python'));
 });
 
 check('the file says where it came from', () => {
@@ -1036,6 +1079,325 @@ check('the command line translates a file', () => {
   fs.rmSync(folder, { recursive: true, force: true });
 });
 
+// -------------------------------------------------- C# and Lua, by reading
+// There is no C# compiler or Lua interpreter here, so these are checked by
+// their shape rather than by running them. JavaScript and Python above are
+// checked by running them.
+
+check('it can also write C# and Lua', () => {
+  assert.deepEqual(targetNames(), ['javascript', 'python', 'csharp', 'lua']);
+});
+
+const SHOWCASE = [
+  'a kind called Animal',
+  '    has name',
+  '    has sound be "..."',
+  '    to speak',
+  '        show "{name of me} says {sound of me}"',
+  '    end',
+  'end',
+  'a kind called Dog based on Animal',
+  '    has sound be "woof"',
+  'end',
+  'to double with n',
+  '    give back n times 2',
+  'end',
+  'make rex be a new Dog with name "Rex"',
+  'tell rex to speak',
+  'make things be [3, 1, 2]',
+  'for each thing in things',
+  '    show double with thing',
+  'end',
+  'repeat with i from 1 to 3',
+  '    show i',
+  'end',
+  'try',
+  '    show 1 divided by 0',
+  'if it fails',
+  '    show "caught {the problem}"',
+  'end'
+].join('\n');
+
+check('the C# it writes has the right shape', () => {
+  const code = written(SHOWCASE, 'csharp');
+  assert.match(code, /using System;/);
+  assert.match(code, /public class Animal \{/);
+  assert.match(code, /public class Dog : Animal \{/);
+  assert.match(code, /static dynamic double_\(dynamic n\)/);
+  assert.match(code, /public static void Main\(\) \{/);
+  assert.match(code, /foreach \(dynamic thing in/);
+  assert.match(code, /catch \(Exception _problem\)/);
+  // A value the base already has is not declared twice.
+  assert.equal((code.match(/public dynamic sound;/g) || []).length, 1);
+  assert.equal(balanced(code, '{', '}'), true, 'the braces do not balance');
+});
+
+check('the Lua it writes has the right shape', () => {
+  const code = written(SHOWCASE, 'lua');
+  assert.match(code, /^-- Translated from/);
+  assert.match(code, /local Dog = \{\}/);
+  assert.match(code, /setmetatable\(Dog, \{ __index = Animal \}\)/);
+  assert.match(code, /function Dog\.fill\(into\)\n\s+Animal\.fill\(into\)/);
+  assert.match(code, /local function double\(n\)/);
+  assert.match(code, /for _, thing in ipairs\(/);
+  assert.match(code, /pcall\(function\(\)/);
+  assert.equal(luaBlocksBalance(code), true, 'the do/end blocks do not balance');
+});
+
+check('every target writes something for every example that is not an engine program', () => {
+  for (const file of ['hello.plain', 'tour.plain', 'kinds.plain']) {
+    const source = fs.readFileSync(path.join(ROOT, 'examples', file), 'utf8');
+    for (const target of targetNames()) {
+      const code = translate(parsed(source), target, { file }).code;
+      assert.ok(code.length > 200, `${file} produced almost nothing for ${target}`);
+    }
+  }
+});
+
+check('making the same name twice does not break the host language', () => {
+  const source = 'make x be 1\nmake x be 2\nshow x';
+  assert.match(written(source, 'javascript'), /let x = 1;\nx = 2;/);
+  assert.match(written(source, 'csharp'), /dynamic x = 1;\s+x = 2;/);
+});
+
+function balanced(code, open, close) {
+  // Rough, but enough to catch a missing closer: ignore braces inside text.
+  const stripped = code.replace(/"(\\.|[^"\\])*"/g, '""').replace(/'(\\.|[^'\\])*'/g, "''");
+  let depth = 0;
+  for (const letter of stripped) {
+    if (letter === open) depth++;
+    else if (letter === close) { depth--; if (depth < 0) return false; }
+  }
+  return depth === 0;
+}
+
+function luaBlocksBalance(code) {
+  const stripped = code
+    .replace(/"(\\.|[^"\\])*"/g, '""')
+    .replace(/--[^\n]*/g, '');
+  const opens = (stripped.match(/\b(function|then|do)\b/g) || []).length;
+  const ends = (stripped.match(/\bend\b/g) || []).length;
+  // "elseif ... then" reuses one end, and a while loop has both "while" and
+  // "do", so the counts are compared allowing for those.
+  const elseifs = (stripped.match(/\belseif\b/g) || []).length;
+  const whileDo = (stripped.match(/\bwhile\b/g) || []).length;
+  const forDo = (stripped.match(/\bfor\b/g) || []).length;
+  return ends === opens - elseifs - whileDo - forDo + whileDo + forDo - (whileDo + forDo) + (whileDo + forDo) - elseifs + elseifs
+    ? true
+    : ends === opens - elseifs;
+}
+
+// -------------------------------------------------------------- remembering
+
+check('a value can be remembered and read back', () => {
+  const store = new Map();
+  const host = fakeStore(store);
+  assert.equal(firstWith('remember 7 as "best"\nshow remembered "best"', host), '7');
+});
+
+check('remembering survives a second program', () => {
+  const store = new Map();
+  const host = fakeStore(store);
+  runWith('remember a list of "bread", "milk" as "shopping"', host);
+  assert.equal(firstWith('show remembered "shopping"', host), '["bread", "milk"]');
+});
+
+check('a value that was never remembered falls back', () => {
+  assert.equal(firstWith('show remembered "nothing yet" or 42', fakeStore(new Map())), '42');
+});
+
+check('a best score only goes up', () => {
+  const host = fakeStore(new Map());
+  runWith('remember 10 as "best" if it is bigger', host);
+  runWith('remember 4 as "best" if it is bigger', host);
+  assert.equal(firstWith('show remembered "best"', host), '10');
+});
+
+check('things can be forgotten', () => {
+  const host = fakeStore(new Map());
+  runWith('remember 1 as "a"\nremember 2 as "b"', host);
+  assert.equal(firstWith('show everything remembered', host), '["a", "b"]');
+  runWith('forget "a"', host);
+  assert.equal(firstWith('show everything remembered', host), '["b"]');
+});
+
+check('a program can ask whether something is remembered', () => {
+  const host = fakeStore(new Map());
+  runWith('remember 1 as "a"', host);
+  assert.equal(firstWith('if "a" is remembered\n show "yes"\notherwise\n show "no"\nend', host), 'yes');
+});
+
+check('files can be written, added to and read back', () => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'plain-files-'));
+  const host = realFiles(folder);
+  runWith('write "one" to file "notes.txt"\nadd "two" to file "notes.txt"', host);
+  assert.equal(firstWith('show lines of file "notes.txt"', host), '["onetwo"]');
+  runWith('write "one\\n" to file "notes.txt"\nadd "two" to file "notes.txt"', host);
+  assert.equal(firstWith('show lines of file "notes.txt"', host), '["one", "two"]');
+  assert.equal(firstWith('show does file "nope.txt" exist', host), 'no');
+  fs.rmSync(folder, { recursive: true, force: true });
+});
+
+check('a program cannot reach outside its own folder', () => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'plain-files-'));
+  let error = null;
+  try { runWith('show text of file "../secrets.txt"', realFiles(folder)); }
+  catch (e) { error = e; }
+  assert.ok(error instanceof PlainError);
+  assert.match(error.plainMessage, /outside this folder/);
+  fs.rmSync(folder, { recursive: true, force: true });
+});
+
+check('files say plainly that they need a terminal', () => {
+  let error = null;
+  try { runWith('show text of file "x.txt"', fakeStore(new Map())); }
+  catch (e) { error = e; }
+  assert.match(error.plainMessage, /terminal/);
+});
+
+function fakeStore(map) {
+  return {
+    window: {
+      localStorage: {
+        getItem: (key) => (map.has(key) ? map.get(key) : null),
+        setItem: (key, value) => map.set(key, value),
+        removeItem: (key) => map.delete(key),
+        get length() { return map.size; },
+        key: (at) => [...map.keys()][at] ?? null
+      }
+    }
+  };
+}
+
+function realFiles(folder) {
+  const inside = (name, ctx) => {
+    const wanted = path.resolve(folder, String(name));
+    if (wanted !== folder && !wanted.startsWith(folder + path.sep)) {
+      ctx.fail(`"${name}" is outside this folder, and Plain only reads and writes files next to your program`);
+    }
+    return wanted;
+  };
+  return {
+    fs,
+    memoryFile: path.join(folder, 'test.memory.json'),
+    files: {
+      read: (name, ctx) => { const file = inside(name, ctx); return fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null; },
+      exists: (name, ctx) => fs.existsSync(inside(name, ctx)),
+      write: (name, text, ctx) => fs.writeFileSync(inside(name, ctx), text, 'utf8'),
+      append: (name, text, ctx) => fs.appendFileSync(inside(name, ctx), text, 'utf8')
+    }
+  };
+}
+
+function runWith(source, host) {
+  const rt = createRuntime({ onOutput: () => {} });
+  installGame(rt, {});
+  installWeb(rt, {});
+  installStore(rt, host);
+  rt.run(source, 'test.plain');
+  return rt.lines;
+}
+
+function firstWith(source, host) { return runWith(source, host)[0]; }
+
+// ------------------------------------------------------------------ sound
+
+check('a sound can be asked for', () => {
+  const { game } = runtimeFor('start a game called "G"\nplay the sound "jump.wav"');
+  assert.deepEqual(game.played, ['jump.wav']);
+});
+
+check('music can be started and stopped', () => {
+  const { game } = runtimeFor('start a game called "G"\nplay music "song.mp3"\nset the sound volume to 0.5');
+  assert.deepEqual(game.played, ['song.mp3']);
+  assert.equal(game.volume, 0.5);
+  game.stopMusic();
+  assert.equal(game.music, null);
+});
+
+// ----------------------------------------------------------------- shapes
+
+check('there are shapes that need no artwork', () => {
+  const { game } = runtimeFor([
+    'start a game called "G"',
+    'make a be a star at 10 , 10 sized 20 colored "gold"',
+    'make b be a heart at 20 , 10 sized 20 colored "red"',
+    'make c be a triangle at 30 , 10 sized 20 by 30 colored "blue"',
+    'make d be a diamond at 40 , 10 sized 20 colored "cyan"',
+    'make e be an arrow at 50 , 10 sized 20 colored "white"',
+    'make f be a ring at 60 , 10 sized 20 colored "pink"'
+  ].join('\n'));
+  assert.deepEqual(game.things.map(thing => thing.shape), ['star', 'heart', 'triangle', 'diamond', 'arrow', 'ring']);
+  assert.equal(game.things[2].height, 30);
+});
+
+check('the new shapes draw without complaint', () => {
+  const { game } = runtimeFor([
+    'start a game called "G" sized 100 by 100',
+    'make a be a star at 50 , 50 sized 20 colored "gold"',
+    'make b be a ring at 50 , 50 sized 20 colored "pink"',
+    'make c be a heart at 50 , 50 sized 20 colored "red"'
+  ].join('\n'));
+  const calls = [];
+  const pretend = new Proxy({}, {
+    get(_, name) {
+      if (name === 'canvas') return { width: 100, height: 100 };
+      return (...args) => { calls.push(name); return undefined; };
+    },
+    set() { return true; }
+  });
+  game.draw(pretend);
+  assert.ok(calls.includes('fill'), 'nothing was filled');
+  assert.ok(calls.includes('stroke'), 'the ring was not drawn');
+});
+
+// --------------------------------------------------------------- tidying
+
+check('tidying fixes the indenting and leaves the words alone', () => {
+  const messy = 'make score be 0\nrepeat 3 times\nadd 1 to score\n   if score is 2\n show "two"\n     end\nend\n';
+  const rt = createRuntime({ onOutput: () => {} });
+  installGame(rt, {});
+  const tidy = format(messy, rt.parse(messy, 'messy.plain'));
+  assert.equal(tidy, [
+    'make score be 0',
+    'repeat 3 times',
+    '    add 1 to score',
+    '    if score is 2',
+    '        show "two"',
+    '    end',
+    'end',
+    ''
+  ].join('\n'));
+});
+
+check('tidying a tidy file changes nothing', () => {
+  for (const file of ['hello.plain', 'tour.plain', 'kinds.plain', 'pong.plain', 'site.plain', 'world.plain', 'video.plain', 'catch.plain', 'guess.plain']) {
+    const source = fs.readFileSync(path.join(ROOT, 'examples', file), 'utf8');
+    const rt = createRuntime({ onOutput: () => {} });
+    installGame(rt, {});
+    installWorld(rt, {});
+    installWeb(rt, {});
+    installVideo(rt, {});
+    installStore(rt, {});
+    const tidy = format(source, rt.parse(source, file));
+    assert.equal(tidy, source.replace(/\r\n?/g, '\n'), `${file} is not tidy`);
+  }
+});
+
+check('tidying keeps comments with the lines they explain', () => {
+  const messy = 'repeat 2 times\n# about the show\nshow "hi"\nend\n';
+  const rt = createRuntime({ onOutput: () => {} });
+  const tidy = format(messy, rt.parse(messy, 'messy.plain'));
+  assert.match(tidy, /\n    # about the show\n    show "hi"/);
+});
+
+check('tidying a program that keeps blocks inside kinds', () => {
+  const messy = 'a kind called Dog\nhas name\nto speak\nshow "woof"\nend\nend\n';
+  const rt = createRuntime({ onOutput: () => {} });
+  const tidy = format(messy, rt.parse(messy, 'messy.plain'));
+  assert.equal(tidy, 'a kind called Dog\n    has name\n    to speak\n        show "woof"\n    end\nend\n');
+});
+
 // ----------------------------------------------------------------- the tool
 
 check('the command line runs a program', () => {
@@ -1086,7 +1448,15 @@ check('a game builds to one page', () => {
 check('every example still runs', () => {
   for (const file of fs.readdirSync(path.join(ROOT, 'examples'))) {
     if (!file.endsWith('.plain') || file === 'guess.plain') continue;
-    runtimeFor(fs.readFileSync(path.join(ROOT, 'examples', file), 'utf8'));
+    const source = fs.readFileSync(path.join(ROOT, 'examples', file), 'utf8');
+    if (file === 'remember.plain') {
+      // This one keeps things, so it needs somewhere to keep them.
+      const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'plain-example-'));
+      try { runWith(source, realFiles(folder)); }
+      finally { fs.rmSync(folder, { recursive: true, force: true }); }
+      continue;
+    }
+    runtimeFor(source);
   }
 });
 

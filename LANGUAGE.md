@@ -283,7 +283,44 @@ is ready before the rest of your program runs. A file is only pulled in once,
 however many times it is used, and line numbers in error messages stay
 pointing at the file you actually typed.
 
-## 15. Talking to the person running the program
+## 15. Keeping things after the program stops
+
+Everything is forgotten when a program ends, unless you say otherwise.
+
+```plain
+remember 12 as "best score"
+show remembered "best score"
+
+make best be remembered "best score" or 0     # the first run has nothing yet
+remember score as "best score" if it is bigger
+
+forget "best score"
+forget everything remembered
+show everything remembered                    # the names you have kept
+
+if "best score" is remembered
+    show "there is one already"
+end
+```
+
+Lists and things are kept whole, not flattened into text. In a terminal this
+lives in a small file beside your program (`yourprogram.memory.json`); in a
+browser it lives in the browser's own store.
+
+Files sit next to your program, and nowhere else:
+
+```plain
+write "hello" to file "notes.txt"
+add "another line" to file "notes.txt"
+show text of file "notes.txt"
+show lines of file "notes.txt"
+show does file "notes.txt" exist
+```
+
+Reading and writing files needs a terminal; in a browser Plain says so rather
+than failing quietly.
+
+## 16. Talking to the person running the program
 
 ```plain
 show "hello"                 # print a line
@@ -291,7 +328,7 @@ ask "Your name? " into name  # read a line (a number if it looks like one)
 stop the program
 ```
 
-## 16. Built-in values
+## 17. Built-in values
 
 **Numbers** — `round $n`, `round $n to $places places`, `floor of`,
 `ceiling of`, `absolute of`, `square root of`, `sine of`, `cosine of`,
@@ -324,6 +361,8 @@ set gravity to 0.4
 ```plain
 make ball be a circle at 400 , 250 sized 18 colored "white"
 make paddle be a box at 40 , 250 sized 16 by 110 colored "#7ee787"
+make prize be a star at 200 , 100 sized 30 colored "gold"
+make life be a heart at 30 , 20 sized 24 colored "#ef476f"
 make hero be a picture "hero.png" at 100 , 100 sized 48 by 48
 make label be words "Ready" at 400 , 40 sized 24 colored "white"
 ```
@@ -411,6 +450,10 @@ stop the game
 stop the game saying "You win"
 play a beep
 play a beep at 880
+play the sound "jump.wav"
+play music "tune.mp3"
+stop the music
+set the sound volume to 0.5
 ```
 
 Key names: `left`, `right`, `up`, `down`, `space`, `enter`, `escape`, `shift`,
@@ -520,10 +563,22 @@ plain play video.plain     # watch it
 plain edit video.plain     # the studio: scrub, drag, trim, export, save
 ```
 
+Sound:
+
+```plain
+add music "song.mp3"
+add music "birds.mp3" starting at 4 seconds
+add music "hum.mp3" at volume 0.3
+silence the last clip
+set the volume of the last clip to 0.5
+set the volume to 0.8
+```
+
 In the studio, dragging the right edge of a clip changes how long it lasts,
 and **Save writes the whole timeline back out as the sentences above**. Export
-records the picture track to a `.webm` file using the browser's own recorder;
-music is not mixed into that file yet.
+records to a `.webm` file using the browser's own recorder, mixing the music
+and the clips' own sound into one track. It records in real time, so a two
+minute film takes two minutes to export.
 
 ---
 
@@ -665,6 +720,27 @@ Try this: make scoer be <value> before using it
 
 ---
 
+# Tidying a program
+
+\
+It re-indents, trims trailing spaces and collapses runs of blank lines. It
+never rewrites your sentences, your spacing inside a line, or your comments.
+
+---
+
+# Tidying a program
+
+```bash
+plain fmt mine.plain        # fix the indenting
+plain fmt .                 # every .plain file in this folder
+plain fmt . --check         # say what needs it, change nothing
+```
+
+It re-indents, trims trailing spaces and collapses runs of blank lines. It
+never rewrites your sentences, your spacing inside a line, or your comments.
+
+---
+
 # Learning it
 
 ```bash
@@ -683,6 +759,8 @@ Games and websites run live inside the lesson.
 ```bash
 plain translate mine.plain --to javascript
 plain translate mine.plain --to python
+plain translate mine.plain --to csharp
+plain translate mine.plain --to lua
 plain translate mine.plain --to all --out translated
 ```
 
@@ -695,3 +773,9 @@ The generated file keeps your names and shape, and carries a small set of
 helpers for the places where Plain means something particular: lists count
 from 1, text joins with anything, `yes`/`no` decide truth, and dividing by
 zero is refused rather than becoming infinity.
+
+JavaScript and Python are checked by **running** them: Plain's own test suite
+runs ten programs three ways and insists all three print the same thing. C#
+and Lua are written and read but not executed by that suite, because there is
+no compiler for either in the box — treat those two as a very good first
+draft rather than a guarantee.

@@ -76,6 +76,8 @@ export function startStudio(studio, doc, win) {
   const playButton = root.querySelector('[data-play]');
 
   const media = new Map();   // source -> <video> or <img>
+  const music = new Map();   // source -> <audio>
+  let mixer = null;          // where every sound is joined together
 
   // ------------------------------------------------------------- media
 
@@ -86,9 +88,10 @@ export function startStudio(studio, doc, win) {
     if (clip.kind === 'video') {
       element = doc.createElement('video');
       element.src = clip.source;
-      element.muted = true;
       element.playsInline = true;
       element.preload = 'auto';
+      element.crossOrigin = 'anonymous';
+      element.volume = clip.volume ?? 1;
     } else {
       element = doc.createElement('img');
       element.src = clip.source;
@@ -96,6 +99,66 @@ export function startStudio(studio, doc, win) {
     element.addEventListener('error', () => { element.failed = true; draw(); });
     media.set(clip.source, element);
     return element;
+  }
+
+  function musicFor(track) {
+    if (music.has(track.source)) return music.get(track.source);
+    const audio = doc.createElement('audio');
+    audio.src = track.source;
+    audio.preload = 'auto';
+    audio.crossOrigin = 'anonymous';
+    audio.volume = track.volume ?? 1;
+    audio.addEventListener('error', () => { audio.failed = true; });
+    music.set(track.source, audio);
+    return audio;
+  }
+
+  // One WebAudio graph fed by every sound, so the recorder can be handed a
+  // single mixed audio track alongside the picture.
+  function mixerFor() {
+    if (mixer) return mixer;
+    const Context = win.AudioContext || win.webkitAudioContext;
+    if (!Context) return null;
+    try {
+      const context = new Context();
+      const out = context.createMediaStreamDestination();
+      mixer = { context, out, joined: new WeakSet() };
+      return mixer;
+    } catch {
+      return null;
+    }
+  }
+
+  // An element can only be joined to the graph once, and once joined it no
+  // longer reaches the speakers on its own, so we send it on to both.
+  function joinToMixer(element) {
+    const made = mixerFor();
+    if (!made || made.joined.has(element)) return;
+    try {
+      const source = made.context.createMediaElementSource(element);
+      source.connect(made.out);
+      source.connect(made.context.destination);
+      made.joined.add(element);
+    } catch { /* some sources refuse; they still play on their own */ }
+  }
+
+  function musicAt(seconds, playing) {
+    for (const track of studio.music) {
+      const audio = musicFor(track);
+      if (audio.failed) continue;
+      const into = seconds - (track.start || 0);
+      if (into < 0 || (audio.duration && into > audio.duration)) {
+        if (!audio.paused) audio.pause();
+        continue;
+      }
+      if (Math.abs(audio.currentTime - into) > 0.25) audio.currentTime = into;
+      if (playing && audio.paused) audio.play().catch(() => {});
+      if (!playing && !audio.paused) audio.pause();
+    }
+  }
+
+  function silenceMusic() {
+    for (const audio of music.values()) { if (audio.pause) audio.pause(); }
   }
 
   // ------------------------------------------------------------ drawing
@@ -179,10 +242,13 @@ export function startStudio(studio, doc, win) {
     for (const element of media.values()) {
       if (element.tagName === 'VIDEO' && !element.paused) element.pause();
     }
+    musicAt(state.time, state.playing);
+
     const placed = studio.clipAt(state.time);
     if (!placed || placed.clip.kind !== 'video') return;
     const element = mediaFor(placed.clip);
     if (!element || element.failed || !element.duration) return;
+    element.volume = (placed.clip.volume ?? 1) * studio.volume;
     const wanted = placed.clip.from + (state.time - placed.start);
     if (Math.abs(element.currentTime - wanted) > 0.2) element.currentTime = Math.min(wanted, element.duration - 0.01);
     if (state.playing && element.paused) element.play().catch(() => {});
@@ -205,8 +271,12 @@ export function startStudio(studio, doc, win) {
   function setPlaying(playing) {
     state.playing = playing && studio.length > 0;
     playButton.textContent = state.playing ? 'Pause' : 'Play';
-    if (!state.playing) for (const element of media.values()) if (element.pause) element.pause();
-    else syncMedia();
+    if (!state.playing) {
+      for (const element of media.values()) if (element.pause) element.pause();
+      silenceMusic();
+    } else {
+      syncMedia();
+    }
   }
 
   function refreshTime() {
@@ -350,8 +420,22 @@ export function startStudio(studio, doc, win) {
     button.disabled = true;
     button.textContent = 'Recording...';
     const stream = canvas.captureStream(studio.fps);
+
+    // Join every sound to one mixed track and record it with the picture.
+    let mixed = false;
+    const made = mixerFor();
+    if (made) {
+      if (made.context.state === 'suspended') { try { await made.context.resume(); } catch { /* ignore */ } }
+      for (const track of studio.music) joinToMixer(musicFor(track));
+      for (const clip of studio.clips) {
+        if (clip.kind === 'video' && (clip.volume ?? 1) > 0) joinToMixer(mediaFor(clip));
+      }
+      for (const track of made.out.stream.getAudioTracks()) { stream.addTrack(track); mixed = true; }
+    }
+
     const chunks = [];
-    const kind = ['video/webm;codecs=vp9', 'video/webm'].find(t => win.MediaRecorder.isTypeSupported(t)) || 'video/webm';
+    const kind = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']
+      .find(t => win.MediaRecorder.isTypeSupported(t)) || 'video/webm';
     const recorder = new win.MediaRecorder(stream, { mimeType: kind });
     recorder.ondataavailable = event => { if (event.data.size) chunks.push(event.data); };
 
@@ -375,7 +459,9 @@ export function startStudio(studio, doc, win) {
     link.remove();
     button.disabled = false;
     button.textContent = 'Export';
-    note.textContent = 'Exported the picture track as .webm. Music is not mixed in yet.';
+    note.textContent = mixed
+      ? 'Exported as .webm, with the music and clip sound mixed in.'
+      : 'Exported the picture as .webm. This browser would not give me an audio track.';
   }
 
   // ---------------------------------------------------------------- save
