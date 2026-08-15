@@ -55,6 +55,24 @@ when any key is pressed
         fill picture with 0
         set told to "cleared"
     end
+    if pressing is "p"
+        # A real PNG, not sentences: sixteen by sixteen, see-through where
+        # nothing was painted. In the browser it arrives as a download.
+        make dots be []
+        repeat with line from 1 to down
+            repeat with column from 1 to across
+                make at be spotat with column and line
+                make which be what is at at of picture
+                if which is above 0
+                    add item which of palette to dots
+                otherwise
+                    add "" to dots
+                end
+            end
+        end
+        save dots as the picture "sprite.png" sized across by down
+        set told to "sprite.png written"
+    end
     if pressing is "s"
         make written be []
         repeat with line from 1 to down

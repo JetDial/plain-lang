@@ -3641,6 +3641,38 @@ check('the command line checks a program', () => {
   assert.match(output, /looks fine/);
 });
 
+check('a picture can be written and read back, from Plain alone', () => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'plain-png-'));
+  try {
+    const program = [
+      'make dots be []',
+      'repeat with y from 1 to 8',
+      '    repeat with x from 1 to 8',
+      '        if (x plus y) modulo 2 is 0',
+      '            add "#ff6b6b" to dots',
+      '        otherwise',
+      '            add "" to dots',
+      '        end',
+      '    end',
+      'end',
+      'save dots as the picture "check.png" sized 8 by 8',
+      'show the width of the picture "check.png"',
+      'show the colour at 1 , 1 of the picture "check.png"',
+      'show "empty({the colour at 0 , 1 of the picture QQcheck.pngQQ})"'
+    ].join(String.fromCharCode(10)).replace(/QQ/g, String.fromCharCode(92) + '"');
+    fs.writeFileSync(path.join(folder, 'dots.plain'), program, 'utf8');
+    const output = execFileSync(process.execPath,
+      [path.join(ROOT, 'bin', 'plain.js'), 'run', path.join(folder, 'dots.plain')],
+      { encoding: 'utf8' }).replace(/\r/g, '').trim().split(String.fromCharCode(10));
+    assert.deepEqual(output, ['8', '#ff6b6b', 'empty()']);
+    // And the file is a real PNG a browser would open.
+    const bytes = fs.readFileSync(path.join(folder, 'check.png'));
+    assert.equal(bytes.readUInt32BE(0), 0x89504e47);
+  } finally {
+    fs.rmSync(folder, { recursive: true, force: true });
+  }
+});
+
 check('the command line lists its sentences', () => {
   const output = execFileSync(process.execPath, [path.join(ROOT, 'bin', 'plain.js'), 'words'], { encoding: 'utf8' });
   assert.match(output, /add a title/);

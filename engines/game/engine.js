@@ -1005,6 +1005,111 @@ export function installGame(rt, host = {}) {
     return !!(image && image.complete && (image.naturalWidth || 0) > 0);
   });
 
+  // ------------------------------------------------- inside the pictures
+  //
+  // Asking a picture what colour it is somewhere, and making one. In a
+  // browser the canvas answers; in the terminal the file itself is read
+  // and written, which is what lets a build script or a test do it too.
+  const opened = new Map();
+  const insideOf = (source) => {
+    const named = toText(source);
+    if (opened.has(named)) return opened.get(named);
+    let inside = null;
+    if (host.decodePicture) {
+      try { inside = host.decodePicture(named); } catch { inside = null; }
+    } else if (host.window && host.window.document) {
+      const image = pictureOf(named);
+      if (image && image.complete && image.naturalWidth) {
+        const board = host.window.document.createElement('canvas');
+        board.width = image.naturalWidth; board.height = image.naturalHeight;
+        const pen = board.getContext('2d');
+        pen.drawImage(image, 0, 0);
+        const data = pen.getImageData(0, 0, board.width, board.height);
+        inside = { width: board.width, height: board.height, pixels: data.data };
+      }
+    }
+    // A picture still on its way is asked again next time, not remembered
+    // as empty forever.
+    if (inside) opened.set(named, inside);
+    return inside;
+  };
+
+  const twoDigits = (n) => n.toString(16).padStart(2, '0');
+
+  const toRGBBytes = (colour) => {
+    const text = String(colour).trim();
+    if (text.startsWith('#')) {
+      const hex = text.length === 4
+        ? text.slice(1).split('').map(one => one + one).join('')
+        : text.slice(1, 7);
+      return [parseInt(hex.slice(0, 2), 16) || 0, parseInt(hex.slice(2, 4), 16) || 0, parseInt(hex.slice(4, 6), 16) || 0];
+    }
+    const named = {
+      white: [255, 255, 255], black: [0, 0, 0], red: [255, 80, 80],
+      green: [110, 220, 130], blue: [100, 150, 255], yellow: [255, 209, 102],
+      orange: [255, 160, 70], purple: [190, 120, 255], pink: [255, 140, 200],
+      grey: [150, 150, 150], gray: [150, 150, 150]
+    };
+    return named[text.toLowerCase()] || [200, 200, 200];
+  };
+
+  rt.defineValue('the width of the picture $source', (a) => {
+    const inside = insideOf(a.source);
+    return inside ? inside.width : 0;
+  });
+  rt.defineValue('the height of the picture $source', (a) => {
+    const inside = insideOf(a.source);
+    return inside ? inside.height : 0;
+  });
+
+  // "#rrggbb", or "" for a spot outside the picture or one not yet loaded,
+  // so a program can tell the difference between black and nothing.
+  const colourAt = (a) => {
+    const inside = insideOf(a.source);
+    if (!inside) return '';
+    const x = Math.floor(toNumber(a.x)), y = Math.floor(toNumber(a.y));
+    if (x < 0 || y < 0 || x >= inside.width || y >= inside.height) return '';
+    const at = (y * inside.width + x) * 4;
+    if (inside.pixels[at + 3] === 0) return '';
+    return '#' + twoDigits(inside.pixels[at]) + twoDigits(inside.pixels[at + 1]) + twoDigits(inside.pixels[at + 2]);
+  };
+  rt.defineValue('the colour at $x , $y of the picture $source', colourAt);
+  rt.defineValue('the color at $x , $y of the picture $source', colourAt);
+
+  // The other direction: a list of colours becomes a PNG. "" or "none" is
+  // a see-through pixel, which is what sprites are made of.
+  rt.define('save $colours as the picture $file sized $width by $height', (a) => {
+    const width = Math.max(1, Math.floor(toNumber(a.width)));
+    const height = Math.max(1, Math.floor(toNumber(a.height)));
+    const colours = Array.isArray(a.colours) ? a.colours : [];
+    const named = toText(a.file);
+    const pixels = new Uint8Array(width * height * 4);
+    for (let at = 0; at < width * height; at++) {
+      const colour = toText(colours[at] === undefined ? '' : colours[at]);
+      if (!colour || colour === 'none') continue;
+      const rgb = toRGBBytes(colour);
+      pixels[at * 4] = rgb[0]; pixels[at * 4 + 1] = rgb[1];
+      pixels[at * 4 + 2] = rgb[2]; pixels[at * 4 + 3] = 255;
+    }
+    if (host.writePicture) {
+      host.writePicture(named, width, height, Buffer.from(pixels));
+      opened.delete(named);
+      pictures.delete(named);
+    } else if (host.window && host.window.document) {
+      // In a browser the picture is handed over as a download.
+      const board = host.window.document.createElement('canvas');
+      board.width = width; board.height = height;
+      const pen = board.getContext('2d');
+      const data = pen.createImageData(width, height);
+      data.data.set(pixels);
+      pen.putImageData(data, 0, 0);
+      const link = host.window.document.createElement('a');
+      link.download = named;
+      link.href = board.toDataURL('image/png');
+      link.click();
+    }
+  });
+
   // A straight line, which every other drawing tool has and this did not.
   rt.define('draw a line from $x , $y to $tox , $toy thick $thick colored $color', (a) => {
     const from = seen(a.x, a.y), to = seen(a.tox, a.toy);

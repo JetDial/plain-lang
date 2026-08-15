@@ -13,6 +13,7 @@ import path from 'node:path';
 import http from 'node:http';
 import https from 'node:https';
 import os from 'node:os';
+import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { spawn, execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
@@ -148,6 +149,97 @@ function readProgram(file) {
   return { full, source: fs.readFileSync(full, 'utf8'), name: path.basename(full, path.extname(full)) };
 }
 
+// ------------------------------------------------------------------- png
+//
+// Enough of the PNG format to read and write the pictures games use:
+// 8-bit RGB and RGBA, all five row filters on the way in, none on the way
+// out. Interlaced and paletted files are politely refused.
+
+function decodePNG(file) {
+  const raw = fs.readFileSync(file);
+  if (raw.readUInt32BE(0) !== 0x89504e47) throw new Error('not a PNG file');
+  let at = 8, width = 0, height = 0, colour = 0, depth = 0, interlace = 0;
+  const idat = [];
+  while (at < raw.length) {
+    const size = raw.readUInt32BE(at);
+    const kind = raw.toString('ascii', at + 4, at + 8);
+    const body = raw.slice(at + 8, at + 8 + size);
+    if (kind === 'IHDR') {
+      width = body.readUInt32BE(0); height = body.readUInt32BE(4);
+      depth = body[8]; colour = body[9]; interlace = body[12];
+    } else if (kind === 'IDAT') idat.push(body);
+    else if (kind === 'IEND') break;
+    at += 12 + size;
+  }
+  if (depth !== 8 || (colour !== 2 && colour !== 6) || interlace) {
+    throw new Error('only plain 8-bit colour PNGs are read');
+  }
+  const step = colour === 6 ? 4 : 3;
+  const rows = zlib.inflateSync(Buffer.concat(idat));
+  const wide = width * step;
+  const pixels = Buffer.alloc(width * height * 4);
+  let previous = Buffer.alloc(wide);
+  for (let y = 0; y < height; y++) {
+    const filter = rows[y * (wide + 1)];
+    const line = Buffer.from(rows.slice(y * (wide + 1) + 1, (y + 1) * (wide + 1)));
+    for (let x = 0; x < wide; x++) {
+      const left = x >= step ? line[x - step] : 0;
+      const up = previous[x];
+      const corner = x >= step ? previous[x - step] : 0;
+      if (filter === 1) line[x] = (line[x] + left) & 255;
+      else if (filter === 2) line[x] = (line[x] + up) & 255;
+      else if (filter === 3) line[x] = (line[x] + ((left + up) >> 1)) & 255;
+      else if (filter === 4) {
+        const guess = left + up - corner;
+        const offLeft = Math.abs(guess - left), offUp = Math.abs(guess - up), offCorner = Math.abs(guess - corner);
+        const near = offLeft <= offUp && offLeft <= offCorner ? left : (offUp <= offCorner ? up : corner);
+        line[x] = (line[x] + near) & 255;
+      }
+    }
+    for (let x = 0; x < width; x++) {
+      const from = x * step, to = (y * width + x) * 4;
+      pixels[to] = line[from]; pixels[to + 1] = line[from + 1]; pixels[to + 2] = line[from + 2];
+      pixels[to + 3] = step === 4 ? line[from + 3] : 255;
+    }
+    previous = line;
+  }
+  return { width, height, pixels };
+}
+
+function writePNG(file, width, height, pixels) {
+  const wide = width * 4;
+  const rows = Buffer.alloc((wide + 1) * height);
+  for (let y = 0; y < height; y++) {
+    rows[y * (wide + 1)] = 0;
+    pixels.copy(rows, y * (wide + 1) + 1, y * wide, (y + 1) * wide);
+  }
+  const table = [...Array(256)].map((nothing, n) => {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+    return c >>> 0;
+  });
+  const crc = (body) => {
+    let c = 0xFFFFFFFF;
+    for (const byte of body) c = table[(c ^ byte) & 255] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  };
+  const chunk = (kind, body) => {
+    const size = Buffer.alloc(4); size.writeUInt32BE(body.length);
+    const named = Buffer.concat([Buffer.from(kind), body]);
+    const check = Buffer.alloc(4); check.writeUInt32BE(crc(named));
+    return Buffer.concat([size, named, check]);
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0); header.writeUInt32BE(height, 4);
+  header[8] = 8; header[9] = 6;   // 8-bit RGBA
+  fs.writeFileSync(file, Buffer.concat([
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    chunk('IHDR', header),
+    chunk('IDAT', zlib.deflateSync(rows)),
+    chunk('IEND', Buffer.alloc(0))
+  ]));
+}
+
 function fail(message) {
   console.error(message);
   process.exit(1);
@@ -173,7 +265,15 @@ function buildRuntime(onOutput, baseFile = process.cwd()) {
       return null;
     }
   });
-  const game = installGame(runtime, { keepGoing });
+  const game = installGame(runtime, {
+    keepGoing,
+    // Reading and writing PNG files, for programs run in the terminal. The
+    // browser does the same through a canvas; here it is zlib and the file
+    // format itself, which is small enough to just write down.
+    decodePicture: (name) => decodePNG(path.resolve(path.dirname(path.resolve(baseFile)), name)),
+    writePicture: (name, width, height, pixels) =>
+      writePNG(path.resolve(path.dirname(path.resolve(baseFile)), name), width, height, pixels)
+  });
   const site = installWeb(runtime, {});
   const world = installWorld(runtime, {});
   const studio = installVideo(runtime, {});

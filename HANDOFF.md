@@ -110,8 +110,9 @@ see `INTEROP.md` for exactly what crosses it and what does not.
 1. **Struct layout** - the only performance item the measurements support.
    See `PERFORMANCE.md`, which also says why cloning and field lookup were
    measured and rejected, so neither gets retried on how the code looks.
-2. **Sound files** - the sound kit needs no files, which also means it
-   cannot play one. `play the sound "door.ogg"` is the missing sentence.
+2. **Reading and writing pictures** - a program can show a PNG but not ask
+   what colour a pixel is, nor make one. (`play the sound "door.ogg"` was
+   listed here and already existed - check the source, not the memory.)
 3. Generators as lazy lists · workers · the embedded runtime.
 4. Airmash's remaining screen: country flags, crowns, level badges, ping,
    mute and settings, `FROM Server` messages.

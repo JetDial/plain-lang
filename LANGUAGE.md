@@ -1133,6 +1133,23 @@ What to know before writing:
 A language is a dictionary in `src/languages.js`, not code. Adding one is
 adding words.
 
+## Inside the pictures
+
+A program can show a picture; now it can ask one questions, and make one.
+
+```
+show the width of the picture "grass.png"
+show the colour at 4 , 9 of the picture "grass.png"
+save dots as the picture "sprite.png" sized 16 by 16
+```
+
+The colour comes back as "#rrggbb", or as "" for a spot outside the
+picture, a see-through pixel, or a picture still on its way - so a program
+can tell black from nothing. Saving takes a list of colours, one per pixel
+left to right then top to bottom, "" meaning see-through; in the terminal
+it writes a real PNG beside the program, in a browser it arrives as a
+download. The sprite editor's P key does exactly this.
+
 ## A program that is a folder
 
 A program bigger than a page should be a folder. The door is `main.plain`;
