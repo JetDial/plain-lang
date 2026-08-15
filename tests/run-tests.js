@@ -1919,6 +1919,27 @@ sameEverywhere('translated: choosing', [
   'end'
 ].join('\n'));
 
+sameEverywhere('translated: things added through a name are not numbers', [
+  // The list is built by naming each thing first and adding the name. That
+  // name is not a number, and a list of them is not a run of numbers - but
+  // the analysis used to take any name on trust, emit Vec<f64>, and answer
+  // 0 while the interpreter answered 18. Silently wrong is the worst kind.
+  'a kind called dot',
+  '    has x be 0',
+  '    has y be 0',
+  'end',
+  'make dots be []',
+  'repeat with n from 1 to 3',
+  '    make d be a new dot with x n and y (n times 2)',
+  '    add d to dots',
+  'end',
+  'make swept be 0',
+  'for each d in dots',
+  '    set swept to swept plus (x of d) plus (y of d)',
+  'end',
+  'show swept'
+].join(String.fromCharCode(10)));
+
 sameEverywhere('translated: a herd of things with numeric fields', [
   // The struct-layout shape: in Rust this list becomes a Vec of a real
   // struct read as bare f64 fields. Every other target keeps the boxed

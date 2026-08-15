@@ -88,7 +88,10 @@ export class RubyEmitter extends Emitter {
       this.writeLine(`@${this.fieldName(field.name)} = ${field.value ? this.expression(field.value) : 'nil'}`);
     }
     this.open('values.each do |key, value|');
-    this.writeLine('plain_set_field(self, key.to_s, value)');
+    // Through this.helper, not as a written-out string: writing the call by
+    // hand names the helper without asking for it, so a program whose only
+    // use of it is here compiled to a call that was never defined.
+    this.writeLine(this.helper('setField', ['self', 'key.to_s', 'value']));
     this.close();
     this.close();
   }

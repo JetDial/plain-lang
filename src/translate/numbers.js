@@ -186,6 +186,14 @@ export function numericLists(block, params = []) {
       || (item.type === 'Negate' && item.value && item.value.type === 'Number'));
   };
 
+  // What each name is known to hold. A run of numbers may only be fed
+  // things proved to be numbers, and "proved" has to mean proved - a name
+  // assumed numeric because it is a name is how a list of things came to be
+  // emitted as a list of f64, silently, with the answer coming out zero.
+  const holds = new Map();
+  const saysNumber = (name) => holds.get(lower(name)) === 'number';
+  const noteHolds = (name, what) => holds.set(lower(name), what);
+
   const walk = (node, listPlace, holder) => {
     if (!node || typeof node !== 'object') return;
     if (node.type === 'Var') {
@@ -224,20 +232,32 @@ export function numericLists(block, params = []) {
           && String(value.spec || '').startsWith('room for');
         if (empty || room || allNumbers(value)) made.add(name);
         else banned.add(name);
+        // And remember what this name now holds, for the check above.
+        noteHolds(name, isPlainNumeric(value) ? 'number' : 'other');
         walk(value, false);
         return;
       }
       case 'Set':
-        if (node.target && node.target.type === 'Var') banned.add(lower(node.target.name));
+        if (node.target && node.target.type === 'Var') {
+          banned.add(lower(node.target.name));
+          // Written with something unproven, it is no longer a proven number.
+          if (!isPlainNumeric(node.value)) noteHolds(node.target.name, 'other');
+        }
         walk(node.target, false);
         walk(node.value, false);
         return;
-      case 'ForEach':
+      case 'ForEach': {
         // Walking one is exactly what a run of numbers is for.
+        const overRun = node.list && node.list.type === 'Var'
+          && made.has(lower(node.list.name)) && !banned.has(lower(node.list.name));
         if (node.list && node.list.type === 'Var') { /* allowed */ }
         else walk(node.list, false);
+        // One item of a run of numbers is a number; one item of anything
+        // else is anybody's guess, so it is not treated as one.
+        if (node.name) noteHolds(node.name, overRun ? 'number' : 'other');
         statements(node.block && node.block.body);
         return;
+      }
       case 'Phrase': {
         // "add 3 to numbers" keeps it a run of numbers; anything else that
         // takes the name does not.
@@ -269,6 +289,8 @@ export function numericLists(block, params = []) {
         return;
       case 'Count': case 'Repeat':
         walk(node.from, false); walk(node.to, false); walk(node.times, false);
+        // A counter counts, so it really is a number.
+        if (node.name) noteHolds(node.name, 'number');
         statements(node.block && node.block.body);
         return;
       case 'Block':
@@ -296,12 +318,14 @@ export function numericLists(block, params = []) {
       case 'Number': return true;
       case 'Negate': return isPlainNumeric(node.value);
       case 'Math': return isPlainNumeric(node.left) && isPlainNumeric(node.right);
-      case 'Var': return true;      // checked against the number analysis by the caller
+      // Only with evidence. Anything unproven is treated as not a number,
+      // which costs an optimisation; the other way round costs the answer.
+      case 'Var': return saysNumber(node.name);
       default: return false;
     }
   };
 
-  for (const param of params) banned.add(lower(param));
+  for (const param of params) { banned.add(lower(param)); noteHolds(param, 'other'); }
   statements(block && block.body);
 
   const out = new Set();
