@@ -149,6 +149,81 @@ check('remove from a list', () => assert.equal(first('make l be [1, 2]\nremove 1
 check('set an item', () => assert.equal(first('make l be [1, 2]\nset item 2 of l to 9\nshow item 2 of l'), '9'));
 check('total, highest, lowest', () =>
   assert.deepEqual(run('make l be [3, 9, 1]\nshow total of l\nshow highest of l\nshow lowest of l'), ['13', '9', '1']));
+check('a program can be written in Spanish', () => {
+  const lines = run([
+    'en español',
+    'haz puntos ser 0',
+    'haz cartas ser [3, 1, 2]',
+    'por cada carta dentro de cartas',
+    '    cambia puntos a puntos más carta',
+    'fin',
+    'muestra puntos',
+    'muestra número de elementos dentro de cartas',
+    'muestra ordenado cartas',
+    'si puntos es mayor que 2',
+    '    muestra "grande"',
+    'fin',
+    'para saludar con nombre',
+    '    devuelve "hola, {nombre}"',
+    'fin',
+    'muestra saludar con "Ana"'
+  ].join('\n'));
+  assert.deepEqual(lines, ['6', '3', '[1, 2, 3]', 'grande', 'hola, Ana']);
+});
+
+check('a program can be written in French, elision and all', () => {
+  const lines = run([
+    'en français',
+    'fais cartes être [3, 1, 2]',
+    'affiche nombre de éléments dans cartes',
+    'affiche trié cartes',
+    'répète avec n allant de 1 à 2',
+    '    affiche "tour {n}"',
+    'fin',
+    // "l'élément" is one token holding two words; the apostrophe is split
+    // and each half translated on its own.
+    "affiche l'élément 1 de cartes"
+  ].join('\n'));
+  assert.deepEqual(lines, ['3', '[1, 2, 3]', 'tour 1', 'tour 2', '3']);
+});
+
+check('the y coordinate survives being the Spanish word for "and"', () => {
+  const lines = run([
+    'en español',
+    'haz cosa ser { x: 4, y: 9 }',
+    'muestra y de cosa',
+    'si x de cosa es 4 y y de cosa es 9',
+    '    muestra "las dos"',
+    'fin'
+  ].join('\n'));
+  assert.deepEqual(lines, ['9', 'las dos']);
+});
+
+check('a Spanish game parses with the game engine words', () => {
+  const { game } = runtimeFor([
+    'en español',
+    'empieza un juego llamado "Atrapa" de tamaño 800 por 500',
+    'haz jugador ser una caja en 400 , 450 de tamaño 60 por 20 de color "#ffd166"',
+    'cuando jugador toca jugador',
+    '    suma 1 a puntos',
+    'fin'
+  ].join('\n'));
+  assert.equal(game.title, 'Atrapa');
+  assert.equal(game.width, 800);
+  assert.equal(game.things.length, 1);
+});
+
+check('an English program is untouched by the language packs', () => {
+  // "si", "es" and "no" are all Spanish words; in a file with no language
+  // line they must stay exactly what the programmer named them.
+  const lines = run([
+    'make si be 1',
+    'make es be 2',
+    'show si plus es'
+  ].join('\n'));
+  assert.deepEqual(lines, ['3']);
+});
+
 check('sorted', () => assert.equal(first('show text of sorted [3, 1, 2]'), '[1, 2, 3]'));
 
 check('shuffling keeps every item and leaves the original alone', () => {
@@ -1136,6 +1211,16 @@ check('a world can be started', () => {
   assert.equal(world.started, true);
   assert.equal(game.width, 400);
   assert.equal(world.bodies.length, 3);
+});
+
+check('the sun can be told to cast shadows', () => {
+  const { world } = runtimeFor(WORLD + String.fromCharCode(10) + 'let the sun cast shadows');
+  assert.equal(world.castShadows, true);
+  const { world: off } = runtimeFor(WORLD + String.fromCharCode(10) + 'let the sun cast shadows' + String.fromCharCode(10) + 'stop the sun casting shadows');
+  assert.equal(off.castShadows, false);
+  // And a world that never asks never pays: the flag simply is not there.
+  const { world: bare } = runtimeFor(WORLD);
+  assert.ok(!bare.castShadows);
 });
 
 check('a picture can be worn on a thing in the world', () => {

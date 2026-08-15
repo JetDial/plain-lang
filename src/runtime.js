@@ -2,6 +2,7 @@
 // Holds the sentences the language knows and runs a program with them.
 
 import { tokenize } from './lexer.js';
+import { detectLanguage, translateTokens } from './languages.js';
 import { Parser } from './parser.js';
 import { PhraseTable } from './phrases.js';
 import { Interpreter } from './interp.js';
@@ -67,9 +68,14 @@ export class Runtime {
   // first (so its sentences exist before anything calls them) and its line
   // is blanked out, which keeps every line number honest.
   parse(source, file = '<input>', seen = new Set()) {
+    // A file may say what human language it is written in on its first
+    // meaningful line ("en español", "en français"). The language is
+    // per-file, so a Spanish program can use an English library.
+    const { pack, cleaned: named } = detectLanguage(String(source));
+
     const used = [];
-    const cleaned = String(source).replace(
-      /^[ \t]*use[ \t]+["']([^"'\n]+)["'][ \t]*$/gm,
+    const cleaned = named.replace(
+      /^[ \t]*(?:use|usa|utilise)[ \t]+["']([^"'\n]+)["'][ \t]*$/gm,
       (line, path) => { used.push(path); return ''; }
     );
 
@@ -86,7 +92,8 @@ export class Runtime {
       before.push(this.parse(text, path, seen));
     }
 
-    const tokens = tokenize(cleaned, file);
+    let tokens = tokenize(cleaned, file);
+    if (pack) tokens = translateTokens(tokens, pack);
     const program = new Parser(tokens, this.phrases, file).parseProgram();
     if (!before.length) return program;
     return { type: 'Program', file, body: [...before.flatMap(p => p.body), ...program.body] };

@@ -320,6 +320,12 @@ export function installWorld(rt, host = {}) {
     body._skinImage = pictureOf(source);
   };
 
+  // Shadows cast by things onto other things, from the sun. Off unless
+  // asked for, because a small machine should not pay for what a program
+  // never mentions.
+  rt.define('let the sun cast shadows', () => { world.castShadows = true; });
+  rt.define('stop the sun casting shadows', () => { world.castShadows = false; });
+
   rt.define('cover $body with the picture $source', (a, ctx) =>
     void cover(bodyOf(a.body, ctx), a.source, 1));
 

@@ -280,21 +280,55 @@ export class RustEmitter extends Emitter {
 
   bitwiseNot(value) { return `plain_bits_not(${value})`; }
 
-  // "take 1 from score" is a sum, and a sum has to stay a Value.
+  // "add 1 to score" and "take 1 from score" write into a name, so they
+  // have to agree with what that name is: a bare f64 when the analysis
+  // unboxed it, a Value when it did not. Getting this wrong is not a wrong
+  // answer, it is a program rustc refuses to build - which is exactly what
+  // happened the first day a rustc was on the machine to ask.
   phraseStatement(node) {
-    if (node.spec === 'take $value from #name') {
+    const writes = ['add $value to #name', 'take $value from #name', 'put $value into #name'];
+    if (writes.includes(node.spec)) {
       const name = this.variable(node.args.name);
-      return `${name} = plain_minus(${name}, ${this.expression(node.args.value)})`;
+      const unboxed = this.plainNumbers && this.plainNumbers.has(String(node.args.name).toLowerCase());
+      if (unboxed) {
+        const amount = this.isPlainNumber(node.args.value)
+          ? this.bareNumber(node.args.value)
+          : `plain_number(${this.expression(node.args.value)})`;
+        if (node.spec === 'add $value to #name') return `${name} += ${amount}`;
+        if (node.spec === 'take $value from #name') return `${name} -= ${amount}`;
+        return `${name} = ${amount}`;
+      }
+      if (node.spec === 'take $value from #name') {
+        return `${name} = plain_minus(${name}, ${this.expression(node.args.value)})`;
+      }
     }
     return super.phraseStatement(node);
   }
 
   // ----------------------------------------------------------------- blocks
 
-  // The counting loops hand plain_range three Values, so the ones the
-  // program did not write have to be Values too.
+  // "repeat 3 times" counts, and the analysis marks its counter a number
+  // by the shape of the sentence - so the loop here has to keep that
+  // promise and count with a bare f64, not hand out a boxed Value that
+  // every "show count" inside would then wrap a second time.
   emitRepeat(node) {
     const name = this.loopName('count');
+    if (this.plainNumbers && this.plainNumbers.has('count')) {
+      const bound = `plain_to_${name}`;
+      const times = this.isPlainNumber(node.count)
+        ? this.bareNumber(node.count)
+        : `plain_number(${this.expression(node.count)})`;
+      this.writeLine(`let ${bound}: f64 = ${times}`);
+      this.writeLine(`let mut ${name}: f64 = 0.0`);
+      // The count sits at the top so "next" (continue) still counts.
+      this.open(`loop {`);
+      this.writeLine(`${name} += 1.0`);
+      this.writeLine(`if ${name} > ${bound} { break }`);
+      this.bindLoop('count', name);
+      this.block(node.block);
+      this.close();
+      return;
+    }
     this.open(this.countHeader(name, 'Value::Number(1.0)', this.expression(node.count), 'Value::Number(1.0)'));
     this.bindLoop('count', name);
     this.block(node.block);
@@ -334,18 +368,26 @@ export class RustEmitter extends Emitter {
     if (plainFrom !== null && plainTo !== null && plainStep !== null) {
       const bound = `plain_to_${name}`;
       const stride = `plain_by_${name}`;
+      // Two rules carried over from the interpreter, exactly: the DIRECTION
+      // comes from the numbers ("from 5 to 1" counts down, step or no
+      // step), and the step only says how big each jump is. And the count
+      // happens at the TOP of the loop, not the bottom, because "next"
+      // becomes continue - a bottom increment is skipped by continue, and
+      // that is not a wrong answer, it is a loop that never ends.
       this.writeLine(`let ${bound}: f64 = ${plainTo}`);
-      this.writeLine(`let ${stride}: f64 = ${plainStep}`);
+      this.writeLine(`let mut ${stride}: f64 = ${plainStep}`);
       this.writeLine(`let mut ${name}: f64 = ${plainFrom}`);
-      // Counting down is allowed, so which way "past the end" lies depends
-      // on the step rather than being decided here.
-      this.open(`while (${stride} >= 0.0 && ${name} <= ${bound}) || (${stride} < 0.0 && ${name} >= ${bound}) {`);
+      this.writeLine(`if ${bound} < ${name} && ${stride} > 0.0 { ${stride} = -${stride}; }`);
+      this.writeLine(`if ${bound} > ${name} && ${stride} < 0.0 { ${stride} = -${stride}; }`);
+      this.writeLine(`${name} -= ${stride}`);
+      this.open(`loop {`);
+      this.writeLine(`${name} += ${stride}`);
+      this.writeLine(`if (${stride} > 0.0 && ${name} > ${bound}) || (${stride} < 0.0 && ${name} < ${bound}) { break }`);
       this.bindLoop(node.name, name);
       const before = this.plainNumbers;
       this.plainNumbers = new Set([...(before || []), String(node.name).toLowerCase()]);
       this.block(node.block);
       this.plainNumbers = before;
-      this.writeLine(`${name} += ${stride}`);
       this.close();
       return;
     }

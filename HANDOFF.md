@@ -13,7 +13,7 @@ rediscovered. Everything below was measured or run, not assumed.
 | **`C:\Users\user\skyward-server`** | the game server, in Plain (`master`) |
 | **`C:\Users\user\skyward-client`** | the browser half, in Plain (`master`) |
 
-All three private on GitHub under JetDial. 423 checks pass
+All three private on GitHub under JetDial. 432 checks pass
 (`node tests/run-tests.js`).
 
 ## Four tools, written in Plain
@@ -54,9 +54,22 @@ meeting another) · arcs · shake · centred text · facing and fading ·
 pictures, including one frame out of a sheet · a sound kit that needs no
 files.
 
-**3D:** shadows, a coloured sun, a lamp with a place, haze · picking (what is
-under the mouse) · a first person camera · **pictures on things**, projected
-in the shader from three directions so the shapes need no texture corners.
+**3D:** a coloured sun, a lamp with a place, haze · picking (what is under
+the mouse) · a first person camera · **pictures on things**, projected in
+the shader from three directions so the shapes need no texture corners ·
+**shadows cast by things**, a real depth pass from the sun, off unless asked
+for (`let the sun cast shadows`).
+
+**Other human languages:** a program saying `en español` or `en français` on
+its first line is written in that language, whole. Token-level translation
+in `src/languages.js`, longest match first ("por cada" → "for each",
+"no es" → "is not"), names left alone, any English word still working. A
+language is a dictionary, not code.
+
+**The flagship:** `examples/stonefall.plain` - a textured, shadowed 3D game
+in one file: three patrolling wardens, seven relics, hearts, sprint and
+breath, a lamp-lit gate, title, win and loss. Played end to end in a real
+browser by driving frames.
 
 **The language itself:** bytes · asking without waiting · toolkits (calling C
 through WebAssembly) · room (memory with a size and no address) · days ·
@@ -87,13 +100,11 @@ see `INTEROP.md` for exactly what crosses it and what does not.
 1. **Struct layout** - the only performance item the measurements support.
    See `PERFORMANCE.md`, which also says why cloning and field lookup were
    measured and rejected, so neither gets retried on how the code looks.
-2. **Shadows cast by things**, now that pictures are on them. The next most
-   visibly missing thing in a 3D world.
-3. **Loading a model**, so a world can hold a shape nobody typed.
-4. Generators as lazy lists · workers · the embedded runtime.
-5. Airmash's remaining screen: country flags, crowns, level badges, ping,
+2. **Loading a model**, so a world can hold a shape nobody typed.
+3. Generators as lazy lists · workers · the embedded runtime.
+4. Airmash's remaining screen: country flags, crowns, level badges, ping,
    mute and settings, `FROM Server` messages.
-6. Public-server things: moderation, accounts, votemute.
+5. Public-server things: moderation, accounts, votemute.
 
 ---
 
@@ -129,6 +140,15 @@ their numbers so the next person does not spend a day on either.
 
 **Restart the server before believing the test.** One result was reported
 from a process that had never picked up the change.
+
+**The day rustc arrived, four bugs surfaced.** The Rust backend "passed"
+for months while no Rust compiler, C compiler or Lua were on the machine to
+try what it wrote. The first real compile found unboxed counters handed out
+as boxed Values, "take 1 from n" writing a Value into an f64 - and "next"
+inside the fast counting loop emitting a continue that jumped over the
+increment at the bottom: not a wrong answer, a program that never ends. The
+increment now sits at the top of a loop{}. A test that skips quietly is a
+test that does not exist; all eleven targets now build and run in the suite.
 
 **"repeat with n from 1 to 0" counts DOWN.** It does not do nothing - it
 runs with n as 1 and then as 0, and item 0 of a list is nothing. That broke

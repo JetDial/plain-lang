@@ -1070,6 +1070,67 @@ you walk away and lights the side of a thing that faces it. Haze is the
 cheapest way to make a world feel large, because it stops the far edge of it
 looking like an edge.
 
+## Writing Plain in Spanish or French
+
+A program says what language it is in on its first meaningful line, and from
+then on the whole file may be written in it:
+
+```
+en español
+haz puntos ser 0
+por cada carta dentro de cartas
+    cambia puntos a puntos más carta
+fin
+si puntos es mayor que 2
+    muestra "grande"
+fin
+```
+
+```
+en français
+fais cartes être [3, 1, 2]
+pour chaque carte dans cartes
+    affiche carte
+fin
+affiche l'élément 1 de cartes
+```
+
+The language is per file, so a Spanish program can `usa` an English library
+and the other way round. Everything downstream is unchanged: `plain check`
+checks it, `plain play` plays it, and `plain translate` will turn a Spanish
+program into Python.
+
+What to know before writing:
+
+- **Any English word still works mid-sentence.** The dictionary is a help,
+  not a wall; a word it does not know passes through untouched.
+- **Names you invent are left alone** - and a name that happens to be a
+  dictionary word ("caja") is translated the same way everywhere, so it
+  still works; it just prints as its English self in errors.
+- **The language's own little words are taken.** In a Spanish file `y`, `a`,
+  `en`, `de` belong to the language, exactly as `and`, `to`, `at`, `of` do
+  in an English one. The one carve-out is `y` the coordinate: `y de cosa`
+  is the height of a thing, `y` between two questions is "and".
+- Errors still point at the right line, and are written in English for now.
+
+A language is a dictionary in `src/languages.js`, not code. Adding one is
+adding words.
+
+## Shadows cast by things
+
+```
+let the sun cast shadows
+stop the sun casting shadows
+```
+
+Off unless asked for, because a small machine should not pay for what a
+program never mentions. When on, everything the sun cannot see falls into
+shadow: the ground behind a wall, the side of a crate away from the light,
+the stripe under a bridge. The world is drawn twice - once from where the
+sun stands, keeping only distances, then from the eye, asking for each spot
+"is anything nearer the sun than this?" - which is how every big engine does
+it too.
+
 ## Pictures on things
 
 A world of flat colours reads as a diagram. One sentence a thing is what

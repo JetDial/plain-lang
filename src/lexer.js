@@ -49,7 +49,7 @@ export function tokenize(source, file = '<input>') {
       while (i < src.length && src[i] !== '\n') i++;
       continue;
     }
-    if (atLineStart && /^note\b/i.test(src.slice(i))) {
+    if (atLineStart && /^(note|nota|notiz)\b/i.test(src.slice(i))) {
       while (i < src.length && src[i] !== '\n') i++;
       continue;
     }
@@ -99,10 +99,17 @@ export function tokenize(source, file = '<input>') {
       continue;
     }
 
-    // Words: names and keywords.
-    if (/[A-Za-z_]/.test(ch)) {
+    // Words: names and keywords. Any letter of any alphabet, because a
+    // program is allowed to be written in Spanish or French, and "español"
+    // and "répète" are words too.
+    if (/[\p{L}_]/u.test(ch)) {
       const start = i;
-      while (i < src.length && /[A-Za-z0-9_]/.test(src[i])) i++;
+      while (i < src.length && (
+        /[\p{L}\p{N}_]/u.test(src[i]) ||
+        // An apostrophe with letters on both sides is part of the word -
+        // "jusqu'à" and "n'est" are words, not the start of quoted text.
+        (src[i] === "'" && /[\p{L}]/u.test(src[i + 1] || '') && /[\p{L}\p{N}]/u.test(src[i - 1] || ''))
+      )) i++;
       push('word', src.slice(start, i));
       continue;
     }

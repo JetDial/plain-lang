@@ -2,6 +2,30 @@
 // A small WebGL renderer: one shader, a handful of built-in meshes, one
 // directional light. Enough to see a world; nothing a beginner has to know.
 
+// The shadow pass: the world drawn from where the sun stands, keeping only
+// how far away everything is. WebGL1 has no depth textures without asking
+// nicely, so the distance is packed into the four bytes of an ordinary
+// colour - an old trick, and a reliable one.
+const SHADOW_VERTEX = `
+attribute vec3 position;
+uniform mat4 model;
+uniform mat4 lightView;
+void main() {
+  gl_Position = lightView * model * vec4(position, 1.0);
+}`;
+
+const SHADOW_FRAGMENT = `
+precision mediump float;
+vec4 pack(float depth) {
+  vec4 spread = vec4(1.0, 255.0, 65025.0, 16581375.0) * depth;
+  spread = fract(spread);
+  spread -= spread.yzww * vec4(1.0 / 255.0, 1.0 / 255.0, 1.0 / 255.0, 0.0);
+  return spread;
+}
+void main() {
+  gl_FragColor = pack(gl_FragCoord.z);
+}`;
+
 const VERTEX_SHADER = `
 attribute vec3 position;
 attribute vec3 normal;
@@ -9,17 +33,20 @@ uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
 uniform mat4 rotation;
+uniform mat4 lightView;
 varying vec3 shadedNormal;
 varying float depthFade;
 varying vec3 worldPlace;
 varying vec3 localPlace;
 varying vec3 localNormal;
+varying vec4 sunPlace;
 void main() {
   vec4 world = model * vec4(position, 1.0);
   vec4 eye = view * world;
   gl_Position = projection * eye;
   shadedNormal = normalize((rotation * vec4(normal, 0.0)).xyz);
   worldPlace = world.xyz;
+  sunPlace = lightView * world;
   // Kept in the shape's own space, before it is moved or turned, so a
   // picture stays put on a thing that is walking about instead of the
   // thing sliding along underneath its own skin.
@@ -42,11 +69,29 @@ uniform float fogFrom;      // how much of the distance fades into the sky
 uniform sampler2D skin;
 uniform float skinned;      // 0 means this thing has no picture on it
 uniform float repeated;     // how many times the picture tiles across it
+uniform sampler2D sunDepth;
+uniform float casting;      // 0 means nothing casts shadows
 varying vec3 shadedNormal;
 varying float depthFade;
 varying vec3 worldPlace;
 varying vec3 localPlace;
 varying vec3 localNormal;
+varying vec4 sunPlace;
+
+float unpack(vec4 colour) {
+  return dot(colour, vec4(1.0, 1.0 / 255.0, 1.0 / 65025.0, 1.0 / 16581375.0));
+}
+
+// Is this spot the nearest thing to the sun along its own ray? If not,
+// something stands between it and the light, and it is in shadow.
+float sunlight() {
+  if (casting < 0.5) return 1.0;
+  vec3 spot = sunPlace.xyz / sunPlace.w * 0.5 + 0.5;
+  if (spot.x < 0.0 || spot.x > 1.0 || spot.y < 0.0 || spot.y > 1.0 || spot.z > 1.0) return 1.0;
+  float nearest = unpack(texture2D(sunDepth, spot.xy));
+  return spot.z - 0.003 > nearest ? 0.35 : 1.0;
+}
+
 void main() {
   vec3 face = normalize(shadedNormal);
 
@@ -71,8 +116,9 @@ void main() {
     paint = painted * color;
   }
 
-  // The sun: one direction, the same everywhere.
-  float lit = max(dot(face, normalize(light)), 0.0);
+  // The sun: one direction, the same everywhere - unless something stands
+  // between this spot and it.
+  float lit = max(dot(face, normalize(light)), 0.0) * sunlight();
   vec3 shaded = paint * (ambient + (1.0 - ambient) * lit) * lightColor;
 
   // A lamp: a place rather than a direction, so it falls off with distance
@@ -101,8 +147,36 @@ export function createRenderer(canvas) {
     normal: gl.getAttribLocation(program, 'normal')
   };
   const uniforms = {};
-  for (const name of ['model', 'view', 'projection', 'rotation', 'color', 'light', 'sky', 'lightColor', 'ambient', 'lamp', 'lampColor', 'lampReach', 'fogFrom', 'skin', 'skinned', 'repeated']) {
+  for (const name of ['model', 'view', 'projection', 'rotation', 'color', 'light', 'sky', 'lightColor', 'ambient', 'lamp', 'lampColor', 'lampReach', 'fogFrom', 'skin', 'skinned', 'repeated', 'lightView', 'sunDepth', 'casting']) {
     uniforms[name] = gl.getUniformLocation(program, name);
+  }
+
+  // The shadow pass: its own small program, and a texture the size of a
+  // postage stamp that the sun draws the world onto before the eye does.
+  const shadowProgram = link(gl, SHADOW_VERTEX, SHADOW_FRAGMENT);
+  const shadow = { size: 1024, ready: false };
+  if (shadowProgram) {
+    shadow.attributes = { position: gl.getAttribLocation(shadowProgram, 'position') };
+    shadow.uniforms = {
+      model: gl.getUniformLocation(shadowProgram, 'model'),
+      lightView: gl.getUniformLocation(shadowProgram, 'lightView')
+    };
+    shadow.texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, shadow.texture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, shadow.size, shadow.size, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    shadow.depth = gl.createRenderbuffer();
+    gl.bindRenderbuffer(gl.RENDERBUFFER, shadow.depth);
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, shadow.size, shadow.size);
+    shadow.frame = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, shadow.frame);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, shadow.texture, 0);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, shadow.depth);
+    shadow.ready = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   }
 
   // A picture becomes a texture once, however many things wear it, and only
@@ -143,11 +217,55 @@ export function createRenderer(canvas) {
   gl.enable(gl.DEPTH_TEST);
   gl.enable(gl.CULL_FACE);
 
+  const matricesFor = (body) => {
+    const rotation = multiply(
+      multiply(rotateY(body.turnY * Math.PI / 180), rotateX(body.turnX * Math.PI / 180)),
+      rotateZ(body.turnZ * Math.PI / 180)
+    );
+    const model = multiply(
+      multiply(translate(body.x, body.y, body.z), rotation),
+      scale(body.width, body.height, body.depth)
+    );
+    return { rotation, model };
+  };
+
+  // Where the sun stands: far along its own direction, looking at the
+  // middle of things, seeing a fixed box of the world. Fixed because a
+  // shadow map that chases the camera shimmers, and a beginner's world
+  // fits in a box a hundred metres across.
+  const sunView = (world) => {
+    const along = norm([world.light.x, world.light.y, world.light.z]);
+    const eye = [along[0] * 80, along[1] * 80, along[2] * 80];
+    const look = lookAt(eye, [0, 0, 0], Math.abs(along[1]) > 0.95 ? [0, 0, 1] : [0, 1, 0]);
+    return multiply(orthographic(60, 60, 1, 220), look);
+  };
+
   return {
     gl,
     draw(world) {
       const width = canvas.width, height = canvas.height;
       const sky = toRGB(world.sky);
+
+      // Pass one: the world as the sun sees it, kept as distances.
+      const casting = !!world.castShadows && shadow.ready;
+      let lightView = null;
+      if (casting) {
+        lightView = sunView(world);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, shadow.frame);
+        gl.viewport(0, 0, shadow.size, shadow.size);
+        gl.clearColor(1, 1, 1, 1);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        gl.useProgram(shadowProgram);
+        gl.uniformMatrix4fv(shadow.uniforms.lightView, false, lightView);
+        for (const body of world.bodies) {
+          if (body.hidden || body.gone) continue;
+          const mesh = meshes[body.shape] || meshes.cube;
+          gl.uniformMatrix4fv(shadow.uniforms.model, false, matricesFor(body).model);
+          drawMesh(gl, mesh, shadow.attributes);
+        }
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      }
+
       gl.viewport(0, 0, width, height);
       gl.clearColor(sky[0], sky[1], sky[2], 1);
       gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -172,18 +290,18 @@ export function createRenderer(canvas) {
       gl.uniform1f(uniforms.lampReach, lamp ? lamp.reach : 0);
       gl.uniform1f(uniforms.fogFrom, world.fog === undefined ? 0.75 : world.fog);
       gl.uniform3f(uniforms.sky, sky[0], sky[1], sky[2]);
+      gl.uniform1f(uniforms.casting, casting ? 1 : 0);
+      if (casting) {
+        gl.uniformMatrix4fv(uniforms.lightView, false, lightView);
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, shadow.texture);
+        gl.uniform1i(uniforms.sunDepth, 1);
+      }
 
       for (const body of world.bodies) {
         if (body.hidden || body.gone) continue;
         const mesh = meshes[body.shape] || meshes.cube;
-        const rotation = multiply(
-          multiply(rotateY(body.turnY * Math.PI / 180), rotateX(body.turnX * Math.PI / 180)),
-          rotateZ(body.turnZ * Math.PI / 180)
-        );
-        const model = multiply(
-          multiply(translate(body.x, body.y, body.z), rotation),
-          scale(body.width, body.height, body.depth)
-        );
+        const { rotation, model } = matricesFor(body);
         const color = toRGB(body.color);
         gl.uniformMatrix4fv(uniforms.model, false, model);
         gl.uniformMatrix4fv(uniforms.rotation, false, rotation);
@@ -206,6 +324,22 @@ export function createRenderer(canvas) {
 }
 
 function isTwos(n) { return (n & (n - 1)) === 0 && n > 0; }
+
+function norm(v) {
+  const size = Math.hypot(v[0], v[1], v[2]) || 1;
+  return [v[0] / size, v[1] / size, v[2] / size];
+}
+
+// A box of space, not a cone of it: the sun is so far away its rays are
+// parallel, which is what an orthographic projection is.
+export function orthographic(width, height, near, far) {
+  return new Float32Array([
+    2 / width, 0, 0, 0,
+    0, 2 / height, 0, 0,
+    0, 0, -2 / (far - near), 0,
+    0, 0, -(far + near) / (far - near), 1
+  ]);
+}
 
 // ------------------------------------------------------------------ shaders
 
@@ -249,9 +383,14 @@ function drawMesh(gl, mesh, attributes) {
   gl.bindBuffer(gl.ARRAY_BUFFER, mesh.positions);
   gl.enableVertexAttribArray(attributes.position);
   gl.vertexAttribPointer(attributes.position, 3, gl.FLOAT, false, 0, 0);
-  gl.bindBuffer(gl.ARRAY_BUFFER, mesh.normals);
-  gl.enableVertexAttribArray(attributes.normal);
-  gl.vertexAttribPointer(attributes.normal, 3, gl.FLOAT, false, 0, 0);
+  // The shadow pass has no use for normals and its program has no slot for
+  // them. Binding to a slot that is not there is not an error that throws -
+  // it is a silent one that draws nothing, which is worse.
+  if (attributes.normal !== undefined && attributes.normal !== -1) {
+    gl.bindBuffer(gl.ARRAY_BUFFER, mesh.normals);
+    gl.enableVertexAttribArray(attributes.normal);
+    gl.vertexAttribPointer(attributes.normal, 3, gl.FLOAT, false, 0, 0);
+  }
   gl.drawArrays(gl.TRIANGLES, 0, mesh.count);
 }
 

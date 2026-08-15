@@ -11,6 +11,7 @@
 start a world called "Skins" sized 900 by 600
 set the sky to "#9ec9ee"
 set the light colour to "#fff3d6"
+let the sun cast shadows
 set the haze to 0.55
 
 make ground be a floor at 0 , 0 , 0 sized 60 by 60 colored "#cfe0b8"

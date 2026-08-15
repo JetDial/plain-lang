@@ -361,6 +361,27 @@ export function runCourseChecks(check) {
     'fade the last clip out over 1 seconds'
   ].join('\n');
 
+  const SPANISH_1 = [
+    'en español',
+    'haz cartas ser [3, 1, 2]',
+    'muestra ordenado cartas',
+    'haz total ser 0',
+    'por cada carta dentro de cartas',
+    '    cambia total a total más carta',
+    'fin',
+    'si total es mayor que 5',
+    '    muestra "total {total}: grande"',
+    'sino',
+    '    muestra "total {total}: pequeño"',
+    'fin'
+  ].join('\n');
+
+  const SPANISH_2 = [
+    'en français',
+    'fais nombres être [1, 2, 3]',
+    'affiche nombres'
+  ].join('\n');
+
   const TRANSLATE_1 = [
     'to double with n',
     '    give back n times 2',
@@ -483,6 +504,7 @@ export function runCourseChecks(check) {
     game: [GAME_1, GAME_2, GAME_3, GAME_4],
     world: [WORLD_1, WORLD_2, WORLD_3, WORLD_4],
     video: [FILM_1, FILM_2, FILM_3],
+    spanish: [SPANISH_1, SPANISH_2],
     translate: [TRANSLATE_1, TRANSLATE_1, TRANSLATE_1, TRANSLATE_SORTED, TRANSLATE_SORTED],
     protocol: [PROTO_1, PROTO_2, PROTO_3],
     guestbook: [BOOK_1, BOOK_2, BOOK_3, BOOK_4]

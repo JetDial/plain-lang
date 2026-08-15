@@ -1105,6 +1105,7 @@ than like a diagram:</p>
 ` + walk([
       ['set the shadows to 0.8', 'How dark the unlit side of things is. 0 is flat and lifeless; 1 is black shadows.'],
       ['put a lamp at 0 , 4 , 0 reaching 14 colored "#ffb347"', 'A light with a <b>place</b> rather than a direction. It falls off as you walk away and lights the side of a thing that faces it, which a sun cannot do.'],
+      ['let the sun cast shadows', '<b>Shadows.</b> Everything the sun cannot see falls into shadow - the ground behind a wall, the stripe under a bridge. The world is drawn twice: once from where the sun stands keeping only distances, then from the eye, asking each spot: is anything nearer the sun than you? Off unless you ask, because it costs a second drawing.'],
       ['cover ground with the picture "grass.png" repeated 24 times', '<b>A picture on a thing.</b> A world of flat colours reads as a diagram; this is what makes it grass. <b>repeated</b> tiles it - 24 across a 60 metre floor is a tile every two and a half metres. Tiling wants a picture 64 by 64 or 128 by 128; other sizes work but cannot repeat.'],
       ['cover crate with the picture "wood.png"', 'Without <b>repeated</b>, the picture is stretched once over the whole thing. The picture is <b>multiplied by the colour</b>, so the same wood picture on a green crate gives green wood - one file, any colour you like. And until the picture has loaded the thing is just its colour, so nothing flickers.'],
       ['set the haze to 0.4', 'How much of the distance fades into the sky. The cheapest way to make a world feel large, because it stops the far edge looking like an edge.']
@@ -1361,6 +1362,62 @@ somebody's decision.</p>`,
     ]
   },
 
+  {
+    id: 'spanish',
+    title: 'Project: a program in Spanish',
+    about: 'The same language, written in Spanish - "en español" on the first line is all it takes.',
+    steps: [
+      {
+        task: 'Run this Spanish program, then change something and run it again.',
+        teach: `
+<p>Plain reads Spanish and French as well as English. Say so on the first
+line - <b>en español</b> - and every sentence after it may be written in
+that language: <b>haz</b> is make, <b>muestra</b> is show, <b>si ... fin</b>
+is if ... end, <b>por cada</b> is for each.</p>
+<p>Two things worth knowing. Any English word still works mid-sentence, so a
+word you do not know the Spanish for is never a wall. And the language's own
+little words - <b>y</b>, <b>a</b>, <b>en</b>, <b>de</b> - belong to the
+language, exactly as "and", "to", "at" and "of" do in English.</p>`,
+        start: `en español
+haz cartas ser [3, 1, 2]
+muestra ordenado cartas
+haz total ser 0
+por cada carta dentro de cartas
+    cambia total a total más carta
+fin
+si total es mayor que 5
+    muestra "total {total}: grande"
+sino
+    muestra "total {total}: pequeño"
+fin
+`,
+        check: ({ lines }) => {
+          if (!lines.length) return 'Show something - muestra is show.';
+          return true;
+        }
+      },
+      {
+        task: 'Write three lines of French: en français, then fais nombres être [1, 2, 3], then affiche nombres.',
+        teach: `
+<p>French works the same way, apostrophes and all: <b>l'élément 1 de
+cartes</b> is "the item 1 of cartes". A Spanish program can use an English
+library and the other way round, because the language belongs to the file,
+not the machine.</p>
+<p>And everything downstream is unchanged: plain check checks Spanish,
+plain translate turns French into Python. A language here is a dictionary,
+not a dialect - adding one is adding words.</p>`,
+        start: `en français
+fais nombres être [1, 2, 3]
+affiche nombres
+`,
+        check: ({ lines, source }) => {
+          if (!has(source, 'fran')) return 'Start with: en français';
+          if (!lines.length) return 'affiche is show - show your list.';
+          return true;
+        }
+      }
+    ]
+  },
   {
     id: 'translate',
     title: 'Project: the same program in eleven languages',

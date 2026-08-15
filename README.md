@@ -19,7 +19,13 @@ end
 ```
 
 No semicolons, no curly braces, no `public static void`. Lines start with a
-verb, blocks end with `end`, and indentation is yours to choose. Underneath it
+verb, blocks end with `end`, and indentation is yours to choose.
+
+And the sentences do not have to be English ones. Say **en español** or
+**en français** on the first line and write the whole file in that language -
+`haz puntos ser 0`, `por cada carta dentro de cartas`, `si ... fin`. The
+checker checks it, the translator turns it into Python, and a Spanish file
+can use an English one, because the language belongs to the file. Underneath it
 has the things a grown-up language has: your own kinds of thing, actions used
 as values, catching problems, and files that pull in other files.
 
@@ -34,14 +40,21 @@ you one folder to copy to a server.
 | | |
 |---|---|
 | **Whole applications** | addresses, forms, a table that survives restarts, sign-in with real passwords, files people send, HTTPS, live connections, email |
-| **Games** | 2D with sprites, gravity and collisions; 3D on a hand-written WebGL renderer |
+| **Games** | 2D with sprites, gravity and collisions; 3D on a hand-written WebGL renderer with pictures on things, shadows cast by the sun, lamps, haze and a first person camera |
 | **Websites** | typed, or dragged about in a designer that writes Plain sentences back out |
 | **Video** | a timeline, a studio, and a WebM file at the end, muxed by hand |
 | **Eleven other languages** | JavaScript, TypeScript, Python, Ruby, PHP, Java, C#, Go, Lua, Rust, C — real code, built and run by the test suite |
-| **A course** | 16 lessons and 7 projects in the browser, every step checked by running what you wrote |
+| **A course** | 16 lessons and 9 projects in the browser, every step checked by running what you wrote |
+| **Two human languages besides English** | Spanish and French, per file, one dictionary each - adding another is adding words |
 
 Made with it: **[Skyward](https://github.com/JetDial/skyward)**, a multiplayer
-flying game whose whole server is one file of Plain sentences.
+flying game whose whole server is one file of Plain sentences - and
+**Stonefall** (`plain play examples/stonefall.plain`), a textured, shadowed
+3D game in one file, played from title screen to victory.
+
+Made *in* it: a level editor, a sprite editor, a film editor and a site
+builder, each written in Plain and each writing its output back out as
+Plain (`plain desk` opens everything in this folder in one page).
 
 ---
 
