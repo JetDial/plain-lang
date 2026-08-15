@@ -251,6 +251,37 @@ export function installWeb(rt, host = {}) {
   rt.define('style #id with $css', (a) => {
     site.styles.push(`[data-plain-name="${clean(String(a.id))}"] { ${clean(toText(a.css))} }`);
   });
+  // ------------------------------------------------- what a site actually needs
+  //
+  // Everything above puts one thing after another down a page. That builds a
+  // document. What separates it from a website is the four things below, and
+  // they are the ones every framework exists to provide.
+
+  // A row of things side by side that becomes a column on a telephone. This
+  // is the whole of what a layout system does, and it is two lines of CSS
+  // that nobody should have to remember.
+  // Whatever the block adds becomes the inside of the row, rather than
+  // going on down the page as usual.
+  const gather = (kind) => (a, ctx) => {
+    const page = site.current;
+    const before = page.nodes.length;
+    ctx.block();
+    const inside = page.nodes.splice(before);
+    page.nodes.push({ kind, children: inside });
+  };
+
+  rt.define('start a row ...', gather('row'));
+  rt.define('start a card ...', gather('card'));
+
+  // A button that goes somewhere, which is how anybody moves around a site.
+  rt.define('add a button $text going to $where', (a) =>
+    void site.add('button', { text: toText(a.text), href: toText(a.where) }));
+
+  // What a search engine and a shared link show. Leaving this out is why so
+  // many pages appear as a bare address with no description.
+  rt.define('describe this page as $text', (a) => { site.current.description = toText(a.text); });
+  rt.define('set the page picture to $source', (a) => { site.current.picture = toText(a.source); });
+
   rt.define('add a footer $text', (a) => void site.add('footer', { text: toText(a.text) }));
 
   // ------------------------------------------------------------ list, media

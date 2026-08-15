@@ -379,6 +379,47 @@ check('lists answer the questions people ask of two lists', () => {
   assert.deepEqual(g.get('all'), [1, 2, 5]);
 });
 
+check('a film can be edited, not only assembled', () => {
+  const { studio } = runtimeFor([
+    'make a video called "Coast" sized 1280 by 720',
+    'add a picture "cliff.jpg" for 4 seconds',
+    'drift the last clip from 1 to 1.25',
+    'add a picture "harbour.jpg" for 4 seconds',
+    'cross into the last clip over 1 seconds',
+    'add a clip "gulls.mp4" for 6 seconds',
+    'play the last clip at 0.5 speed',
+    'split the last clip at 3 seconds'
+  ].join('\n'));
+  // 4 + 4 - 1 crossed + 12 at half speed, and the split made a fourth clip.
+  assert.equal(studio.clips.length, 4);
+  assert.equal(Math.round(studio.length), 19);
+  assert.equal(studio.clips[0].zoomTo, 1.25);
+  assert.equal(studio.clips[1].crossFrom, 1);
+  assert.equal(studio.clips[2].speed, 0.5);
+});
+
+check('a page can be laid out, not only stacked', () => {
+  const { site } = runtimeFor([
+    'make a website called "Tides"',
+    'describe this page as "When the sea comes in."',
+    'add a title "Tides"',
+    'start a row',
+    '    start a card',
+    '        add a heading "Morning"',
+    '    end',
+    'end',
+    'add a button "The whole week" going to "/week"'
+  ].join('\n'));
+  const page = site.pages[0];
+  assert.equal(page.description, 'When the sea comes in.');
+  const row = page.nodes.find(one => one.kind === 'row');
+  assert.ok(row, 'the row exists');
+  // What the block added went inside the row rather than on down the page.
+  assert.equal(row.children.length, 1);
+  assert.equal(row.children[0].kind, 'card');
+  assert.ok(page.nodes.some(one => one.kind === 'button'));
+});
+
 check('a scene shows its own things and runs its own rules', () => {
   const { game, rt } = runtimeFor([
     'start a game called "Two Games" sized 400 by 300',

@@ -51,7 +51,9 @@ export class Studio {
   }
 
   get length() {
-    return this.clips.reduce((total, clip) => total + clip.length, 0);
+    // A crossfade means two clips are on screen at once for that long, so
+    // the film is shorter than the sum of its parts by exactly the overlap.
+    return this.clips.reduce((total, clip) => total + clip.length - (clip.crossFrom || 0), 0);
   }
 
   // Where each clip sits on the timeline.
@@ -238,6 +240,67 @@ export function installVideo(rt, host = {}) {
   });
 
   // -------------------------------------------------------------- asking
+
+  // --------------------------------------------- what an editor actually does
+  //
+  // Everything above cuts one clip against the next and puts words over the
+  // top. That is a slideshow. What makes something look edited is the four
+  // things below, and every editor people pay for has all four.
+
+  // A crossfade. Not two fades that happen to meet - one clip is still
+  // there while the next arrives, which is why it looks like a change of
+  // subject rather than a gap.
+  rt.define('cross into the last clip over $seconds seconds', (a, ctx) => {
+    const clip = lastOr(ctx);
+    const at = studio.clips.indexOf(clip);
+    if (at < 1) ctx.fail('There is nothing to cross into it from', 'a crossfade needs a clip before this one');
+    const over = Math.max(0.01, toNumber(a.seconds));
+    clip.crossFrom = over;
+    studio.clips[at - 1].crossTo = over;
+  });
+
+  // Slow motion and its opposite. A clip played at half speed lasts twice
+  // as long, which the timeline has to know about.
+  rt.define('play the last clip at $speed speed', (a, ctx) => {
+    const clip = lastOr(ctx);
+    const speed = Math.max(0.05, toNumber(a.speed));
+    const was = clip.length;
+    clip.speed = speed;
+    clip.length = was / speed;
+  });
+
+  // The slow drift across a still picture that stops it looking like a
+  // slide. Named after the man who made a career of it.
+  rt.define('drift the last clip from $fromZoom to $toZoom', (a, ctx) => {
+    const clip = lastOr(ctx);
+    clip.zoomFrom = Math.max(0.1, toNumber(a.fromZoom));
+    clip.zoomTo = Math.max(0.1, toNumber(a.toZoom));
+  });
+
+  rt.define('drift the last clip #where', (a, ctx) => {
+    const clip = lastOr(ctx);
+    const which = String(a.where).toLowerCase();
+    const ways = { left: [1, 0], right: [-1, 0], up: [0, 1], down: [0, -1] };
+    if (!ways[which]) ctx.fail(`"${a.where}" is not a way to drift`, 'use left, right, up or down');
+    clip.driftX = ways[which][0];
+    clip.driftY = ways[which][1];
+  });
+
+  // Colour, which is most of what "graded" means.
+  rt.define('make the last clip $amount brighter', (a, ctx) => { lastOr(ctx).brightness = 1 + toNumber(a.amount); });
+  rt.define('make the last clip $amount darker', (a, ctx) => { lastOr(ctx).brightness = Math.max(0, 1 - toNumber(a.amount)); });
+  rt.define('drain the colour from the last clip', (a, ctx) => { lastOr(ctx).saturation = 0; });
+  rt.define('set the colour of the last clip to $amount', (a, ctx) => { lastOr(ctx).saturation = Math.max(0, toNumber(a.amount)); });
+  rt.define('tint the last clip $color', (a, ctx) => { lastOr(ctx).tint = toText(a.color); });
+
+  // Splitting, which is the single most used action in any editor.
+  rt.define('split the last clip at $seconds seconds', (a, ctx) => {
+    const clip = lastOr(ctx);
+    const at = Math.max(0.01, Math.min(clip.length - 0.01, toNumber(a.seconds)));
+    const second = { ...clip, length: clip.length - at };
+    clip.length = at;
+    studio.clips.push(second);
+  });
 
   rt.defineValue('video length', () => studio.length);
   rt.defineValue('clip count', () => studio.clips.length);

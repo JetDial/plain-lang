@@ -865,6 +865,51 @@ what you use to skip drawing the rest of it.
 Also `draw a line from $x , $y to $x , $y thick $n colored $c`, which follows
 the same rule.
 
+## Editing a film, not only assembling one
+
+Cutting one clip against the next is a slideshow. These are what make
+something look edited, and every editor people pay for has all of them.
+
+```
+cross into the last clip over 1 seconds     two clips on screen at once
+play the last clip at 0.5 speed             slow motion; the timeline knows
+split the last clip at 3 seconds            the most used action there is
+drift the last clip from 1 to 1.25          the slow push into a still
+drift the last clip left
+make the last clip 0.2 brighter
+drain the colour from the last clip
+tint the last clip "#4a6ea8"
+```
+
+A crossfade is not two fades that happen to meet — the first clip is still
+there while the next arrives, which is why the film gets *shorter* by exactly
+the overlap.
+
+## Laying out a page, not only stacking it
+
+```
+start a row
+    start a card
+        add a heading "Morning"
+        add text "High water at 06:12."
+    end
+    start a card
+        add a heading "Evening"
+    end
+end
+
+add a button "The whole week" going to "/week"
+
+describe this page as "When the sea comes in, and when it goes out again."
+set the page picture to "/cover.png"
+```
+
+A **row** puts things side by side and becomes a column on a telephone,
+which is the whole of what a layout system does. A **card** is the box
+everything on the modern web is made of. `describe this page as` is what a
+search engine and a shared link show — leaving it out is why so many pages
+appear as a bare address with no description.
+
 ## Scenes
 
 A game is nearly always several games: a title screen, the playing, and the

@@ -86,6 +86,12 @@ button.plain-button:active { transform: translateY(1px); }
   background: var(--ink); color: var(--bg); padding: 12px 20px; border-radius: 999px;
   font-size: 15px; box-shadow: 0 10px 30px rgba(0,0,0,.25); z-index: 50;
 }
+.plain-button { display: inline-block; padding: 10px 18px; border-radius: 8px; background: var(--ink);
+  color: var(--page); text-decoration: none; font-weight: 600; }
+.plain-button:hover { opacity: 0.85; }
+.plain-row { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
+.plain-row > * { flex: 1 1 240px; min-width: 0; }
+@media (max-width: 640px) { .plain-row { display: block; } .plain-row > * { margin-bottom: 16px; } }
 .plain-footer { margin-top: 64px; color: var(--soft); font-size: 14px; border-top: 1px solid var(--line); padding-top: 18px; }
 @media (max-width: 620px) { .plain-page { padding: 34px 18px 72px; } }
 `.trim();
@@ -127,6 +133,8 @@ export function toSpec(node) {
       return { tag: 'div', className: 'plain-card', children: (node.children || []).map(toSpec) };
     case 'row':
       return { tag: 'div', className: 'plain-row', children: (node.children || []).map(toSpec) };
+    case 'button':
+      return { tag: 'a', className: 'plain-button', text: p.text, attrs: { href: p.href || '#' } };
     case 'footer':
       return { tag: 'div', className: 'plain-footer', text: p.text };
     default:
@@ -196,6 +204,9 @@ ${pageToHTML(page)}
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+${page.description ? `<meta name="description" content="${escapeHTML(page.description)}">
+    <meta property="og:description" content="${escapeHTML(page.description)}">` : ''}
+    ${page.picture ? `<meta property="og:image" content="${escapeHTML(page.picture)}">` : ''}
     <title>${escapeHTML(page.name === site.title ? site.title : `${page.name} - ${site.title}`)}</title>
     <style>
 ${stylesheet(site.theme)}
