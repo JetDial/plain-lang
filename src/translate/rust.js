@@ -16,6 +16,7 @@
 
 import { Emitter } from './emitter.js';
 import { runtimeSource, PROGRAM_STARTS } from './runtimes.js';
+import { numericNames } from './numbers.js';
 
 const RESERVED = new Set([
   'as', 'async', 'await', 'break', 'const', 'continue', 'crate', 'dyn', 'else',
@@ -29,6 +30,9 @@ const RESERVED = new Set([
   'some', 'none', 'result', 'ok', 'err', 'clone', 'drop'
 ]);
 
+// Which names in the body being written now hold nothing but numbers. It is
+// a set of plain lowercase names, worked out before the body is written.
+// Empty means "box everything", which is what this did until now.
 export class RustEmitter extends Emitter {
   get name() { return 'Rust'; }
   get extension() { return '.rs'; }
@@ -67,7 +71,15 @@ export class RustEmitter extends Emitter {
 
   // -------------------------------------------------------------- the shape
 
-  declare(name, value) { return `let mut ${name} = ${value}`; }
+  // A name proved to hold only numbers becomes the machine's own number,
+  // and everything done to it becomes the machine's own arithmetic. That is
+  // the whole optimisation: no box, no function call, no looking inside.
+  declare(name, value) {
+    if (this.plainNumbers && this.plainNumbers.has(this.originalOf(name))) {
+      return `let mut ${name}: f64 = ${value}`;
+    }
+    return `let mut ${name} = ${value}`;
+  }
   assign(name, value) { return `${name} = ${value}`; }
   ifHeader(condition) { return `if ${condition} {`; }
   elseIfHeader(condition) { return `else if ${condition} {`; }
@@ -112,6 +124,51 @@ export class RustEmitter extends Emitter {
   kindNameOf(value) { return `plain_kind_name(${value})`; }
   power(left, right) { return `plain_power(${left}, ${right})`; }
 
+  // ---------------------------------------------------- numbers without boxes
+
+  // A name is remembered here under the name the program used, not the one
+  // Rust ended up with, so both spellings can be asked about.
+  originalOf(name) {
+    return this.plainNumberSpellings ? (this.plainNumberSpellings.get(name) || name) : name;
+  }
+
+  // Is this expression one the machine can do on its own?
+  isPlainNumber(node) {
+    if (!node || !this.plainNumbers || this.plainNumbers.size === 0) return false;
+    switch (node.type) {
+      case 'Number': return true;
+      case 'Var': return this.plainNumbers.has(String(node.name).toLowerCase());
+      case 'Negate': return this.isPlainNumber(node.value);
+      case 'Math': return this.isPlainNumber(node.left) && this.isPlainNumber(node.right);
+      default: return false;
+    }
+  }
+
+  // The bare arithmetic, with no Value anywhere in it.
+  bareNumber(node) {
+    switch (node.type) {
+      case 'Number': {
+        const written = String(node.value);
+        return written.includes('.') || written.includes('e') ? written : `${written}.0`;
+      }
+      case 'Var': return this.variable(node.name);
+      case 'Negate': return `-(${this.bareNumber(node.value)})`;
+      case 'Math': {
+        const left = this.bareNumber(node.left);
+        const right = this.bareNumber(node.right);
+        switch (node.op) {
+          case '+': return `(${left} + ${right})`;
+          case '-': return `(${left} - ${right})`;
+          case '*': return `(${left} * ${right})`;
+          case '/': return `(${left} / ${right})`;
+          case '%': return `(${left} % ${right})`;
+          default: return null;
+        }
+      }
+      default: return null;
+    }
+  }
+
   // An action held in a name is a closure that unpacks the list it is given.
   actionReference(name) {
     const takes = this.arities.get(name) || 0;
@@ -126,10 +183,12 @@ export class RustEmitter extends Emitter {
   expression(node) {
     if (node === undefined || node === null) return this.nothingWord;
     switch (node.type) {
-      case 'Var':
-        return node.name.toLowerCase() === 'me'
-          ? `${this.selfWord}.clone()`
-          : `${this.variable(node.name)}.clone()`;
+      case 'Var': {
+        if (node.name.toLowerCase() === 'me') return `${this.selfWord}.clone()`;
+        // Wanted as a Value here, so it is put in a box at this one point.
+        if (this.isPlainNumber(node)) return `Value::Number(${this.variable(node.name)})`;
+        return `${this.variable(node.name)}.clone()`;
+      }
       case 'Negate':
         return `plain_negate(${this.expression(node.value)})`;
       case 'Not':
@@ -155,10 +214,23 @@ export class RustEmitter extends Emitter {
   // A question is a Value like everything else, so asking whether it holds
   // goes through the same door every time.
   truth(node) {
+    // A comparison of two plain numbers is already a yes or no.
+    if (node && node.type === 'Compare' && this.isPlainNumber(node.left) && this.isPlainNumber(node.right)) {
+      const sign = { '==': '==', '!=': '!=', '<': '<', '<=': '<=', '>': '>', '>=': '>=' }[node.op];
+      if (sign) return `(${this.bareNumber(node.left)} ${sign} ${this.bareNumber(node.right)})`;
+    }
     return `plain_truthy(${this.expression(node)})`;
   }
 
   comparison(node) {
+    // Comparing two plain numbers is one machine instruction, and the
+    // answer is still a Value because the rest of the program expects one.
+    if (this.isPlainNumber(node.left) && this.isPlainNumber(node.right)) {
+      const sign = { '==': '==', '!=': '!=', '<': '<', '<=': '<=', '>': '>', '>=': '>=' }[node.op];
+      if (sign) {
+        return `Value::Bool(${this.bareNumber(node.left)} ${sign} ${this.bareNumber(node.right)})`;
+      }
+    }
     const left = this.expression(node.left);
     const right = this.expression(node.right);
     switch (node.op) {
@@ -174,6 +246,17 @@ export class RustEmitter extends Emitter {
   }
 
   maths(node) {
+    // Both sides plain numbers: let the machine do the arithmetic, and put
+    // the answer in a box once at the end rather than on every step.
+    //
+    // The box matters. This is asked for from everywhere - including places
+    // that hand the answer straight to something expecting a Value - and an
+    // expression cannot see what is going to be done with it. The places
+    // that genuinely want a bare number ask for one by name.
+    if (this.isPlainNumber(node)) {
+      const bare = this.bareNumber(node);
+      if (bare !== null) return `Value::Number(${bare})`;
+    }
     const left = this.expression(node.left);
     const right = this.expression(node.right);
     const named = {
@@ -213,6 +296,36 @@ export class RustEmitter extends Emitter {
 
   emitCount(node) {
     const name = this.loopName(node.name);
+
+    // "repeat with n from 1 to 120000" counts. Whatever else is unclear
+    // about a program, that name holds a number - it is a number by the
+    // shape of the sentence, not by anything we had to prove. So it counts
+    // as one, and the whole range stops being a list of boxed values built
+    // in memory before the loop even starts.
+    const plainFrom = this.isPlainNumber(node.from) ? this.bareNumber(node.from) : null;
+    const plainTo = this.isPlainNumber(node.to) ? this.bareNumber(node.to) : null;
+    const plainStep = !node.step ? '1.0'
+      : (this.isPlainNumber(node.step) ? this.bareNumber(node.step) : null);
+
+    if (plainFrom !== null && plainTo !== null && plainStep !== null) {
+      const bound = `plain_to_${name}`;
+      const stride = `plain_by_${name}`;
+      this.writeLine(`let ${bound}: f64 = ${plainTo}`);
+      this.writeLine(`let ${stride}: f64 = ${plainStep}`);
+      this.writeLine(`let mut ${name}: f64 = ${plainFrom}`);
+      // Counting down is allowed, so which way "past the end" lies depends
+      // on the step rather than being decided here.
+      this.open(`while (${stride} >= 0.0 && ${name} <= ${bound}) || (${stride} < 0.0 && ${name} >= ${bound}) {`);
+      this.bindLoop(node.name, name);
+      const before = this.plainNumbers;
+      this.plainNumbers = new Set([...(before || []), String(node.name).toLowerCase()]);
+      this.block(node.block);
+      this.plainNumbers = before;
+      this.writeLine(`${name} += ${stride}`);
+      this.close();
+      return;
+    }
+
     const from = this.expression(node.from);
     const to = this.expression(node.to);
     const step = node.step ? this.expression(node.step) : 'Value::Number(1.0)';
@@ -222,13 +335,57 @@ export class RustEmitter extends Emitter {
     this.close();
   }
 
+  // Before writing a body, work out which of its names hold only numbers.
+  // Bodies nest - an action inside a kind - so the answer is kept on a
+  // stack and put back when the body is finished.
+  enterNumbers(block, params) {
+    this.numberStack = this.numberStack || [];
+    this.numberStack.push(this.plainNumbers);
+    try {
+      this.plainNumbers = numericNames(block, params);
+    } catch {
+      // A shape this analysis has never seen is not a reason to fail to
+      // translate. It is a reason to box everything, as before.
+      this.plainNumbers = new Set();
+    }
+  }
+
+  leaveNumbers() {
+    this.plainNumbers = (this.numberStack || []).pop();
+  }
+
+  // Making and changing a name that holds only numbers. The value has to be
+  // written as bare arithmetic too, or the name is declared as a number and
+  // handed a box on the very same line.
+  statement(node) {
+    if (node && this.plainNumbers && this.plainNumbers.size) {
+      if (node.type === 'Make' && this.plainNumbers.has(String(node.name).toLowerCase())) {
+        const bare = this.isPlainNumber(node.value) ? this.bareNumber(node.value) : null;
+        if (bare !== null) {
+          const name = this.variable(node.name);
+          const line = this.known(name) ? `${name} = ${bare}` : `let mut ${name}: f64 = ${bare}`;
+          this.remember(name);
+          return this.writeLine(line);
+        }
+      }
+      if (node.type === 'Set' && node.target && node.target.type === 'Var'
+          && this.plainNumbers.has(String(node.target.name).toLowerCase())) {
+        const bare = this.isPlainNumber(node.value) ? this.bareNumber(node.value) : null;
+        if (bare !== null) return this.writeLine(`${this.variable(node.target.name)} = ${bare}`);
+      }
+    }
+    return super.statement(node);
+  }
+
   emitFunction(node) {
     this.write('');
     const name = this.identifier(node.name.replace(/\s+/g, '_'));
     this.open(this.functionHeader(name, node.params.map(one => this.identifier(one))));
     for (const param of node.params) this.remember(this.identifier(param));
+    this.enterNumbers(node.block, node.params);
     this.block(node.block);
     this.finishFunctionBody(node.block);
+    this.leaveNumbers();
     this.close();
   }
 
@@ -299,10 +456,12 @@ export class RustEmitter extends Emitter {
 
     this.depth = 1;
     const main = this.capture(() => {
+      this.enterNumbers({ body: program.body.filter(one => one.type !== 'Kind' && one.type !== 'Function') }, []);
       for (const node of program.body) {
         if (node.type === 'Kind' || node.type === 'Function') continue;
         this.statement(node);
       }
+      this.leaveNumbers();
     });
     this.depth = 0;
 

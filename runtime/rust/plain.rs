@@ -54,6 +54,7 @@ fn plain_list_value(items: Vec<Value>) -> Value {
     Value::List(Rc::new(RefCell::new(items)))
 }
 
+#[inline(always)]
 fn plain_bool(yes: bool) -> Value {
     Value::Bool(yes)
 }
@@ -177,6 +178,7 @@ fn plain_text(value: Value) -> Value {
 
 // ------------------------------------------------------------ reading back
 
+#[inline(always)]
 fn plain_number(value: Value) -> f64 {
     match value {
         Value::Number(number) => number,
@@ -196,6 +198,7 @@ fn plain_whole(value: Value) -> i64 {
     plain_number(value) as i64
 }
 
+#[inline(always)]
 fn plain_truthy(value: Value) -> bool {
     match value {
         Value::Nothing => false,
@@ -207,6 +210,7 @@ fn plain_truthy(value: Value) -> bool {
     }
 }
 
+#[inline(always)]
 fn plain_same(a: Value, b: Value) -> Value {
     plain_bool(plain_alike(&a, &b))
 }
@@ -237,6 +241,7 @@ fn plain_alike(a: &Value, b: &Value) -> bool {
 // -------------------------------------------------------------- arithmetic
 
 // Plus joins text and adds numbers, depending on what it is given.
+#[inline(always)]
 fn plain_add(a: Value, b: Value) -> Value {
     if matches!(a, Value::Text(_)) || matches!(b, Value::Text(_)) {
         return plain_text_value(plain_show(&a) + &plain_show(&b));
@@ -248,14 +253,17 @@ fn plain_join2(a: Value, b: Value) -> Value {
     plain_text_value(plain_show(&a) + &plain_show(&b))
 }
 
+#[inline(always)]
 fn plain_minus(a: Value, b: Value) -> Value {
     Value::Number(plain_number(a) - plain_number(b))
 }
 
+#[inline(always)]
 fn plain_times(a: Value, b: Value) -> Value {
     Value::Number(plain_number(a) * plain_number(b))
 }
 
+#[inline(always)]
 fn plain_divide(a: Value, b: Value) -> Value {
     let by = plain_number(b);
     if by == 0.0 {
@@ -264,6 +272,7 @@ fn plain_divide(a: Value, b: Value) -> Value {
     Value::Number(plain_number(a) / by)
 }
 
+#[inline(always)]
 fn plain_remainder(a: Value, b: Value) -> Value {
     let by = plain_number(b);
     if by == 0.0 {
@@ -272,26 +281,32 @@ fn plain_remainder(a: Value, b: Value) -> Value {
     Value::Number(plain_number(a) % by)
 }
 
+#[inline(always)]
 fn plain_power(a: Value, b: Value) -> Value {
     Value::Number(plain_number(a).powf(plain_number(b)))
 }
 
+#[inline(always)]
 fn plain_negate(value: Value) -> Value {
     Value::Number(-plain_number(value))
 }
 
+#[inline(always)]
 fn plain_less(a: Value, b: Value) -> Value {
     plain_bool(plain_number(a) < plain_number(b))
 }
 
+#[inline(always)]
 fn plain_less_equal(a: Value, b: Value) -> Value {
     plain_bool(plain_number(a) <= plain_number(b))
 }
 
+#[inline(always)]
 fn plain_more(a: Value, b: Value) -> Value {
     plain_bool(plain_number(a) > plain_number(b))
 }
 
+#[inline(always)]
 fn plain_more_equal(a: Value, b: Value) -> Value {
     plain_bool(plain_number(a) >= plain_number(b))
 }

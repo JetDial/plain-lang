@@ -10,6 +10,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { createRuntime } from '../src/runtime.js';
+import { numericNames } from '../src/translate/numbers.js';
 import { PlainError } from '../src/errors.js';
 import { installGame } from '../engines/game/engine.js';
 import { installWorld } from '../engines/world/engine.js';
@@ -288,6 +289,36 @@ check('key presses run their block', () => {
   game.press('space');
   game.press('space');
   assert.equal(rt.interpreter.globals.get('jumps'), 2);
+});
+
+check('names that only hold numbers are found, and only those', () => {
+  // The optimisation this drives is safe exactly when this is right, so the
+  // interesting cases are the ones that must NOT be numbers: a name that
+  // starts as text, one that comes from a call, one from a list, and a
+  // parameter, which could be handed anything at all.
+  const rt = createRuntime({ onOutput: () => {} });
+  const found = numericNames(rt.parse([
+    'to halved with x',
+    '    give back x divided by 2',
+    'end',
+    'make total be 0',
+    'make greeting be "5"',
+    'set greeting to greeting joined with 1',
+    'make counted be length of greeting',
+    'make answer be halved with 9',
+    'repeat with step from 1 to 5',
+    '    set total to total plus step',
+    'end',
+    'make sum be 0',
+    'for each one in [1, 2, 3]',
+    '    set sum to sum plus one',
+    'end'
+  ].join('\n')), []);
+  assert.ok(found.has('total'), 'total only ever holds numbers');
+  assert.ok(!found.has('greeting'), 'greeting starts as text');
+  assert.ok(!found.has('counted'), 'a length is read out of something else');
+  assert.ok(!found.has('answer'), 'an action can give back anything');
+  assert.ok(!found.has('sum'), 'an item of a list could be anything');
 });
 
 check('serving twice is one server, not a failed second one', () => {
