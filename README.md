@@ -111,7 +111,7 @@ plain make video holiday   # a video timeline you can trim and export
 
 ```bash
 plain desk           everything in this folder, in one place
-plain learn          open the course: 16 lessons and 7 projects
+plain learn          open the course: 22 lessons and 10 projects
 plain run <file>     run it in the terminal            (--fast to go quicker)
 plain play <file>    open it in the browser
 plain edit <file>    open the designer or the video studio
@@ -583,7 +583,7 @@ neural network above goes from **1.20s to 0.20s**.
 plain learn
 ```
 
-Sixteen lessons and seven projects, in the browser, with a real editor. Every step
+Twenty-two lessons and ten projects, in the browser, with a real editor. Every step
 is checked by **running what you wrote** and looking at what it did — not by
 comparing your text to an answer. The editor colours code as you type, using
 Plain's own lexer, so it can never disagree with the language. Get it wrong and you get a hint, not a red
@@ -593,10 +593,10 @@ cross:
 
 The lessons cover showing things, names, text, questions, loops, lists,
 things, actions, kinds, catching problems, the shapes data arrives in (JSON
-and CSV), writing your own HTML, CSS and markdown, and then the back end: a
-program that answers, a table that keeps what people typed, and forms. Every
-line of every example is explained in ordinary words, one line at a time.
-Then you build:
+and CSV), writing your own HTML, CSS and markdown, the back end (a program
+that answers, a table that keeps what people typed, and forms), streams,
+background work and the tools around the language. Every line of every
+example is explained in ordinary words, one line at a time. Then you build:
 
 | Project | What you make | What it teaches |
 |---|---|---|
@@ -605,6 +605,9 @@ Then you build:
 | Catch the falling star | A playable 2D game | frames, keys, touching |
 | A world in three dimensions | A 3D world you walk around | the world engine |
 | A title sequence | A film with fades and captions | the video engine |
+| Agreeing on a shorthand | Two programs that agree on a binary protocol, no words at all | bytes, protocols |
+| A program in Spanish | The same language, written in Spanish | `en español`, and that it is one line |
+| A brain that learns | A neural network, written from nothing — no library, no import | a squash, a hidden layer, backpropagation, and where it breaks |
 | The same program in eleven languages | Your own program in all of them, and the runtime under Rust and C | how it all maps over, and the price each language charges |
 | A guest book | A page anybody can write on, still there tomorrow | routes, forms, tables, visitors, and not being vandalised |
 
