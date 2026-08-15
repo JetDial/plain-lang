@@ -74,6 +74,7 @@ plain make video holiday   # a video timeline you can trim and export
 ```
 
 ```bash
+plain desk           everything in this folder, in one place
 plain learn          open the course: 16 lessons and 7 projects
 plain run <file>     run it in the terminal            (--fast to go quicker)
 plain play <file>    open it in the browser
@@ -274,6 +275,17 @@ end
 
 ```bash
 plain play examples/site.plain           # see it, with working buttons
+```
+
+## Tools written in Plain
+
+Two of the examples are not demonstrations - they are things you would use,
+written in the language they are for. Each writes its output **as Plain**, so
+there is no file format to agree on and nothing to import.
+
+```bash
+plain play examples/level-editor.plain    # click to place, S writes the level
+plain play examples/sprite-editor.plain   # paint 16x16, S writes the picture
 plain edit examples/site.plain           # the designer
 plain build examples/site.plain --out site
 ```
