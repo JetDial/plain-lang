@@ -865,6 +865,35 @@ what you use to skip drawing the rest of it.
 Also `draw a line from $x , $y to $x , $y thick $n colored $c`, which follows
 the same rule.
 
+## Room — memory, without addresses
+
+What a C programmer reaches for memory to do is nearly always one of two
+things: put a known number of numbers side by side so the processor can read
+them quickly, or hand a block to something else that will fill it in — a
+decoder, a sound card, a device. Neither needs addresses. Both need a fixed
+run of numbers with a known size.
+
+```
+make samples be room for 1024 numbers
+put 0.5 at 1 of samples
+show what is at 1 of samples
+fill samples with 0
+show how much room is in samples
+```
+
+A block is a list of numbers, so everything that works on those works here —
+walking it, adding it up, handing it to a toolkit.
+
+What is deliberately absent is any way to ask **where** a block is. No
+address, so no arithmetic on addresses, and none of the mistakes that come of
+it. Asking for position 2000 of a block of 1024 says so:
+
+```
+There is no position 2000 in a block of 1024
+```
+
+rather than reading whatever happened to be next door.
+
 ## Toolkits — code written in another language
 
 The one thing C++ has that no amount of tidy design replaces: it can call the

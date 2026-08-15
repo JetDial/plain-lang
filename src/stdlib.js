@@ -249,6 +249,61 @@ export function installCore(rt) {
   rt.defineValue('time now', () => Date.now());
   rt.defineValue('today', () => new Date().toISOString().slice(0, 10));
 
+  // -------------------------------------------------------------- room
+  //
+  // Memory, said in a way that keeps the good half and refuses the bad one.
+  //
+  // What a C programmer reaches for memory to do is nearly always one of
+  // two things: put a known number of numbers side by side so the processor
+  // can read them fast, or hand a block to something else that will fill it
+  // in - a decoder, a sound card, a device. Neither of those needs
+  // addresses. They need a fixed run of numbers with a known size.
+  //
+  //     make room for 1024 numbers called samples
+  //     put 0.5 at 1 of samples
+  //     show what is at 1 of samples
+  //
+  // What is deliberately absent: there is no way to ask where a block IS.
+  // No address, so no arithmetic on addresses, so none of the mistakes that
+  // come of it - reading past the end, using a block after it is gone, two
+  // names quietly sharing one. Asking for position 2000 of a 1024 block
+  // says so rather than reading whatever happens to be next door.
+  //
+  // A block is a list of numbers, so everything that already works on those
+  // works on this: walking it, adding it up, handing it to a toolkit.
+
+  rt.defineValue('room for $count numbers', (a, ctx) => {
+    const many = Math.round(toNumber(a.count));
+    if (!Number.isFinite(many) || many < 0) ctx.fail('That is not a number of numbers to make room for');
+    if (many > 50000000) ctx.fail('That is more room than this can make', 'fifty million numbers is the limit');
+    return new Array(many).fill(0);
+  });
+
+  const roomAt = (block, where, ctx, what) => {
+    if (!Array.isArray(block)) ctx.fail(`${what} needs a block`, 'make one with: make room for 100 numbers');
+    const at = Math.round(toNumber(where));
+    if (!Number.isFinite(at) || at < 1 || at > block.length) {
+      ctx.fail(`There is no position ${toText(where)} in a block of ${block.length}`,
+               'positions run from 1 to however many numbers there is room for');
+    }
+    return at - 1;
+  };
+
+  rt.defineValue('what is at $where of $block', (a, ctx) =>
+    a.block[roomAt(a.block, a.where, ctx, 'Reading')]);
+
+  rt.define('put $value at $where of $block', (a, ctx) => {
+    a.block[roomAt(a.block, a.where, ctx, 'Writing')] = toNumber(a.value);
+  });
+
+  rt.define('fill $block with $value', (a, ctx) => {
+    if (!Array.isArray(a.block)) ctx.fail('Filling needs a block');
+    const value = toNumber(a.value);
+    for (let at = 0; at < a.block.length; at++) a.block[at] = value;
+  });
+
+  rt.defineValue('how much room is in $block', a => (Array.isArray(a.block) ? a.block.length : 0));
+
   // ----------------------------------------------------------- toolkits
   //
   // Code somebody else wrote in another language, called from Plain.

@@ -379,6 +379,27 @@ check('lists answer the questions people ask of two lists', () => {
   assert.deepEqual(g.get('all'), [1, 2, 5]);
 });
 
+check('a block is memory with a size and no address', () => {
+  const { rt } = runtimeFor([
+    'make samples be room for 8 numbers',
+    'put 0.5 at 1 of samples',
+    'put 3 at 8 of samples',
+    'make first be what is at 1 of samples',
+    'make big be how much room is in samples',
+    'fill samples with 2',
+    'make added be total of samples'
+  ].join('\n'));
+  const g = rt.interpreter.globals;
+  assert.equal(g.get('first'), 0.5);
+  assert.equal(g.get('big'), 8);
+  assert.equal(g.get('added'), 16);
+  // Reading past the end says so, rather than reading whatever is next door.
+  assert.throws(() => runtimeFor([
+    'make small be room for 4 numbers',
+    'show what is at 20 of small'
+  ].join('\n')), /no position 20/);
+});
+
 check('Plain can call code written in another language', () => {
   // A toolkit is WebAssembly, which is what a C library compiles to when it
   // wants to be portable. This one is written out by hand - it is the

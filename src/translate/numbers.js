@@ -214,7 +214,11 @@ export function numericLists(block, params = []) {
         const name = lower(node.name);
         const value = node.value;
         const empty = value && value.type === 'List' && (value.items || []).length === 0;
-        if (empty || allNumbers(value)) made.add(name);
+        // "room for 1024 numbers" is a run of numbers by definition, which
+        // is the whole reason for saying it that way.
+        const room = value && value.type === 'PhraseValue'
+          && String(value.spec || '').startsWith('room for');
+        if (empty || room || allNumbers(value)) made.add(name);
         else banned.add(name);
         walk(value, false);
         return;

@@ -659,6 +659,7 @@ it. The projects further down build several of these properly.</p>
       ['connect to "ws://localhost:3040"', '<b>Two programs talking.</b> A page and a server sending messages back and forth, which is what a multiplayer game is made of.'],
       ['this part needs "colours" version 1 from "./colours.plain"', '<b>Other people’s code.</b> Split a big program into parts, and use parts somebody else wrote - including packages from npm.'],
       ['add the number 1234 in 2 bytes to packet', '<b>Bytes.</b> Talking to a program that does not speak English - a game somebody else wrote, a piece of hardware, a file format from 1991. <i>Lesson: talking to a program that does not speak English.</i>'],
+      ['make samples be room for 1024 numbers', '<b>Memory, without addresses.</b> A fixed run of numbers side by side, which is what makes a processor fast and what a decoder or a sound card wants handed to it.'],
       ['use the toolkit sums as maths', '<b>Code written in another language.</b> Thirty years of decoders, compression and physics are written in C. A toolkit lets Plain call one instead of rewriting it.'],
       ['show the rust of this program', '<b>Eleven other languages.</b> The same program written out as JavaScript, Python, Java, Go, Rust, C and more, to run where Plain is not installed. <i>Project: the same program in eleven languages.</i>']
     ]) + `
