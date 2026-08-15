@@ -13,7 +13,7 @@ rediscovered. Everything below was measured or run, not assumed.
 | **`C:\Users\user\skyward-server`** | the game server, in Plain (`master`) |
 | **`C:\Users\user\skyward-client`** | the browser half, in Plain (`master`) |
 
-All three private on GitHub under JetDial. 435 checks pass
+All three private on GitHub under JetDial. 436 checks pass
 (`node tests/run-tests.js`).
 
 ## Four tools, written in Plain
@@ -91,6 +91,12 @@ sets · list slicing and pages · sorting by a field · checking its own work ·
 
 Every one of those is in `LANGUAGE.md` and taught in the course.
 
+**Pictures, inside them:** `the colour at $x , $y of the picture` ·
+`the width/height of the picture` · `save $colours as the picture $file
+sized $w by $h` - a real PNG codec in the terminal, the canvas in a
+browser, round-tripped in the suite by a Plain program reading back the
+checkerboard it wrote.
+
 ## What the game gained
 
 Three modes (free-for-all, capture the flag, last-one-flying with a closing
@@ -100,6 +106,11 @@ bounces planes · solid walls · aces · three chat channels · spectating with
 following · spendable upgrades · flag dropping · a front screen · and a
 client whose screen carries the same furniture as theirs.
 
+Their ping loop: PING every five seconds to binary clients, the PONG
+timed, PING_RESULT told back - measured at 1534 ms against a stand-in that
+dawdled on purpose. The crown on whoever leads, and FROM Server marking
+what the server itself says.
+
 **And a second door speaking airmash's binary protocol, both directions** —
 see `INTEROP.md` for exactly what crosses it and what does not.
 
@@ -107,12 +118,22 @@ see `INTEROP.md` for exactly what crosses it and what does not.
 
 ## Still open, in the order worth taking
 
-1. **Struct layout** - the only performance item the measurements support.
-   See `PERFORMANCE.md`, which also says why cloning and field lookup were
-   measured and rejected, so neither gets retried on how the code looks.
-2. **Reading and writing pictures** - a program can show a PNG but not ask
-   what colour a pixel is, nor make one. (`play the sound "door.ogg"` was
-   listed here and already existed - check the source, not the memory.)
+1. **Struct layout** - the only performance item the measurements support
+   (things-with-fields work sits 7.8x off hand-written Rust because
+   plain_field walks the field list). Deep change to the Rust runtime's
+   Value::Thing plus the emitter; measure before and after, and read
+   `PERFORMANCE.md` first for what was already measured and rejected.
+2. **Generators as lazy lists · workers · the embedded runtime** - the
+   remaining language items, each a real piece of design work.
+3. **Skyward's old names** - the checker flags 21 names in the verified
+   server and client (`turn`, `kind`, `key`, `who`...) that are words now.
+   The code works because its sentences happen not to collide; renaming is
+   a careful line-at-a-time job with a full game re-verification after -
+   the notes-app blanket rename broke the very sentence it cleaned, and
+   that lesson stands.
+4. **The Unity project's one open piece** - wrapping-map collisions (ghost
+   objects in the broadphase). A different repository, the hottest loop in
+   that server, and by its own handoff note it deserves a full session.
 3. Generators as lazy lists · workers · the embedded runtime.
 4. Airmash's remaining screen: country flags, crowns, level badges, ping,
    mute and settings, `FROM Server` messages.
