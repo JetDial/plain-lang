@@ -731,6 +731,8 @@ it. The projects further down build several of these properly.</p>
       ['make notes be a table called "notes"', '<b>Somewhere to keep things.</b> Rows you can save, find, change and delete, that are still there tomorrow.'],
       ['send an email to "ada@example.com" saying "hello"', '<b>Email.</b> The same sentence whether it goes out through a real mail server or is written to a file while you are testing.'],
       ['ask for "https://..." and when it arrives ...', '<b>Asking without waiting.</b> The program carries straight on, and the block runs when the answer turns up. A game that stops to ask a question has dropped sixteen frames.'],
+      ['show the first 5 of scores', '<b>Part of a list, and pages of one.</b> The top few, the next page, the rest after the first - each one sentence rather than a loop with a counter and an off-by-one waiting to happen.'],
+      ['make best be reversed sorted people by "score"', '<b>Sorting by one of the values things carry.</b> A scoreboard, in a sentence.'],
       ['make later be the day 20 days after today', '<b>Days.</b> Tomorrow, how long until something, which weekday a date falls on - written the way the world writes dates down.'],
       ['show everything in mine not in yours', '<b>Sets, without a second kind of list.</b> Unique, what is in one and not the other, what is in both, and both together.'],
       ['connect to "ws://localhost:3040"', '<b>Two programs talking.</b> A page and a server sending messages back and forth, which is what a multiplayer game is made of.'],
@@ -823,6 +825,25 @@ show length of questions
     about: 'The website engine. Everything you add here is a real page.',
     steps: [
       {
+        teach: `<p>A page is a list of things, one after another down the screen. That
+builds a document. What makes it a <i>website</i> is two more ideas, and both
+are one sentence each.</p>
+` + walk([
+          ['start a row', 'What the block adds goes side by side instead of down the page - and becomes a column again on a telephone, which is the whole of what a layout system does.'],
+          ['start a card', 'A box round a few things. The modern web is almost entirely made of these.'],
+          ['add a button "The whole week" going to "/week"', 'How anybody moves around a site.'],
+          ['describe this page as "..."', 'What a search engine and a shared link show. Leaving it out is why so many pages turn up as a bare address with no description at all.']
+        ]) + `
+<p>They nest, so a row of cards is a row with cards inside it:</p>
+<pre>start a row
+    start a card
+        add a heading "Morning"
+        add text "High water at 06:12."
+    end
+    start a card
+        add a heading "Evening"
+    end
+end</pre>`,
         task: 'Start a website with a title and a paragraph about it.',
         start: `make a website called "About Me"
 
