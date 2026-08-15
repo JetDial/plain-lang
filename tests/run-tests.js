@@ -290,6 +290,19 @@ check('key presses run their block', () => {
   assert.equal(rt.interpreter.globals.get('jumps'), 2);
 });
 
+check('serving twice is one server, not a failed second one', () => {
+  // A program that uses another one inherits its "start serving" line as
+  // well as its own. That must not try to open the port twice: the second
+  // attempt fails, and half the program ends up answering nobody.
+  let opened = 0;
+  const rt = createRuntime({ onOutput: () => {} });
+  installNet(rt, { serve: () => { opened += 1; } });
+  rt.run('start serving on port 3040\nstart serving on port 3040\n', 'twice.plain');
+  assert.equal(opened, 1);
+  // A different port is a real disagreement and should be said out loud.
+  assert.throws(() => rt.run('start serving on port 4000\n', 'other.plain'));
+});
+
 check('numbers can be packed into bytes and read back', () => {
   const { rt } = runtimeFor([
     'make packet be []',

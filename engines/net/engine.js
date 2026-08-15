@@ -442,9 +442,29 @@ export function installNet(rt, host = {}) {
     host.sendUp(toText(a.value));
   });
 
+  // A program has one server, so this can only happen once. Saying it twice
+  // is not rare and not usually a mistake: a program that uses another one
+  // gets that program's line as well as its own, which is exactly how the
+  // airmash door adds a second language to a game that already serves.
+  //
+  // So the second one is quietly the same server rather than a second
+  // attempt to open a port that is already open - which fails, leaves half
+  // the program answering nobody, and is very hard to see from the outside.
+  // A different port, though, is a real disagreement and gets said out loud.
   rt.define('start serving on port $port', (a, ctx) => {
     if (!host.serve) needTerminal(ctx, 'Serving');
-    server.port = Math.round(toNumber(a.port));
+    const wanted = Math.round(toNumber(a.port));
+    if (server.serving) {
+      if (wanted !== server.port) {
+        ctx.fail(
+          `This program is already serving on port ${server.port}, so it cannot also serve on ${wanted}`,
+          'one program is one server - if two ports are really wanted, that is two programs'
+        );
+      }
+      return;
+    }
+    server.serving = true;
+    server.port = wanted;
     host.serve(server, ctx);
   });
 
@@ -452,6 +472,8 @@ export function installNet(rt, host = {}) {
   // certificate a browser checks and the key that proves it is yours.
   rt.define('start serving safely on port $port with certificate $cert and key $key', (a, ctx) => {
     if (!host.serve) needTerminal(ctx, 'Serving');
+    if (server.serving) return;
+    server.serving = true;
     server.port = Math.round(toNumber(a.port));
     server.safely = { certificate: toText(a.cert), key: toText(a.key) };
     host.serve(server, ctx);
