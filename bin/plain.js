@@ -95,6 +95,7 @@ try {
     case 'new': commandNew(target); break;
     case 'make': commandMake(rest[0], rest[1]); break;
     case 'translate': commandTranslate(target); break;
+    case 'desk': case 'apps': await commandDesk(); break;
     case 'learn': case 'teach': await commandLearn(); break;
     case 'get': commandGet(target, rest.filter(a => !a.startsWith('-'))[2]); break;
     case 'parts': commandParts(); break;
@@ -1248,6 +1249,123 @@ function commandTidy(files) {
 
 // -------------------------------------------------------------------- learn
 
+
+// ---------------------------------------------------------------------- desk
+//
+// Everything Plain can open, in one place.
+//
+// The tools were all here already - a game plays, a world plays, a film and
+// a website open in their own editors - and every one of them needed you to
+// remember a command and a filename. That is fine for the person who wrote
+// them and hopeless for anybody else, which is most people most of the time.
+//
+// So: one page listing what is in this folder, what each thing is, and a
+// button that opens it in whichever tool it belongs to.
+
+function whatIsIt(source) {
+  const text = String(source);
+  if (/^\s*start a world/m.test(text)) return { kind: 'world', how: 'play', says: 'a world in three dimensions' };
+  if (/^\s*start a game/m.test(text)) return { kind: 'game', how: 'play', says: 'a game' };
+  if (/^\s*make a video/m.test(text)) return { kind: 'film', how: 'edit', says: 'a film' };
+  if (/^\s*make a (website|site)/m.test(text)) return { kind: 'site', how: 'edit', says: 'a website' };
+  if (/when someone (visits|sends|connects)/.test(text)) return { kind: 'server', how: 'run', says: 'a server' };
+  return { kind: 'program', how: 'run', says: 'a program' };
+}
+
+async function commandDesk() {
+  const here = process.cwd();
+  const files = fs.readdirSync(here).filter(name => name.endsWith('.plain')).sort();
+  const found = [];
+  for (const name of files) {
+    let source = '';
+    try { source = fs.readFileSync(path.join(here, name), 'utf8'); } catch { continue; }
+    const about = whatIsIt(source);
+    // The first comment line, if there is one, is what the program says it is.
+    const firstNote = (source.match(/^#\s*(.+)$/m) || [])[1] || '';
+    found.push({ name, ...about, note: firstNote.slice(0, 90) });
+  }
+
+  const ports = new Map();
+  let nextPort = 4100;
+  const server = http.createServer(async (request, answer) => {
+    const asked = decodeURIComponent((request.url || '/').split('?')[0]);
+    if (asked === '/') {
+      answer.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+      answer.end(deskPage(found, ports, here));
+      return;
+    }
+    const opening = asked.match(/^\/open\/(.+)$/);
+    if (opening) {
+      const name = opening[1];
+      const one = found.find(f => f.name === name);
+      if (!one) { answer.writeHead(404); answer.end('no such thing'); return; }
+      if (!ports.has(name)) {
+        const port = nextPort++;
+        ports.set(name, port);
+        // Each thing gets its own port and its own process, so one falling
+        // over does not take the rest with it.
+        const child = spawn(process.execPath, [
+          fileURLToPath(import.meta.url), one.how, name, '--port', String(port), '--no-open'
+        ], { cwd: here, stdio: 'ignore', detached: false });
+        child.on('error', () => ports.delete(name));
+        await new Promise(rest => setTimeout(rest, 1400));
+      }
+      answer.writeHead(303, { location: `http://localhost:${ports.get(name)}/` });
+      answer.end();
+      return;
+    }
+    answer.writeHead(404);
+    answer.end('nothing here');
+  });
+
+  server.listen(4099, () => {
+    console.log('\nPlain is open at http://localhost:4099');
+    console.log(`  ${found.length} thing${found.length === 1 ? '' : 's'} in ${path.basename(here)}`);
+    console.log('  Press Ctrl+C to stop.\n');
+    openBrowser('http://localhost:4099');
+  });
+}
+
+function deskPage(found, ports, here) {
+  const shades = { game: '#ffd166', world: '#7ee787', film: '#e879f9', site: '#38d9d9', server: '#ff7a59', program: '#8fa8ff' };
+  const cards = found.map(one => `
+    <a class="card" href="/open/${encodeURIComponent(one.name)}" target="_blank">
+      <span class="dot" style="background:${shades[one.kind] || '#8fa8ff'}"></span>
+      <strong>${escapeForPage(one.name.replace(/\.plain$/, ''))}</strong>
+      <span class="kind">${one.says}</span>
+      ${one.note ? `<span class="note">${escapeForPage(one.note)}</span>` : ''}
+      <span class="go">${one.how === 'edit' ? 'open the editor' : one.how === 'run' ? 'run it' : 'play it'} &rarr;</span>
+    </a>`).join('');
+
+  return `<!doctype html><meta charset="utf-8"><title>Plain</title>
+<style>
+  body { margin:0; background:#080b12; color:#e8ecf4; font:15px/1.6 ui-sans-serif,system-ui,sans-serif; }
+  header { padding:38px 40px 10px; }
+  h1 { margin:0; font-size:26px; letter-spacing:-0.3px; }
+  header p { margin:6px 0 0; color:#6f88b0; font-size:14px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:16px; padding:26px 40px 60px; }
+  .card { display:block; text-decoration:none; color:inherit; background:#0d1422; border:1px solid #1e2836;
+          border-radius:12px; padding:18px; position:relative; }
+  .card:hover { border-color:#37506f; background:#101a2c; }
+  .dot { position:absolute; top:18px; right:18px; width:10px; height:10px; border-radius:50%; }
+  strong { display:block; font-size:17px; }
+  .kind { display:block; color:#6f88b0; font-size:13px; margin-top:2px; }
+  .note { display:block; color:#93a7c4; font-size:13px; margin-top:10px; }
+  .go { display:block; color:#8fa8ff; font-size:13px; margin-top:14px; }
+  footer { padding:0 40px 40px; color:#3f4d63; font-size:13px; }
+</style>
+<header>
+  <h1>Plain</h1>
+  <p>Everything in ${escapeForPage(path.basename(here))}. Click one and it opens in the tool it belongs to.</p>
+</header>
+<div class="grid">${cards || '<p style="color:#6f88b0">Nothing here yet. Write a .plain file and refresh.</p>'}</div>
+<footer>Each one runs on its own, so a mistake in one cannot stop the others.</footer>`;
+}
+
+function escapeForPage(text) {
+  return String(text ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 async function commandLearn() {
   const course = syllabus();
 
@@ -1595,6 +1713,7 @@ Plain ${VERSION} - a language you write like a normal sentence.
   plain pack <file>           everything it needs, in one folder to copy
   plain remove <name>         stop using a part
   plain words                 list every sentence Plain understands
+  plain desk                  everything in this folder, in one place
   plain learn                 lessons and projects, in your browser
   plain translate <file>      write it in 11 other languages        (--to rust)
   plain fmt <file|folder>     tidy the indenting                    (--check)
