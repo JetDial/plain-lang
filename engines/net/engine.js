@@ -39,6 +39,8 @@ export class Server {
     this.joined = false;
     this.said = '';            // what it just said
     this.sent = [];            // and the same as bytes, for a shorthand
+    this.arrived = '';         // what the last question came back with
+    this.arrivedOk = false;
   }
 
   // "/notes/{id}" matches "/notes/7" and remembers that id is 7. Anything
@@ -221,6 +223,42 @@ export function installNet(rt, host = {}) {
   };
 
   // ------------------------------------------------------------ fetching
+
+  // ------------------------------------------------------- asking, and waiting
+  //
+  // Everything else Plain does over a wire stops the program until the
+  // answer comes back. That is fine for a script and wrong for anything
+  // with people in it: a game that freezes for a second while it asks a
+  // question has dropped sixteen frames, and a server that freezes has
+  // stopped answering everybody else.
+  //
+  // Other languages solve this with promises and a word you have to put in
+  // front of every action that touches one. Plain already has the shape:
+  // "when someone visits", "every frame", "when the server says something".
+  // Something happens later, and you say what to do when it does. So this
+  // is the same sentence, pointed at a question.
+  //
+  //     ask for "https://example.com/tides" and when it arrives
+  //         show what arrived
+  //     end
+  //
+  // The program carries straight on to the next line. The block runs when
+  // the answer turns up, however long that takes, and "did it work" says
+  // whether it did.
+  rt.define('ask for $url and when it arrives ...', (a, ctx) => {
+    const url = toText(a.url);
+    const run = ctx.block;
+    const answer = (text, worked) => {
+      server.arrived = text;
+      server.arrivedOk = worked;
+      run();
+    };
+    if (host.askLater) host.askLater(url, answer);
+    else ctx.fail('Asking and carrying on needs a terminal or a page');
+  });
+
+  rt.defineValue('what arrived', () => server.arrived || '');
+  rt.defineValue('did it work', () => server.arrivedOk === true);
 
   rt.define('fetch $url into #name', (a, ctx) => {
     if (!host.fetchText) needTerminal(ctx, 'Fetching');

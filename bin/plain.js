@@ -206,6 +206,17 @@ function netHost(runtime) {
   `;
 
   return {
+    // Asked for, and answered later. Node keeps itself alive while a
+    // question is outstanding, so a script that asks something still waits
+    // for it without the program having to say so.
+    askLater(url, answer) {
+      const wanted = String(url);
+      globalThis.fetch(wanted)
+        .then(reply => reply.text().then(text => ({ text, ok: reply.ok })))
+        .then(got => { try { answer(got.text, got.ok); } catch (error) { console.error(String(error && error.message || error)); } })
+        .catch(problem => { try { answer(String(problem.message || problem), false); } catch (error) { console.error(String(error && error.message || error)); } });
+    },
+
     fetchText(url, ctx, options = {}) {
       if (!/^https?:\/\//i.test(url)) {
         ctx.fail(`"${url}" is not a web address`, 'it should start with http:// or https://');

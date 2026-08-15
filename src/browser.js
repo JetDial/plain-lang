@@ -79,6 +79,14 @@ export function startPlain(source, options = {}) {
         for (const run of net.onLost) safely(runtime, doc, source, run);
       });
     },
+    // A page has had this all along; it just had no Plain sentence for it.
+    askLater(url, answer) {
+      win.fetch(String(url))
+        .then(reply => reply.text().then(text => ({ text, ok: reply.ok })))
+        .then(got => safely(runtime, doc, source, () => answer(got.text, got.ok)))
+        .catch(problem => safely(runtime, doc, source, () => answer(String(problem && problem.message || problem), false)));
+    },
+
     sendUp(words, raw) {
       if (!line || line.readyState !== 1) return;
       if (raw) line.send(Uint8Array.from((words || []).map(b => Number(b) & 0xff)));

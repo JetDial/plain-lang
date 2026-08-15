@@ -865,6 +865,32 @@ what you use to skip drawing the rest of it.
 Also `draw a line from $x , $y to $x , $y thick $n colored $c`, which follows
 the same rule.
 
+## Asking without waiting
+
+Everything else Plain does over a wire stops the program until the answer
+comes back. That is fine for a script and wrong for anything with people in
+it: a game that freezes for a second has dropped sixteen frames, and a server
+that freezes has stopped answering everybody else.
+
+```
+ask for "https://example.com/tides" and when it arrives
+    if did it work
+        show what arrived
+    end
+end
+show "and the program carries straight on"
+```
+
+The next line runs immediately. The block runs when the answer turns up,
+however long that takes. `what arrived` is the answer, `did it work` says
+whether it was one.
+
+Other languages solve this with promises and a word you must put in front of
+every action that touches one. Plain already had the shape — `when someone
+visits`, `every frame`, `when the server says something` — so this is that
+same sentence pointed at a question, and nothing else in the language has to
+change colour.
+
 ## Days
 
 A day is written the way the world writes it down — `"2026-08-14"` — because
