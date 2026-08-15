@@ -1133,6 +1133,55 @@ What to know before writing:
 A language is a dictionary in `src/languages.js`, not code. Adding one is
 adding words.
 
+## Lists that do not exist yet
+
+```
+for each n in numbers from 1 to 1000000
+show the first 3 of (numbers from 1 to 100000000)
+for each n in numbers from 2 onwards
+    ...
+    stop
+end
+```
+
+A stream hands over one item at a time and is never built whole, so a
+hundred million numbers cost nothing until read. `numbers from 2 onwards`
+never ends at all - the loop ends it with `stop`, and a loop that forgets
+to is stopped by the loop guard rather than hanging the program.
+
+## Work done elsewhere
+
+```
+to grind with rounds
+    ...
+    give back counted
+end
+
+make job be start working on "grind" with 3000000
+make other be start working on "grind" with 3000000
+show the answer of job plus the answer of other
+```
+
+Another process, really: each job is a separate copy of the program that
+loads only the definitions, runs that one action with that one value, and
+writes the answer down. `the answer of` waits if it must; `is $job
+finished` asks without waiting. Two jobs started together genuinely run on
+two processors - measured: two side by side in 579 ms that take 905 ms one
+after the other. The value handed over and the answer handed back must be
+the kind of thing that fits in writing: numbers, text, lists, things.
+
+## Plain inside another program
+
+```js
+import { runPlain } from './embed.js';
+const { ok, output, problem } = runPlain('show 2 plus 2');
+```
+
+The whole language as one function: engines installed, six human languages
+understood, `files` for `use` without a disk, problems back as data rather
+than thrown. `makePlain` gives the runtime itself for a longer
+conversation.
+
 ## Inside the pictures
 
 A program can show a picture; now it can ask one questions, and make one.

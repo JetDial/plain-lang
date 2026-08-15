@@ -122,8 +122,11 @@ see `INTEROP.md` for exactly what crosses it and what does not.
    hand-written Rust (on a field-dense loop) to 1.05x: a proven list of
    one kind becomes a Vec of a real struct. `PERFORMANCE.md` has the
    numbers and the shape of the proof.
-2. **Generators as lazy lists · workers · the embedded runtime** - the
-   remaining language items, each a real piece of design work.
+2. **Generators, workers, embedding - done.** Streams (`numbers from 2
+   onwards`, walked lazily, ended by `stop` or the loop guard); real
+   background work (`start working on` - a definitions-only child process,
+   579 ms for two jobs side by side that take 905 ms in a row); and
+   `embed.js`, the whole language as one function with in-memory files.
 3. **Skyward's old names - done.** All twenty-one renamed scope by scope;
    the game-run gate caught three breaks the parse check could not see
    (a straggler line past a range, a phrase caught by a local's rename,

@@ -49,6 +49,86 @@ export function installCore(rt) {
   });
   rt.defineValue('reversed $list', a => list(a.list).slice().reverse());
 
+  // --------------------------------------------------------------- workers
+  //
+  // Another process, really: "start working on" hands one of your actions
+  // and one value to a separate copy of this program that loads only the
+  // definitions, runs that action, and writes the answer down. The answer
+  // is fetched with "the answer of", which waits if it must. Two jobs
+  // started together genuinely run on two processors.
+  rt.defineValue('start working on $action with $value', (a) => {
+    const work = rt.options.work;
+    if (!work) throw new Error('working in the background needs the command line ("plain run")');
+    return { __job: true, ...work(String(a.action), JSON.stringify(a.value ?? null)) };
+  });
+
+  rt.defineValue('is $job finished', (a) => {
+    const job = a.job;
+    if (!job || !job.__job) return true;
+    return !!(rt.options.workDone && rt.options.workDone(job));
+  });
+
+  rt.defineValue('the answer of $job', (a) => {
+    const job = a.job;
+    if (!job || !job.__job) return job;
+    if (job.__answered) return job.__answer;
+    const wait = rt.options.workWait;
+    if (!wait) throw new Error('working in the background needs the command line');
+    job.__answer = wait(job);
+    job.__answered = true;
+    return job.__answer;
+  });
+
+  // ------------------------------------------------------------ lazy lists
+  //
+  // A stream is a list that does not exist yet: it knows how to hand over
+  // its next item, and "for each" walks it one item at a time. A million
+  // numbers cost nothing until read, and "numbers from 1 onwards" never
+  // ends at all - the loop ends it with "stop".
+  const stream = (next) => ({ __stream: true, next });
+
+  rt.defineValue('numbers from $from to $to', (a) => {
+    const from = toNumber(a.from), to = toNumber(a.to);
+    const step = to < from ? -1 : 1;
+    let at = from - step;
+    return stream(() => {
+      at += step;
+      return (step > 0 ? at > to : at < to) ? { done: true } : { value: at };
+    });
+  });
+
+  rt.defineValue('numbers from $from to $to by $step', (a) => {
+    const from = toNumber(a.from), to = toNumber(a.to);
+    let step = Math.abs(toNumber(a.step)) || 1;
+    if (to < from) step = -step;
+    let at = from - step;
+    return stream(() => {
+      at += step;
+      return (step > 0 ? at > to : at < to) ? { done: true } : { value: at };
+    });
+  });
+
+  rt.defineValue('numbers from $from onwards', (a) => {
+    let at = toNumber(a.from) - 1;
+    return stream(() => ({ value: ++at }));
+  });
+
+  // The two ways to make a stream finite again. "the first N of" takes a
+  // slice; "as a list" spills the whole thing - refused for endless ones
+  // by the loop guard rather than a special case here.
+  rt.defineValue('the first $count of $stream', (a) => {
+    const wanted = Math.max(0, Math.floor(toNumber(a.count)));
+    const source = a.stream;
+    if (!source || !source.__stream) return list(source).slice(0, wanted);
+    const out = [];
+    while (out.length < wanted) {
+      const got = source.next();
+      if (got.done) break;
+      out.push(got.value);
+    }
+    return out;
+  });
+
   // Shuffling, which every game with cards, questions, spawn points or
   // turns needs and none of them should have to write. Each item is swapped
   // with one somewhere at or before it, which is the only shuffle that

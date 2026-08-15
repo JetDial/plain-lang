@@ -272,6 +272,55 @@ check('German, Portuguese, Italian and Dutch all run', () => {
   assert.deepEqual(dutch, ['15', 'groot']);
 });
 
+check('a stream is a list that does not exist yet', () => {
+  const lines = run([
+    'for each n in numbers from 1 to 3',
+    '    show n',
+    'end',
+    'show the first 3 of (numbers from 1 to 100000000)',
+    'make seen be []',
+    'for each n in numbers from 2 onwards',
+    '    add n times n to seen',
+    '    if number of items in seen is 3',
+    '        stop',
+    '    end',
+    'end',
+    'show seen',
+    'show the first 4 of (numbers from 10 to 0 by 3)'
+  ].join(String.fromCharCode(10)));
+  assert.deepEqual(lines, ['1', '2', '3', '[1, 2, 3]', '[4, 9, 16]', '[10, 7, 4, 1]']);
+});
+
+check('an endless stream with no stop is stopped, not hung', () => {
+  const rt = createRuntime({ onOutput: () => {}, loopLimit: 1000 });
+  let said = '';
+  try { rt.run('for each n in numbers from 1 onwards' + String.fromCharCode(10) + 'show n' + String.fromCharCode(10) + 'end'); }
+  catch (error) { said = String(error.plainMessage || error.message); }
+  assert.ok(said.includes('forever'), 'expected the loop guard, got: ' + said);
+});
+
+check('work started in the background answers correctly', () => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'plain-work-test-'));
+  try {
+    const program = [
+      'to double with n',
+      '    give back n times 2',
+      'end',
+      'make job be start working on "double" with 21',
+      'make other be start working on "double" with 4',
+      'show the answer of job',
+      'show the answer of other'
+    ].join(String.fromCharCode(10));
+    fs.writeFileSync(path.join(folder, 'w.plain'), program, 'utf8');
+    const output = execFileSync(process.execPath,
+      [path.join(ROOT, 'bin', 'plain.js'), 'run', path.join(folder, 'w.plain')],
+      { encoding: 'utf8', timeout: 60000 }).replace(/\r/g, '').trim().split(String.fromCharCode(10)).map(one => one.trim());
+    assert.deepEqual(output, ['42', '8']);
+  } finally {
+    fs.rmSync(folder, { recursive: true, force: true });
+  }
+});
+
 check('sorted', () => assert.equal(first('show text of sorted [3, 1, 2]'), '[1, 2, 3]'));
 
 check('shuffling keeps every item and leaves the original alone', () => {

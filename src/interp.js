@@ -171,6 +171,21 @@ export class Interpreter {
       }
       case 'ForEach': {
         const list = this.evaluate(node.list, env);
+        // A stream hands over one item at a time and is never built whole.
+        // The loop guard still counts, so an endless stream with no "stop"
+        // is stopped rather than hanging the program.
+        if (list && list.__stream) {
+          let guard = 0;
+          for (;;) {
+            const got = list.next();
+            if (got.done) break;
+            if (++guard > this.loopLimit) this.fail('This loop ran forever, so I stopped it', node.line);
+            const scope = new Environment(env);
+            scope.define(node.name, got.value);
+            if (this.loopBody(node.block, scope)) break;
+          }
+          return;
+        }
         const items = Array.isArray(list) ? list
           : typeof list === 'string' ? [...list]
           : isThing(list) ? Object.keys(list)

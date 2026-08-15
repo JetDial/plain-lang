@@ -88,6 +88,7 @@ const target = rest.find(a => !a.startsWith('-'));
 try {
   switch (command) {
     case 'run': await commandRun(target); break;
+    case 'work': await commandWork(target, rest[1], rest[2], rest[3]); break;
     case 'play': case 'serve': await commandServe(target, 'play'); break;
     case 'edit': case 'design': case 'studio': await commandServe(target, 'edit'); break;
     case 'build': await commandBuild(target); break;
@@ -265,6 +266,34 @@ function buildRuntime(onOutput, baseFile = process.cwd()) {
       return null;
     }
   });
+  // Real background work: each job is a separate copy of this program that
+  // loads only the definitions and runs one action. The answer crosses back
+  // through a file, written whole and renamed, so a half-written answer is
+  // never read.
+  let jobCounter = 0;
+  runtime.options.work = (action, argsJson) => {
+    const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'plain-work-'));
+    const outFile = path.join(folder, 'answer-' + (++jobCounter) + '.json');
+    const child = spawn(process.execPath, [
+      fileURLToPath(import.meta.url), 'work', path.resolve(baseFile), action, argsJson, outFile
+    ], { stdio: 'ignore', detached: false });
+    child.on('error', () => {});
+    return { file: outFile };
+  };
+  runtime.options.workDone = (job) => fs.existsSync(job.file);
+  runtime.options.workWait = (job) => {
+    const patience = new Int32Array(new SharedArrayBuffer(4));
+    const started = Date.now();
+    while (!fs.existsSync(job.file)) {
+      if (Date.now() - started > 120000) throw new Error('the background work never answered');
+      Atomics.wait(patience, 0, 0, 20);
+    }
+    const read = JSON.parse(fs.readFileSync(job.file, 'utf8'));
+    try { fs.rmSync(path.dirname(job.file), { recursive: true, force: true }); } catch { /* tidy later */ }
+    if (read.problem) throw new Error(read.problem);
+    return read.answer;
+  };
+
   const game = installGame(runtime, {
     keepGoing,
     // Reading and writing PNG files, for programs run in the terminal. The
@@ -1014,6 +1043,31 @@ function commandNew(name) {
     '# Sentences shared by the project live in files like this one.\n' +
     '# Pull them in from main.plain with:  use "helpers.plain"\n', 'utf8');
   console.log(`Made ${folder}${path.sep}main.plain. Run it with:\n\n    plain run ${folder}\n`);
+}
+
+// --------------------------------------------------------------------- work
+
+// The child half of "start working on": load only the definitions of the
+// program, run one action with one value, write the answer beside a rename
+// so the waiting parent never reads half of it.
+async function commandWork(file, action, argsJson, outFile) {
+  const program = readProgram(file);
+  const answerWith = (payload) => {
+    const halfway = outFile + '.part';
+    fs.writeFileSync(halfway, JSON.stringify(payload), 'utf8');
+    fs.renameSync(halfway, outFile);
+  };
+  try {
+    const { runtime } = buildRuntime(() => {}, program.full);
+    const tree = runtime.parse(program.source, path.basename(program.full));
+    tree.body = tree.body.filter(one => one.type === 'Function' || one.type === 'Kind');
+    runtime.interpreter.run(tree);
+    const wanted = runtime.interpreter.actionValue(action, 0);
+    const answer = wanted(JSON.parse(argsJson));
+    answerWith({ answer: answer === undefined ? null : answer });
+  } catch (error) {
+    answerWith({ problem: String(error && (error.plainMessage || error.message) || error) });
+  }
 }
 
 // -------------------------------------------------------------------- parts
