@@ -100,7 +100,6 @@ see `INTEROP.md` for exactly what crosses it and what does not.
    See `PERFORMANCE.md`, which also says why cloning and field lookup were
    measured and rejected, so neither gets retried on how the code looks.
 4. Generators as lazy lists · workers · the embedded runtime.
-5. `drop` seen working end to end.
 6. Airmash's remaining screen: country flags, crowns, level badges, ping,
    mute and settings, `FROM Server` messages.
 7. Public-server things: moderation, accounts, votemute.
