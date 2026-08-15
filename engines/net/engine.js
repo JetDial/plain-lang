@@ -432,6 +432,11 @@ export function installNet(rt, host = {}) {
   rt.defineValue('the bytes the server sent', () => server.heardBytes || []);
   rt.defineValue('the server is there', () => Boolean(server.joined));
 
+  rt.define('send the bytes $bytes to the server', (a, ctx) => {
+    if (!host.sendUp) ctx.fail('There is no server to send to yet');
+    host.sendUp(a.bytes, true);
+  });
+
   rt.define('send $value to the server', (a, ctx) => {
     if (!host.sendUp) ctx.fail('There is no server to send to yet');
     host.sendUp(toText(a.value));

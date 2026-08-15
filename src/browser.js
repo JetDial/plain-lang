@@ -55,12 +55,23 @@ export function startPlain(source, options = {}) {
   const server = installNet(runtime, {
     connect(where, net) {
       line = new win.WebSocket(where);
+      // Bytes arrive as a block of memory rather than a stream to be read,
+      // which is the only shape a page can use them in.
+      line.binaryType = 'arraybuffer';
       line.addEventListener('open', () => {
         net.joined = true;
         for (const run of net.onJoined) safely(runtime, doc, source, run);
       });
       line.addEventListener('message', event => {
-        net.heard = String(event.data);
+        // A message is either writing or bytes, never both, and a program
+        // that expects one should see nothing at all of the other.
+        if (event.data instanceof ArrayBuffer) {
+          net.heardBytes = [...new Uint8Array(event.data)];
+          net.heard = '';
+        } else {
+          net.heard = String(event.data);
+          net.heardBytes = [];
+        }
         for (const run of net.onHear) safely(runtime, doc, source, run);
       });
       line.addEventListener('close', () => {
@@ -68,8 +79,10 @@ export function startPlain(source, options = {}) {
         for (const run of net.onLost) safely(runtime, doc, source, run);
       });
     },
-    sendUp(words) {
-      if (line && line.readyState === 1) line.send(words);
+    sendUp(words, raw) {
+      if (!line || line.readyState !== 1) return;
+      if (raw) line.send(Uint8Array.from((words || []).map(b => Number(b) & 0xff)));
+      else line.send(words);
     }
   });
 
