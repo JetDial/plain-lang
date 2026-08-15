@@ -318,6 +318,7 @@ function plain_item($collection, $index) {
   },
 
   reversed: { code: `function plain_reversed($collection) {\n    return array_reverse(plain_items($collection));\n}`, needs: ['items'] },
+  shuffled: { code: `function plain_shuffled($collection) {\n    $mixed = plain_items($collection);\n    shuffle($mixed);\n    return $mixed;\n}`, needs: ['items'] },
   copy: { code: `function plain_copy($value) {\n    return is_array($value) ? $value : $value;\n}` },
   joinWith: { code: `function plain_join_with($collection, $separator) {\n    $parts = [];\n    foreach (plain_items($collection) as $item) $parts[] = plain_text($item);\n    return implode(plain_text($separator), $parts);\n}`, needs: ['items', 'text'] },
   position: {

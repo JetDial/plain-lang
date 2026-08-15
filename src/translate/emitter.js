@@ -596,6 +596,7 @@ export class Emitter {
       case 'average of $list': return this.helper('average', [value('list')]);
       case 'sorted $list': return this.helper('sorted', [value('list')]);
       case 'reversed $list': return this.helper('reversed', [value('list')]);
+      case 'shuffled $list': return this.helper('shuffled', [value('list')]);
       case 'copy of $thing': return this.helper('copy', [value('thing')]);
       case 'join $list with $separator': return this.helper('joinWith', [value('list'), value('separator')]);
       case 'position of $value in $list': return this.helper('position', [value('list'), value('value')]);

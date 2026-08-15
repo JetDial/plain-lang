@@ -734,6 +734,7 @@ it. The projects further down build several of these properly.</p>
       ['draw the picture "grass.png" at 100 , 100 sized 64 by 64', '<b>Pictures.</b> Drawn rather than kept, so a floor of four hundred tiles is a loop and one file. <code>draw frame 3 of "walk.png"</code> takes one picture out of a sheet.'],
       ['show the first 5 of scores', '<b>Part of a list, and pages of one.</b> The top few, the next page, the rest after the first - each one sentence rather than a loop with a counter and an off-by-one waiting to happen.'],
       ['make best be reversed sorted people by "score"', '<b>Sorting by one of the values things carry.</b> A scoreboard, in a sentence.'],
+      ['make hand be shuffled cards', '<b>Shuffling.</b> A new list in a random order; the one you gave it is left alone. Cards, quiz questions, whose turn it is, where things spawn - all the same sentence.'],
       ['make later be the day 20 days after today', '<b>Days.</b> Tomorrow, how long until something, which weekday a date falls on - written the way the world writes dates down.'],
       ['show everything in mine not in yours', '<b>Sets, without a second kind of list.</b> Unique, what is in one and not the other, what is in both, and both together.'],
       ['connect to "ws://localhost:3040"', '<b>Two programs talking.</b> A page and a server sending messages back and forth, which is what a multiplayer game is made of.'],

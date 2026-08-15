@@ -48,6 +48,22 @@ export function installCore(rt) {
     });
   });
   rt.defineValue('reversed $list', a => list(a.list).slice().reverse());
+
+  // Shuffling, which every game with cards, questions, spawn points or
+  // turns needs and none of them should have to write. Each item is swapped
+  // with one somewhere at or before it, which is the only shuffle that
+  // treats every order as equally likely - the obvious version, swapping
+  // each with any other, quietly does not.
+  rt.defineValue('shuffled $list', a => {
+    const out = list(a.list).slice();
+    for (let at = out.length - 1; at > 0; at--) {
+      const other = Math.floor(Math.random() * (at + 1));
+      const held = out[at];
+      out[at] = out[other];
+      out[other] = held;
+    }
+    return out;
+  });
   rt.defineValue('join $list with $separator', a => list(a.list).map(v => toText(v)).join(toText(a.separator)));
 
   rt.defineValue('copy of $thing', a => (Array.isArray(a.thing) ? a.thing.slice() : isThing(a.thing) ? { ...a.thing } : a.thing));

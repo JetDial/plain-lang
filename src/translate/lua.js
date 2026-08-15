@@ -507,6 +507,7 @@ end`,
   },
 
   reversed: { code: `function plain.reversed(collection)\n  local all = plain.items(collection)\n  local out = {}\n  for at = #all, 1, -1 do out[#out + 1] = all[at] end\n  return out\nend`, needs: ['items'] },
+  shuffled: { code: `function plain.shuffled(collection)\n  local mixed = {}\n  for _, item in ipairs(plain.items(collection)) do mixed[#mixed + 1] = item end\n  for at = #mixed, 2, -1 do\n    local other = math.random(at)\n    mixed[at], mixed[other] = mixed[other], mixed[at]\n  end\n  return mixed\nend`, needs: ['items'] },
   copy: { code: `function plain.copy(value)\n  if type(value) ~= "table" then return value end\n  local out = {}\n  for key, item in pairs(value) do out[key] = item end\n  return out\nend` },
   joinWith: { code: `function plain.joinWith(collection, separator)\n  local parts = {}\n  for _, item in ipairs(plain.items(collection)) do parts[#parts + 1] = plain.text(item) end\n  return table.concat(parts, plain.text(separator))\nend`, needs: ['items', 'text'] },
   position: {

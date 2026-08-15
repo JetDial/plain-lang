@@ -150,6 +150,29 @@ check('set an item', () => assert.equal(first('make l be [1, 2]\nset item 2 of l
 check('total, highest, lowest', () =>
   assert.deepEqual(run('make l be [3, 9, 1]\nshow total of l\nshow highest of l\nshow lowest of l'), ['13', '9', '1']));
 check('sorted', () => assert.equal(first('show text of sorted [3, 1, 2]'), '[1, 2, 3]'));
+
+check('shuffling keeps every item and leaves the original alone', () => {
+  // Checked as properties rather than against an answer, because the whole
+  // point of a shuffle is that its answer is different every time.
+  const lines = run([
+    'make cards be [1, 2, 3, 4, 5, 6, 7, 8]',
+    'make mixed be shuffled cards',
+    'show text of sorted mixed',
+    'show text of cards',
+    'show number of items in mixed'
+  ].join('\n'));
+  assert.equal(lines[0], '[1, 2, 3, 4, 5, 6, 7, 8]');   // nothing lost or gained
+  assert.equal(lines[1], '[1, 2, 3, 4, 5, 6, 7, 8]');   // the original untouched
+  assert.equal(lines[2], '8');
+
+  // And it does actually move things: twenty shuffles of ten items landing
+  // in the same order every time would be a shuffle that does nothing.
+  const orders = new Set();
+  for (let go = 0; go < 20; go++) {
+    orders.add(run('show text of shuffled [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]')[0]);
+  }
+  assert.ok(orders.size > 15, 'shuffling gave the same order too often');
+});
 check('join', () => assert.equal(first('show join ["a", "b"] with "-"'), 'a-b'));
 check('length of text', () => assert.equal(first('show length of "abcd"'), '4'));
 check('position of', () => assert.equal(first('show position of "b" in ["a", "b"]'), '2'));

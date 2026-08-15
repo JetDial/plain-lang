@@ -1337,6 +1337,22 @@ static Value plain_random_item(Value collection) {
     return all.obj->items[(size_t)(plain_random() * (double)all.obj->count) % all.obj->count];
 }
 
+// Every item swapped with one somewhere at or before it, which is the only
+// shuffle that treats every order as equally likely.
+static Value plain_shuffled(Value collection) {
+    Value all = plain_items(collection);
+    size_t at = all.obj->count;
+    while (at > 1) {
+        at--;
+        size_t other = (size_t)(plain_random() * (double)(at + 1));
+        if (other > at) other = at;
+        Value held = all.obj->items[at];
+        all.obj->items[at] = all.obj->items[other];
+        all.obj->items[other] = held;
+    }
+    return all;
+}
+
 static Value plain_time_now(void) {
     return plain_number_value((double)time(NULL) * 1000.0);
 }

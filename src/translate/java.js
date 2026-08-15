@@ -357,6 +357,7 @@ const HELPERS = {
   },
 
   reversed: { code: `    static List<Object> reversed(Object collection) { List<Object> copy = new ArrayList<>(items(collection)); Collections.reverse(copy); return copy; }`, needs: ['items'] },
+  shuffled: { code: `    static List<Object> shuffled(Object collection) { List<Object> mixed = new ArrayList<>(items(collection)); for (int at = mixed.size() - 1; at > 0; at--) { int other = dice.nextInt(at + 1); Object held = mixed.get(at); mixed.set(at, mixed.get(other)); mixed.set(other, held); } return mixed; }`, needs: ['items', 'randomBetween'] },
   copy: { code: `    static Object copy(Object value) { if (value instanceof List<?> list) return new ArrayList<Object>(list); if (value instanceof Map<?, ?> map) return new LinkedHashMap<Object, Object>(map); return value; }` },
   joinWith: {
     code: `    static String joinWith(Object collection, Object separator) {

@@ -273,6 +273,7 @@ end`,
   },
 
   reversed: { code: `def plain_reversed(collection)\n  plain_items(collection).reverse\nend`, needs: ['items'] },
+  shuffled: { code: `def plain_shuffled(collection)\n  plain_items(collection).shuffle\nend`, needs: ['items'] },
   copy: { code: `def plain_copy(value)\n  value.is_a?(Array) || value.is_a?(Hash) ? value.dup : value\nend` },
   joinWith: { code: `def plain_join_with(collection, separator)\n  plain_items(collection).map { |item| plain_text(item) }.join(plain_text(separator))\nend`, needs: ['items', 'text'] },
   position: {

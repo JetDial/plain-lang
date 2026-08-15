@@ -356,6 +356,7 @@ const HELPERS = {
   },
 
   reversed: { code: `    public static List<dynamic> Reversed(dynamic collection) { var copy = new List<dynamic>(Items(collection)); copy.Reverse(); return copy; }`, needs: ['items'] },
+  shuffled: { code: `    public static List<dynamic> Shuffled(dynamic collection) { var mixed = new List<dynamic>(Items(collection)); for (var at = mixed.Count - 1; at > 0; at--) { var other = Dice.Next(at + 1); var held = mixed[at]; mixed[at] = mixed[other]; mixed[other] = held; } return mixed; }`, needs: ['items', 'randomBetween'] },
   copy: { code: `    public static dynamic Copy(dynamic value) { if (value is IList list) return new List<dynamic>(Items(list)); return value; }`, needs: ['items'] },
   joinWith: {
     code: `    public static string JoinWith(dynamic collection, dynamic separator) {

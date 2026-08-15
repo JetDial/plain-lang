@@ -503,6 +503,20 @@ fn plain_reversed(collection: Value) -> Value {
     plain_list_value(all)
 }
 
+// Every item swapped with one somewhere at or before it, which is the only
+// shuffle that treats every order as equally likely.
+fn plain_shuffled(collection: Value) -> Value {
+    let mut all = plain_items(collection);
+    let mut at = all.len();
+    while at > 1 {
+        at -= 1;
+        let mut other = (plain_random() * (at + 1) as f64) as usize;
+        if other > at { other = at; }
+        all.swap(at, other);
+    }
+    plain_list_value(all)
+}
+
 fn plain_copy(value: Value) -> Value {
     match &value {
         Value::List(items) => plain_list_value(items.borrow().clone()),

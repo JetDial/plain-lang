@@ -300,6 +300,7 @@ def plain_item(collection, index):
   },
 
   reversed: { code: `def plain_reversed(collection):\n    return list(reversed(plain_items(collection)))`, needs: ['items'] },
+  shuffled: { code: `def plain_shuffled(collection):\n    mixed = list(plain_items(collection))\n    random.shuffle(mixed)\n    return mixed`, needs: ['items'], imports: ['random'] },
   copy: { code: `def plain_copy(value):\n    if isinstance(value, list):\n        return list(value)\n    if isinstance(value, dict):\n        return dict(value)\n    return value` },
   joinWith: { code: `def plain_join_with(collection, separator):\n    return plain_text(separator).join(plain_text(item) for item in plain_items(collection))`, needs: ['items', 'text'] },
   position: {

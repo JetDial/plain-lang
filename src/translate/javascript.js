@@ -207,6 +207,7 @@ const HELPERS = {
   },
 
   reversed: { code: `  reversed(list) { return plain.items(list).slice().reverse(); },`, needs: ['items'] },
+  shuffled: { code: `  shuffled(list) { const mixed = plain.items(list).slice(); for (let at = mixed.length - 1; at > 0; at--) { const other = Math.floor(Math.random() * (at + 1)); const held = mixed[at]; mixed[at] = mixed[other]; mixed[other] = held; } return mixed; },`, needs: ['items'] },
   copy: { code: `  copy(value) { return Array.isArray(value) ? value.slice() : (value && typeof value === 'object' ? { ...value } : value); },` },
   joinWith: { code: `  joinWith(list, separator) { return plain.items(list).map(item => plain.text(item)).join(plain.text(separator)); },`, needs: ['items', 'text'] },
   position: {

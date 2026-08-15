@@ -593,6 +593,7 @@ func plainItem(collection any, index any) any {
   },
 
   reversed: { code: `func plainReversed(collection any) any {\n\tall := plainItems(collection)\n\tout := []any{}\n\tfor at := len(all) - 1; at >= 0; at-- {\n\t\tout = append(out, all[at])\n\t}\n\treturn out\n}`, needs: ['items'] },
+  shuffled: { code: `func plainShuffled(collection any) any {\n\tall := plainItems(collection)\n\tmixed := make([]any, len(all))\n\tcopy(mixed, all)\n\tfor at := len(mixed) - 1; at > 0; at-- {\n\t\tother := rand.Intn(at + 1)\n\t\tmixed[at], mixed[other] = mixed[other], mixed[at]\n\t}\n\treturn mixed\n}`, needs: ['items'], imports: ['math/rand'] },
   copy: { code: `func plainCopy(value any) any {\n\tif list, ok := value.([]any); ok {\n\t\tout := make([]any, len(list))\n\t\tcopy(out, list)\n\t\treturn out\n\t}\n\treturn value\n}` },
   joinWith: { code: `func plainJoinWith(collection any, separator any) any {\n\tparts := []string{}\n\tfor _, item := range plainItems(collection) {\n\t\tparts = append(parts, plainText(item))\n\t}\n\treturn strings.Join(parts, plainText(separator))\n}`, needs: ['items', 'text'], imports: ['strings'] },
   position: {

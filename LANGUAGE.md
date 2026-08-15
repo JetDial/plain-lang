@@ -139,7 +139,13 @@ set item 2 of shopping to "cheese"
 
 Also: `total of`, `average of`, `highest of`, `lowest of`, `sorted`,
 `reversed`, `join $list with $separator`, `position of $value in $list`,
-`random item of $list`, `copy of $list`.
+`random item of $list`, `copy of $list`, `shuffled $list`.
+
+`shuffled` hands back a new list in a random order and leaves the one you
+gave it alone, which is what cards, questions, spawn points and turns all
+need. Every item is swapped with one somewhere at or before it - the only
+shuffle that treats every order as equally likely. The obvious version,
+swapping each item with any other, quietly favours some orders over others.
 
 ## 8. Things
 
