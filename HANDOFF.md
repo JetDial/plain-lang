@@ -79,6 +79,23 @@ see `INTEROP.md` for exactly what crosses it and what does not.
 
 1. **3D textures**, then shadows cast, then loading a model. The most asked
    for and most visibly missing: a world of flat colours reads as a diagram.
+
+   Looked at, not started, because it is bigger than it sounds. The meshes in
+   `engines/world/render.js` carry positions and normals and **no texture
+   coordinates at all**, so this is four jobs rather than one:
+
+   - texture coordinates on `cubeMesh`, `sphereMesh`, `cylinderMesh` and
+     `coneMesh`, or - much less work and nearly as good for built-in shapes -
+     work them out in the shader from the world position and the normal,
+     which needs no change to the meshes at all
+   - a `sampler2D` in the fragment shader, and a flag for bodies without one
+   - loading a picture into a GL texture, one per source, kept like the 2D
+     side keeps its pictures
+   - one sentence: `cover $body with the picture $source`
+
+   Do the shader-side coordinates first. It is the version that can be tried
+   in an afternoon, and if it looks right there is no reason to touch the
+   meshes.
 3. **Struct layout** — the only performance item the measurements support.
    See `PERFORMANCE.md`, which also says why cloning and field lookup were
    measured and rejected, so neither gets retried on how the code looks.
