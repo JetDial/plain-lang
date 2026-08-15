@@ -1070,6 +1070,27 @@ Every editor, strategy game and point-and-click needs this. It draws a line
 out of the camera through that point on the screen and gives back whichever
 body it meets first.
 
+## Pictures
+
+A picture could only be a *thing* - something made once that lives in the
+world and is moved about. That is right for a hero and wrong for everything
+else a game draws with pictures: a tiled floor, a row of hearts, a hundred
+trees. Those are drawn, not kept.
+
+```
+draw the picture "grass.png" at 100 , 100 sized 64 by 64
+draw the picture "hero.png" at 200 , 150 sized 48 by 48 turned 30
+draw frame 3 of "walk.png" at 300 , 150 sized 48 by 48 with 4 by 2 frames
+if is the picture "grass.png" ready ... end
+```
+
+A file is loaded once and remembered however many times it is drawn, so a
+floor of four hundred tiles loads one file. Drawing goes through the view
+like everything else, so pictures scroll and scale with the world.
+
+Sheets - one file holding a grid of pictures - are how nearly every game's
+artwork arrives, which is what `draw frame 3 of` is for.
+
 ## Arcs
 
 ```

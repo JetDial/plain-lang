@@ -470,6 +470,22 @@ export class Game {
         ctx.arc(item.x, item.y, item.size / 2,
                 (item.from * Math.PI) / 180, (item.to * Math.PI) / 180);
         ctx.stroke();
+      } else if (item.kind === 'picture') {
+        if (item.image && item.image.complete) {
+          ctx.translate(item.x, item.y);
+          if (item.angle) ctx.rotate((item.angle * Math.PI) / 180);
+          if (item.columns) {
+            const wide = (item.image.naturalWidth || item.image.width || 0) / item.columns;
+            const tall = (item.image.naturalHeight || item.image.height || 0) / item.rows;
+            const at = Math.min(item.frame, item.columns * item.rows) - 1;
+            const across = (at % item.columns) * wide;
+            const down = Math.floor(at / item.columns) * tall;
+            ctx.drawImage(item.image, across, down, wide, tall,
+                          -item.width / 2, -item.height / 2, item.width, item.height);
+          } else {
+            ctx.drawImage(item.image, -item.width / 2, -item.height / 2, item.width, item.height);
+          }
+        }
       } else if (item.kind === 'line') {
         ctx.strokeStyle = item.color;
         ctx.lineWidth = item.thick;
@@ -917,6 +933,63 @@ export function installGame(rt, host = {}) {
       from: toNumber(a.from), to: toNumber(a.to),
       thick: Math.max(0.5, scaled(a.thick)), color: toText(a.color)
     });
+  });
+
+  // ------------------------------------------------------------- pictures
+  //
+  // A picture could only be a thing: something made once, that lives in the
+  // world and is moved about. That is right for a hero and wrong for
+  // everything else a game draws with pictures - a tiled floor, a row of
+  // hearts, a card, a hundred trees. Those are drawn, not kept.
+  //
+  //     draw the picture "grass.png" at 100 , 100 sized 64 by 64
+  //
+  // Pictures are loaded once and remembered, however many times they are
+  // drawn, so a floor made of four hundred tiles loads one file.
+  const pictures = new Map();
+  const pictureOf = (source) => {
+    const name = toText(source);
+    if (pictures.has(name)) return pictures.get(name);
+    if (!host.window || !host.window.Image) { pictures.set(name, null); return null; }
+    const image = new host.window.Image();
+    image.src = name;
+    pictures.set(name, image);
+    return image;
+  };
+
+  rt.define('draw the picture $source at $x , $y sized $width by $height', (a) => {
+    const at = seen(a.x, a.y);
+    game.drawQueue.push({
+      kind: 'picture', image: pictureOf(a.source), source: toText(a.source),
+      x: at.x, y: at.y, width: scaled(a.width), height: scaled(a.height), angle: 0
+    });
+  });
+
+  rt.define('draw the picture $source at $x , $y sized $width by $height turned $degrees', (a) => {
+    const at = seen(a.x, a.y);
+    game.drawQueue.push({
+      kind: 'picture', image: pictureOf(a.source), source: toText(a.source),
+      x: at.x, y: at.y, width: scaled(a.width), height: scaled(a.height),
+      angle: toNumber(a.degrees)
+    });
+  });
+
+  // One frame out of a sheet, which is how nearly every game's artwork
+  // arrives: one file holding a grid of pictures.
+  rt.define('draw frame $frame of $source at $x , $y sized $width by $height with $columns by $rows frames', (a) => {
+    const at = seen(a.x, a.y);
+    game.drawQueue.push({
+      kind: 'picture', image: pictureOf(a.source), source: toText(a.source),
+      x: at.x, y: at.y, width: scaled(a.width), height: scaled(a.height), angle: 0,
+      frame: Math.max(1, Math.round(toNumber(a.frame))),
+      columns: Math.max(1, Math.round(toNumber(a.columns))),
+      rows: Math.max(1, Math.round(toNumber(a.rows)))
+    });
+  });
+
+  rt.defineValue('is the picture $source ready', (a) => {
+    const image = pictureOf(a.source);
+    return !!(image && image.complete && (image.naturalWidth || 0) > 0);
   });
 
   // A straight line, which every other drawing tool has and this did not.

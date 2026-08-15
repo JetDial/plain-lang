@@ -731,6 +731,7 @@ it. The projects further down build several of these properly.</p>
       ['make notes be a table called "notes"', '<b>Somewhere to keep things.</b> Rows you can save, find, change and delete, that are still there tomorrow.'],
       ['send an email to "ada@example.com" saying "hello"', '<b>Email.</b> The same sentence whether it goes out through a real mail server or is written to a file while you are testing.'],
       ['ask for "https://..." and when it arrives ...', '<b>Asking without waiting.</b> The program carries straight on, and the block runs when the answer turns up. A game that stops to ask a question has dropped sixteen frames.'],
+      ['draw the picture "grass.png" at 100 , 100 sized 64 by 64', '<b>Pictures.</b> Drawn rather than kept, so a floor of four hundred tiles is a loop and one file. <code>draw frame 3 of "walk.png"</code> takes one picture out of a sheet.'],
       ['show the first 5 of scores', '<b>Part of a list, and pages of one.</b> The top few, the next page, the rest after the first - each one sentence rather than a loop with a counter and an off-by-one waiting to happen.'],
       ['make best be reversed sorted people by "score"', '<b>Sorting by one of the values things carry.</b> A scoreboard, in a sentence.'],
       ['make later be the day 20 days after today', '<b>Days.</b> Tomorrow, how long until something, which weekday a date falls on - written the way the world writes dates down.'],
