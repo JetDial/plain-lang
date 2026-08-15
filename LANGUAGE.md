@@ -1173,6 +1173,19 @@ Also `the year of`, `the month of`, `the day of`, `the month name of`,
 `is $when a real day`, and the two questions: `$when is before $other`,
 `$when is after $other`.
 
+## Part of a list, and pages of one
+
+```
+show the first 5 of scores
+show the last 2 of scores
+show everything after the first 5 of scores
+show page 2 of scores with 20 to a page
+show how many pages in scores with 20 to a page
+```
+
+Pages count from 1, so page 1 is the first page. Asking for more than there
+is gives you what there is rather than failing.
+
 ## Sets, without a second kind of list
 
 Other languages hand you a whole new container for this. Here it is four

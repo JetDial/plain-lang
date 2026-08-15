@@ -344,6 +344,29 @@ check('a name given text inside an if is not a number', () => {
   assert.ok(found.has('b'), 'b is only ever a number');
 });
 
+check('part of a list, and pages of one', () => {
+  const { rt } = runtimeFor([
+    'make all be [1, 2, 3, 4, 5, 6, 7]',
+    'make top be the first 3 of all',
+    'make tail be the last 2 of all',
+    'make rest be everything after the first 5 of all',
+    'make second be page 2 of all with 3 to a page',
+    'make pages be how many pages in all with 3 to a page',
+    'make asked be the first 99 of all',
+    'make none be the last 0 of all'
+  ].join('\n'));
+  const g = rt.interpreter.globals;
+  assert.deepEqual(g.get('top'), [1, 2, 3]);
+  assert.deepEqual(g.get('tail'), [6, 7]);
+  assert.deepEqual(g.get('rest'), [6, 7]);
+  // Pages count from 1, as everything else in Plain does.
+  assert.deepEqual(g.get('second'), [4, 5, 6]);
+  assert.equal(g.get('pages'), 3);
+  // Asking for more than there is gives what there is, rather than failing.
+  assert.deepEqual(g.get('asked'), [1, 2, 3, 4, 5, 6, 7]);
+  assert.deepEqual(g.get('none'), []);
+});
+
 check('days can be counted, named and compared', () => {
   const { rt } = runtimeFor([
     'make tomorrow be the day after "2026-08-14"',

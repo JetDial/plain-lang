@@ -249,6 +249,41 @@ export function installCore(rt) {
   rt.defineValue('time now', () => Date.now());
   rt.defineValue('today', () => new Date().toISOString().slice(0, 10));
 
+  // -------------------------------------------------- taking part of a list
+  //
+  // Wanting the top five of something, or the next page of it, or the rest
+  // after the first, is constant - and until now every one of those meant
+  // a loop with a counter in it and an off-by-one waiting to happen.
+
+  rt.defineValue('the first $count of $list', a => {
+    const many = Math.max(0, Math.round(toNumber(a.count)));
+    return list(a.list).slice(0, many);
+  });
+
+  rt.defineValue('the last $count of $list', a => {
+    const many = Math.max(0, Math.round(toNumber(a.count)));
+    const all = list(a.list);
+    return many === 0 ? [] : all.slice(Math.max(0, all.length - many));
+  });
+
+  rt.defineValue('everything after the first $count of $list', a => {
+    const many = Math.max(0, Math.round(toNumber(a.count)));
+    return list(a.list).slice(many);
+  });
+
+  // A page of something. Counting from 1, as everywhere else, so "page 1"
+  // is the first page rather than the second.
+  rt.defineValue('page $page of $list with $size to a page', a => {
+    const size = Math.max(1, Math.round(toNumber(a.size)));
+    const page = Math.max(1, Math.round(toNumber(a.page)));
+    return list(a.list).slice((page - 1) * size, page * size);
+  });
+
+  rt.defineValue('how many pages in $list with $size to a page', a => {
+    const size = Math.max(1, Math.round(toNumber(a.size)));
+    return Math.ceil(list(a.list).length / size);
+  });
+
   // ---------------------------------------------------------- checking
   //
   // A language that can build a server and a game and cannot say whether
