@@ -1,0 +1,136 @@
+# A sprite editor, written in Plain.
+#
+#     plain play sprite-editor.plain
+#
+# Sixteen by sixteen, paint with the mouse, and S writes the picture out as
+# Plain - a run of "draw a box" lines you can paste straight into a game.
+#
+# The second application written in this language rather than under it. Like
+# the level editor, its output is the language it is written in, so there is
+# no file format to agree on and nothing to import.
+
+start a game called "Sprite Editor" sized 900 by 620
+set the background to "#0a0e18"
+
+make across be 16
+make down be 16
+make big be 26
+make leftedge be 60
+make topedge be 90
+
+# The picture itself: one number a square, saying which colour it is. Nought
+# is nothing there, which is why an empty sprite is a run of noughts.
+make picture be room for 256 numbers
+
+make palette be ["#00000000", "#ffffff", "#0a0e18", "#ff6b6b", "#ffd166",
+                 "#7ee787", "#38d9d9", "#8fa8ff", "#e879f9", "#6f7a8c"]
+make holding be 2
+make told be "paint with the mouse, 1 to 9 to pick a colour, S writes it out"
+
+to spotat with column and line
+    give back ((line minus 1) times across) plus column
+end
+
+to columnunder
+    give back (round ((mouse x minus leftedge) divided by big)) plus 1
+end
+
+to lineunder
+    give back (round ((mouse y minus topedge) divided by big)) plus 1
+end
+
+when any key is pressed
+    make pressing be the key pressed
+    repeat with n from 1 to 9
+        if pressing is text of n
+            set holding to n plus 1
+            set told to "painting with colour {n}"
+        end
+    end
+    if pressing is "0"
+        set holding to 1
+        set told to "rubbing out"
+    end
+    if pressing is "c"
+        fill picture with 0
+        set told to "cleared"
+    end
+    if pressing is "s"
+        make written be []
+        repeat with line from 1 to down
+            repeat with column from 1 to across
+                make at be spotat with column and line
+                make which be what is at at of picture
+                if which is above 0
+                    make paint be item which of palette
+                    make x be (column minus 1) times 4
+                    make y be (line minus 1) times 4
+                    add "draw a box at {x} , {y} sized 4 by 4 colored \"{paint}\"" to written
+                end
+            end
+        end
+        show join written with "\n"
+        set told to "{number of items in written} squares written out - look in the console"
+    end
+end
+
+every frame
+    # Painting. Held down rather than clicked, because a person drawing
+    # expects to drag.
+    if mouse is down
+        make column be columnunder
+        make line be lineunder
+        if column is at least 1
+            if column is at most across
+                if line is at least 1
+                    if line is at most down
+                        make at be spotat with column and line
+                        make now be holding minus 1
+                        if holding is 1
+                            set now to 0
+                        end
+                        put now at at of picture
+                    end
+                end
+            end
+        end
+    end
+
+    # The picture, square by square, with a chequer underneath so an empty
+    # square looks empty rather than black.
+    repeat with line from 1 to down
+        repeat with column from 1 to across
+            make x be leftedge plus ((column minus 1) times big)
+            make y be topedge plus ((line minus 1) times big)
+            make under be "#141b28"
+            if (column plus line) modulo 2 is 0
+                set under to "#0f1725"
+            end
+            draw a box at x , y sized big by big colored under
+            make at be spotat with column and line
+            make which be what is at at of picture
+            if which is above 0
+                draw a box at x , y sized (big minus 2) by (big minus 2) colored item (which plus 1) of palette
+            end
+        end
+    end
+
+    # The colours, and which one is in hand.
+    make where be leftedge
+    repeat with n from 2 to 10
+        draw a box at where , 560 sized 30 by 30 colored item n of palette
+        if n is holding
+            draw a box at where , 582 sized 30 by 3 colored "#ffffff"
+        end
+        make mark be "{n minus 1}"
+        draw mark centred at where , 596 sized 11 colored "#3f4d63"
+        set where to where plus 40
+    end
+    draw a box at where plus 6 , 560 sized 30 by 30 colored "#141b28"
+    draw "0" centred at where plus 6 , 596 sized 11 colored "#3f4d63"
+
+    draw "Sprite Editor" at 20 , 20 sized 16 colored "#c3cfe2"
+    draw "written in Plain, and it writes Plain" at 20 , 42 sized 12 colored "#3f4d63"
+    draw told at 20 , 62 sized 13 colored "#93a7c4"
+    draw "C clears it" at 760 , 596 sized 12 colored "#3f4d63"
+end
