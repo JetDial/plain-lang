@@ -1029,6 +1029,16 @@ set the fade of ghost to 0.4
 `facing of hero` is 1 or -1, `fade of hero` runs from 0 to 1. Fading is how
 anything appears, disappears, or flickers while it cannot be hurt.
 
+## Arcs
+
+```
+draw an arc at 400 , 300 sized 90 from 120 to 240 thick 5 colored "#7ee787"
+```
+
+Part of a circle round a point, measured in degrees, going clockwise from
+the right. A health bar curved round the thing it belongs to is read without
+looking away from it, which is why every game that has one draws it there.
+
 ## Shaking, and text that centres itself
 
 ```

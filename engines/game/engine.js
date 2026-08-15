@@ -462,6 +462,14 @@ export class Game {
         ctx.beginPath();
         ctx.arc(item.x, item.y, item.size / 2, 0, Math.PI * 2);
         ctx.fill();
+      } else if (item.kind === 'arc') {
+        ctx.strokeStyle = item.color;
+        ctx.lineWidth = item.thick;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.arc(item.x, item.y, item.size / 2,
+                (item.from * Math.PI) / 180, (item.to * Math.PI) / 180);
+        ctx.stroke();
       } else if (item.kind === 'line') {
         ctx.strokeStyle = item.color;
         ctx.lineWidth = item.thick;
@@ -898,6 +906,18 @@ export function installGame(rt, host = {}) {
   rt.defineValue('view right', () => game.view.x + (game.width / 2) / game.view.zoom);
   rt.defineValue('view top', () => game.view.y - (game.height / 2) / game.view.zoom);
   rt.defineValue('view bottom', () => game.view.y + (game.height / 2) / game.view.zoom);
+
+  // A curved line - part of a circle round a point. Health and energy read
+  // around the thing they belong to rather than in a corner, so a player's
+  // eyes never leave the fight to find out how they are doing.
+  rt.define('draw an arc at $x , $y sized $size from $from to $to thick $thick colored $color', (a) => {
+    const at = seen(a.x, a.y);
+    game.drawQueue.push({
+      kind: 'arc', x: at.x, y: at.y, size: scaled(a.size),
+      from: toNumber(a.from), to: toNumber(a.to),
+      thick: Math.max(0.5, scaled(a.thick)), color: toText(a.color)
+    });
+  });
 
   // A straight line, which every other drawing tool has and this did not.
   rt.define('draw a line from $x , $y to $tox , $toy thick $thick colored $color', (a) => {
