@@ -33,6 +33,20 @@ export function installCore(rt) {
   });
 
   rt.defineValue('sorted $list', a => list(a.list).slice().sort(compareValues));
+
+  // A list of things rather than a list of numbers: put them in order of one
+  // of the things they each have. Anything missing that value goes last,
+  // because there is nowhere sensible to put it.
+  rt.defineValue('sorted $list by $key', a => {
+    const key = toText(a.key);
+    const pick = item => (isThing(item) ? item[key] : undefined);
+    return list(a.list).slice().sort((one, other) => {
+      const left = pick(one), right = pick(other);
+      if (left === undefined || left === null) return right === undefined || right === null ? 0 : 1;
+      if (right === undefined || right === null) return -1;
+      return compareValues(left, right);
+    });
+  });
   rt.defineValue('reversed $list', a => list(a.list).slice().reverse());
   rt.defineValue('join $list with $separator', a => list(a.list).map(v => toText(v)).join(toText(a.separator)));
 

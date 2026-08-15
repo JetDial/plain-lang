@@ -290,6 +290,19 @@ check('key presses run their block', () => {
   assert.equal(rt.interpreter.globals.get('jumps'), 2);
 });
 
+check('a list of things can be sorted by one of their values', () => {
+  const { rt } = runtimeFor([
+    'make people be [{ name: "Ada", score: 3 }, { name: "Bo", score: 9 }, { name: "Cy" }]',
+    'make best be reversed sorted people by "score"',
+    'make names be []',
+    'for each one in best',
+    '    add name of one to names',
+    'end'
+  ].join('\n'));
+  // Cy has no score at all, so Cy goes last however the list is turned round.
+  assert.deepEqual(rt.interpreter.globals.get('names'), ['Cy', 'Bo', 'Ada']);
+});
+
 check('a program can ask which key was pressed', () => {
   const { rt, game } = runtimeFor([
     'start a game called "G"',
