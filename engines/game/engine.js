@@ -158,6 +158,7 @@ export class Game {
     this.scene = '';                  // which one is showing; '' means "no scenes"
     this.writingScene = '';           // which one is being described right now
     this.sceneStarts = [];            // { scene, run }
+    this.shake = { left: 0, strength: 0 };
     this.mouse = { x: 0, y: 0, down: false };
     this.clicks = [];                 // { run }
     this.drawQueue = [];
@@ -234,6 +235,7 @@ export class Game {
   // what should happen once and the engine keeps it happening.
   advanceExtras(seconds) {
     this.lastStep = seconds;
+    if (this.shake.left > 0) this.shake.left = Math.max(0, this.shake.left - seconds);
     const living = [];
     for (const spark of this.sparks) {
       spark.life -= seconds;
@@ -755,12 +757,40 @@ export function installGame(rt, host = {}) {
   // world. Anything drawn outside it is drawn on the screen, which is where
   // a score, a health bar and a menu want to be.
 
-  const seen = (x, y) => (game.view.through
-    ? { x: (toNumber(x) - game.view.x) * game.view.zoom + game.width / 2,
-        y: (toNumber(y) - game.view.y) * game.view.zoom + game.height / 2 }
-    : { x: toNumber(x), y: toNumber(y) });
+  const jolt = () => {
+    if (game.shake.left <= 0) return { x: 0, y: 0 };
+    // Hardest at the moment it happens and gone by the end, which is what
+    // makes it read as an impact rather than a wobble.
+    const much = game.shake.strength * (game.shake.left / game.shake.born);
+    return { x: (Math.random() * 2 - 1) * much, y: (Math.random() * 2 - 1) * much };
+  };
+
+  const seen = (x, y) => {
+    const off = jolt();
+    return game.view.through
+      ? { x: (toNumber(x) - game.view.x) * game.view.zoom + game.width / 2 + off.x,
+          y: (toNumber(y) - game.view.y) * game.view.zoom + game.height / 2 + off.y }
+      : { x: toNumber(x) + off.x, y: toNumber(y) + off.y };
+  };
 
   const scaled = (n) => (game.view.through ? toNumber(n) * game.view.zoom : toNumber(n));
+
+  // The whole picture knocked sideways for a moment. Every game that has
+  // ever had an explosion in it has this, and it is the cheapest way to
+  // make something feel heavy.
+  rt.define('shake the view by $strength for $seconds seconds', (a) => {
+    game.shake.strength = Math.max(0, toNumber(a.strength));
+    game.shake.left = Math.max(0, toNumber(a.seconds));
+    game.shake.born = Math.max(0.001, game.shake.left);
+  });
+
+  rt.define('shake the view', () => {
+    game.shake.strength = 8;
+    game.shake.left = 0.35;
+    game.shake.born = 0.35;
+  });
+
+  rt.defineValue('the view is shaking', () => game.shake.left > 0);
 
   rt.define('point the view at $x , $y', (a) => {
     game.view.x = toNumber(a.x);
@@ -794,6 +824,17 @@ export function installGame(rt, host = {}) {
     game.drawQueue.push({
       kind: 'line', x: from.x, y: from.y, tox: to.x, toy: to.y,
       thick: Math.max(0.2, scaled(a.thick)), color: toText(a.color)
+    });
+  });
+
+  // Text placed by its middle rather than its left edge. Centring anything
+  // without this means measuring the letters yourself, which nobody should
+  // have to do to put a title on a screen.
+  rt.define('draw $text centred at $x , $y sized $size colored $color', (a) => {
+    const at = seen(a.x, a.y);
+    game.drawQueue.push({
+      kind: 'text', text: toText(a.text), x: at.x, y: at.y,
+      size: scaled(a.size), color: toText(a.color), align: 'center'
     });
   });
 

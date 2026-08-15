@@ -998,6 +998,21 @@ failure says what it expected and what turned up:
 Also `checks that passed`, `checks that failed`, and `forget the checks so
 far`.
 
+## Shaking, and text that centres itself
+
+```
+shake the view                              a short sharp one
+shake the view by 14 for 0.5 seconds        as hard and as long as you like
+if the view is shaking ... end
+
+draw "BOOM" centred at 400 , 300 sized 40 colored "#ffd166"
+```
+
+A shake is hardest at the moment it happens and gone by the end, which is
+what makes it read as an impact rather than a wobble. Centred text saves
+measuring the letters yourself, which nobody should have to do to put a
+title on a screen.
+
 ## Bits, sliding, and time
 
 Three things every game engine has.
