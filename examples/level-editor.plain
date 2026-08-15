@@ -1,0 +1,134 @@
+# A level editor, written in Plain.
+#
+#     plain play level-editor.plain
+#
+# Not a demonstration of a language - a thing you would actually use to lay
+# out a game, written in the language it lays out games for. Click to place,
+# drag to move, right sort of key to change what you are placing, and it
+# writes the level out as Plain you can paste into a game.
+#
+# Everything here is a sentence the language already had, except knowing what
+# the mouse is over, which this needed and so the engine grew it.
+
+start a game called "Level Editor" sized 1000 by 680
+set the background to "#0a0e18"
+
+make kinds be ["wall", "floor", "spike", "coin", "start"]
+make shades be ["#6f7a8c", "#2c3a4f", "#ff6b6b", "#ffd166", "#7ee787"]
+make sizes be [40, 40, 24, 18, 30]
+
+make holding be 1
+make placed be []
+make dragging be nothing
+make grid be 20
+make told be "click to place, 1 to 5 to choose, backspace removes, S writes it out"
+
+to snapped with n
+    give back (round n divided by grid) times grid
+end
+
+# --------------------------------------------------------------- choosing
+
+when any key is pressed
+    make pressing be the key pressed
+    repeat with n from 1 to 5
+        if pressing is text of n
+            set holding to n
+            set told to "placing {item n of kinds}"
+        end
+    end
+
+    if pressing is "backspace"
+        make under be what is under the mouse
+        if under is nothing
+            set told to "nothing under the mouse to remove"
+        otherwise
+            remove under from the game
+            make left be []
+            for each one in placed
+                if one is not under
+                    add one to left
+                end
+            end
+            set placed to left
+            set told to "removed one - {number of items in placed} left"
+        end
+    end
+
+    if pressing is "s"
+        # The whole point: it writes Plain, so a level made by hand becomes
+        # lines you can paste into the game that will use it.
+        make written be []
+        for each one in placed
+            make named be value "sort" of one
+            make paint be value "paint" of one
+            make wide be round width of one
+            add "make thing be a box at {round x of one} , {round y of one} sized {wide} by {wide} colored \"{paint}\"   # {named}" to written
+        end
+        show join written with "\n"
+        set told to "{number of items in written} lines written out - look in the console"
+    end
+end
+
+# --------------------------------------------------------------- placing
+
+when the mouse is clicked
+    make under be what is under the mouse
+    if under is nothing
+        make side be item holding of sizes
+        make paint be item holding of shades
+        make named be item holding of kinds
+        make where be snapped with mouse x
+        make down be snapped with mouse y
+        make one be a box at where , down sized side by side colored paint
+        set value "sort" of one to named
+        set value "paint" of one to paint
+        add one to placed
+        set told to "{number of items in placed} things placed"
+    otherwise
+        # Something is already there, so this is a drag rather than a place.
+        set dragging to under
+        set told to "moving one - let go to drop it"
+    end
+end
+
+every frame
+    if mouse is down
+        if dragging is not nothing
+            move dragging to snapped with mouse x , snapped with mouse y
+        end
+    otherwise
+        set dragging to nothing
+    end
+
+    # The grid, so a person can see what things are snapping to.
+    repeat with n from 0 to 50
+        make lx be n times grid
+        draw a box at lx , 340 sized 1 by 680 colored "#0e1524"
+    end
+    repeat with n from 0 to 34
+        make ly be n times grid
+        draw a box at 500 , ly sized 1000 by 1 colored "#0e1524"
+    end
+
+    # What you are holding, and everything you could hold.
+    draw a box at 500 , 646 sized 1000 by 68 colored "#0d1422"
+    make across be 40
+    repeat with n from 1 to 5
+        make side be item n of sizes
+        make paint be item n of shades
+        draw a box at across , 640 sized side by side colored paint
+        make label be item n of kinds
+        make mark be "{n}"
+        if n is holding
+            draw a box at across , 668 sized 34 by 3 colored "#ffffff"
+        end
+        draw label centred at across , 656 sized 11 colored "#6f88b0"
+        draw mark centred at across , 612 sized 11 colored "#3f4d63"
+        set across to across plus 110
+    end
+
+    draw told at 640 , 632 sized 13 colored "#93a7c4"
+    draw "Level Editor" at 20 , 20 sized 16 colored "#c3cfe2"
+    draw "written in Plain, for Plain" at 20 , 42 sized 12 colored "#3f4d63"
+end

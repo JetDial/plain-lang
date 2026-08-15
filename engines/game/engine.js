@@ -825,6 +825,19 @@ export function installGame(rt, host = {}) {
   // key that set it going: one letter for a letter, and a name like "enter",
   // "backspace" or "left" for the ones that have no letter.
   rt.defineValue('the key pressed', () => game.pressed);
+  // What the mouse is over, which a game with things in it needs constantly
+  // and could not ask. The topmost one wins, because the topmost one is what
+  // a person thinks they are pointing at.
+  rt.defineValue('what is under the mouse', () => {
+    for (let at = game.things.length - 1; at >= 0; at--) {
+      const thing = game.things[at];
+      if (thing.gone || thing.hidden) continue;
+      if (game.mouse.x >= thing.left && game.mouse.x <= thing.right &&
+          game.mouse.y >= thing.top && game.mouse.y <= thing.bottom) return thing;
+    }
+    return null;
+  });
+
   rt.defineValue('mouse x', () => game.mouse.x);
   rt.defineValue('mouse y', () => game.mouse.y);
   rt.defineValue('mouse is down', () => game.mouse.down);
