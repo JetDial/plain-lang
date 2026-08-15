@@ -284,6 +284,41 @@ export function installCore(rt) {
     return Math.ceil(list(a.list).length / size);
   });
 
+  // ------------------------------------------------------------ tidying
+  //
+  // Showing a number to somebody almost never means showing all of it.
+  // 3.141592653589793 is a fact; "3.14" is what goes on a screen. Until now
+  // that meant multiplying by a hundred, rounding, and dividing again, in
+  // every program that ever showed a price or a distance.
+
+  rt.defineValue('round $number to $places places', a => {
+    const places = Math.max(0, Math.min(12, Math.round(toNumber(a.places))));
+    const value = toNumber(a.number);
+    if (!Number.isFinite(value)) return 0;
+    return Number(value.toFixed(places));
+  });
+
+  // The same, but as text, so trailing noughts stay: money wants "3.50",
+  // not "3.5", and a number cannot hold the difference.
+  rt.defineValue('show $number to $places places as text', a => {
+    const places = Math.max(0, Math.min(12, Math.round(toNumber(a.places))));
+    const value = toNumber(a.number);
+    return Number.isFinite(value) ? value.toFixed(places) : '0';
+  });
+
+  // Lining things up in a column, which is most of what a table is.
+  rt.defineValue('pad $text to $width', a => {
+    const width = Math.max(0, Math.round(toNumber(a.width)));
+    const text = toText(a.text);
+    return text.length >= width ? text : text + ' '.repeat(width - text.length);
+  });
+
+  rt.defineValue('pad $text to $width on the left', a => {
+    const width = Math.max(0, Math.round(toNumber(a.width)));
+    const text = toText(a.text);
+    return text.length >= width ? text : ' '.repeat(width - text.length) + text;
+  });
+
   // ---------------------------------------------------------- checking
   //
   // A language that can build a server and a game and cannot say whether

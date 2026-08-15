@@ -367,6 +367,24 @@ check('part of a list, and pages of one', () => {
   assert.deepEqual(g.get('none'), []);
 });
 
+check('numbers and text can be tidied for showing', () => {
+  const { rt } = runtimeFor([
+    'make short be round 3.14159265 to 2 places',
+    'make whole be round 2.5 to 0 places',
+    'make price be show 3.5 to 2 places as text',
+    'make named be pad "ada" to 8',
+    'make lined be pad "9" to 4 on the left'
+  ].join('\n'));
+  const g = rt.interpreter.globals;
+  assert.equal(g.get('short'), 3.14);
+  assert.equal(g.get('whole'), 3);
+  // As text, so the trailing nought survives - which money always needs and
+  // a number can never hold.
+  assert.equal(g.get('price'), '3.50');
+  assert.equal(g.get('named'), 'ada     ');
+  assert.equal(g.get('lined'), '   9');
+});
+
 check('days can be counted, named and compared', () => {
   const { rt } = runtimeFor([
     'make tomorrow be the day after "2026-08-14"',

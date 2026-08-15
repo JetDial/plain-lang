@@ -969,6 +969,23 @@ Careful - these names are already words in Plain:
 It is a warning and not a refusal, because most of the time nothing goes
 wrong — the two only collide when you write the sentence as well as the name.
 
+## Tidying a number for showing
+
+Showing a number to somebody almost never means showing all of it.
+3.141592653589793 is a fact; 3.14 is what goes on a screen.
+
+```
+show round 3.14159265 to 2 places        3.14
+make price be show 3.5 to 2 places as text     "3.50"
+make named be pad "ada" to 8            "ada     "
+make lined be pad "9" to 4 on the left  "   9"
+```
+
+The second one gives back text rather than a number, on purpose: money wants
+"3.50" and a number cannot hold the difference between that and 3.5.
+
+Padding lines things up in a column, which is most of what a table is.
+
 ## Checking your own work
 
 A language that can build a server and a game and cannot say whether they
