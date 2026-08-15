@@ -765,6 +765,107 @@ have all of it.</p>`,
       }
       return true;
     }
+  },
+
+  {
+    id: 'streams',
+    title: 'Lists that do not exist yet',
+    teach: `<p>A list you write down takes up room. A hundred million numbers take up
+a hundred million numbers' worth of room, and your computer will say so.</p>
+<p>A <b>stream</b> is the way out. It does not hold its items - it knows how
+to hand you the next one. Nothing is worked out until you ask.</p>
+<pre>make big be numbers from 1 to 100000000
+show the first 3 of big</pre>
+` + walk([
+      ['make big be numbers from 1 to 100000000', 'A hundred million numbers, and this line is instant. Nothing has been counted; the stream only knows where to start and where to stop.'],
+      ['show the first 3 of big', 'Now three of them exist: <b>[1, 2, 3]</b>. Only three were ever worked out, and the other 99,999,997 never happened.'],
+      ['for each n in numbers from 2 onwards', 'A stream with <b>no end at all</b>. That is allowed, because you are going to stop it yourself.'],
+      ['stop', 'Leaves the loop. Without it Plain would stop the program for you and say it ran forever - a rescue, not a plan.']
+    ]) + `
+<p><b>Why this is worth having.</b> It separates <i>what</i> the numbers are
+from <i>how many</i> you want. The same stream serves a program that needs
+three and a program that needs three million.</p>`,
+    task: 'Show the first 5 of the numbers from 10 onwards.',
+    start: 'make counting be numbers from 10 onwards\n',
+    check: ({ lines }) => {
+      if (!lines.length) return 'Show something - try: show the first 5 of counting';
+      if (!lines.some(line => String(line).includes('14'))) return 'The first 5 from 10 onwards ends at 14. Use: show the first 5 of counting';
+      return true;
+    }
+  },
+
+  {
+    id: 'working',
+    title: 'Work done elsewhere',
+    teach: `<p>Your computer has several processors. A Plain program uses one, and
+the others sit idle.</p>
+<p><code>start working on</code> hands one of your own actions to a separate
+copy of the program, which runs it on a processor of its own.</p>
+<pre>to grind with rounds
+    make counted be 0
+    repeat with n from 1 to rounds
+        set counted to counted plus 1
+    end
+    give back counted
+end
+
+make job be start working on "grind" with 2000000
+make mine be grind with 2000000
+show (the answer of job) plus mine</pre>
+` + walk([
+      ['make job be start working on "grind" with 2000000', 'Off it goes. This line does <b>not</b> wait - the next line runs straight away while the other processor is busy.'],
+      ['make mine be grind with 2000000', 'The same work again, here, at the same time. Two processors, two piles of work, half the wall clock.'],
+      ['the answer of job', 'Now we wait, if it has not finished. Ask too early and you simply wait; ask after and it is already there.'],
+      ['is job finished', 'Asks without waiting, for when you have something else you could be getting on with.']
+    ]) + `
+<p><b>It works everywhere, but it is only quicker in a terminal.</b> Here in
+the browser there is nowhere to send the work, so Plain does it on the spot -
+the same answer, just not at the same time as anything else. Run the same
+program with <code>plain run</code> and it really does use another processor.
+That is deliberate: a program written with workers should still work where
+there are none.</p>
+<p><b>What can cross.</b> What you hand over and what comes back must fit in
+writing: numbers, text, lists, things. The other copy loads only your
+<code>to</code> definitions, not the rest of the program, so it starts clean
+and cannot tread on anything of yours.</p>`,
+    task: 'Write an action that doubles a number, start it working on 21, and show the answer.',
+    start: 'to double with n\n    give back n times 2\nend\n',
+    check: ({ lines, source }) => {
+      if (!has(source, 'start working on')) return 'Hand it over: make job be start working on "double" with 21';
+      if (!lines.some(line => String(line).includes('42'))) return 'Show it: show the answer of job';
+      return true;
+    }
+  },
+
+  {
+    id: 'tools',
+    title: 'The tools around the language',
+    teach: `<p>Plain is not only the words. These are things you type in a terminal,
+not Plain sentences.</p>
+<p><b>plain run</b> runs a program. <b>plain check</b> reads it <i>without</i>
+running it and says what is wrong - including names you chose that are already
+words in Plain, which is the mistake that costs the most time.</p>
+<p><b>plain play</b> opens a game, a 3D world or a website in your browser.
+<b>plain desk</b> opens <i>everything</i> in a folder as one page.</p>
+<p><b>plain new tidy-up</b> makes a project <b>folder</b> rather than one file:
+a main.plain to start from, and room beside it for the rest. Anything bigger
+than a page should be a folder - the door is main.plain and everything else
+arrives through <code>use</code> - one line at the top of main.plain naming
+the file beside it, and every sentence in that file becomes available.</p>
+<p><b>plain translate</b> writes your program out in eleven other programming
+languages. <b>plain fmt</b> fixes the indentation without changing a word.
+<b>plain learn</b> is this course.</p>
+<p><b>Why a checker earns its keep.</b> Plain never refuses a name. Call
+something <code>key</code> and that is allowed - but <code>key</code> is
+already how you ask about the keyboard, so a later sentence may quietly mean
+something you did not intend, and <i>nothing will fail</i>. The checker is the
+only thing that will tell you.</p>`,
+    task: 'Show a message, then make a name that is deliberately a word Plain owns - like "score" or "size" - and show it. Nothing will break; that is the point.',
+    start: 'show "the checker is your friend"\n',
+    check: ({ lines }) => {
+      if (lines.length < 2) return 'Two lines: a message, and a name of your own shown.';
+      return true;
+    }
   }
 ];
 
@@ -1422,6 +1523,102 @@ affiche nombres
       }
     ]
   },
+{
+    id: 'brain',
+    title: 'Project: a brain that learns',
+    about: 'A neural network, written from nothing in Plain - no library, no imported anything.',
+    steps: [
+      {
+        task: 'Run this. It is the one piece of arithmetic a neural net is built from.',
+        teach: `
+<p>A neural network sounds like a large thing. It is not. It is a pile of
+numbers, one small sum, and a rule for nudging the numbers when the answer is
+wrong. You are going to write all three.</p>
+<p>Start with the sum. A <b>neuron</b> takes some inputs, multiplies each by a
+<b>weight</b>, adds them up, and then <b>squashes</b> the total into
+something between 0 and 1.</p>
+<p>The squash matters more than it looks. Without it, stacking neurons is
+pointless - a pile of straight lines is still a straight line. The squash is
+the bend that lets a network learn a shape.</p>`,
+        start: 'make examples be [\n    { ins: [0, 0], want: 0 },\n    { ins: [0, 1], want: 1 },\n    { ins: [1, 0], want: 1 },\n    { ins: [1, 1], want: 0 }\n]\n\nto squash with n\n    give back 1 divided by (1 plus exponent of (0 minus n))\nend\n\nshow squash with 0\nshow squash with 4\nshow squash with -4\n',
+        check: ({ lines }) => {
+          if (lines.length < 3) return 'Show the squash of 0, of 4, and of -4 so you can see its shape.';
+          if (!lines.some(line => String(line).startsWith('0.5'))) return 'squash with 0 should be 0.5 - the middle. Check the sum.';
+          return true;
+        }
+      },
+      {
+        task: 'Run this to see the network guess - badly. It has not learned anything yet.',
+        teach: `
+<p>Now the network itself. Ours has <b>two inputs</b>, a <b>hidden layer</b>
+of three neurons, and <b>one output</b>.</p>
+<p>The job is XOR: 0 and 1 make 1, but 1 and 1 make 0. It is the classic
+example because <b>one layer cannot do it</b> - you cannot separate those
+four answers with a single straight line, no matter where you put it. That is
+what the hidden layer is for.</p>
+<p>Every weight starts as a random number, so right now the network is
+guessing. Run it a few times and watch the answers change - they are random
+because the weights are.</p>`,
+        start: 'make examples be [\n    { ins: [0, 0], want: 0 },\n    { ins: [0, 1], want: 1 },\n    { ins: [1, 0], want: 1 },\n    { ins: [1, 1], want: 0 }\n]\n\nmake hidden be 3\nmake w1 be []\nmake b1 be []\nrepeat with h from 1 to hidden\n    add [random -1 to 1, random -1 to 1] to w1\n    add 0 to b1\nend\nmake w2 be []\nrepeat with h from 1 to hidden\n    make seed be random -1 to 1\n    add seed to w2\nend\nmake b2 be 0\n\nto squash with n\n    give back 1 divided by (1 plus exponent of (0 minus n))\nend\n\nto think with ins\n    make hs be []\n    repeat with h from 1 to hidden\n        make sum be item h of b1\n        make ws be item h of w1\n        repeat with i from 1 to 2\n            set sum to sum plus ((item i of ins) times (item i of ws))\n        end\n        add squash with sum to hs\n    end\n    make out be b2\n    repeat with h from 1 to hidden\n        set out to out plus ((item h of hs) times (item h of w2))\n    end\n    give back { hs: hs, out: squash with out }\nend\n\nfor each one in examples\n    make got be think with ins of one\n    show "guessed {round (out of got) times 100 divided by 100}, wanted {want of one}"\nend\n',
+        check: ({ lines }) => {
+          if (lines.length < 4) return 'All four examples should be guessed - the loop at the bottom does that.';
+          if (!lines.some(line => String(line).includes('wanted'))) return 'Show what it wanted next to what it guessed, so you can see how wrong it is.';
+          return true;
+        }
+      },
+      {
+        task: 'Add the learning. Run it - and watch the four answers come out right.',
+        teach: `
+<p>Here is the whole idea of learning, in two lines of arithmetic.</p>
+<p>The network guessed <code>out</code>, and wanted <code>want</code>. The
+difference is <b>slip</b> - how wrong it was, and which way. Multiply that by
+<code>out times (1 minus out)</code>, which is how much the squash was
+actually bending at that point, and you have <b>lean</b>: how hard to push
+this weight and in which direction.</p>
+<p>Then the trick that makes it a <i>network</i> rather than a single neuron:
+each hidden neuron gets blamed in proportion to how much it contributed. That
+is what <code>lean times (item h of w2)</code> is doing - passing the blame
+backwards through the weight it came forward along. That is all
+"backpropagation" means.</p>
+<p>Four thousand rounds of nudging, and it knows XOR.</p>`,
+        start: '# A neural net that learns XOR, in Plain.\n# XOR needs a hidden layer - it cannot be drawn with one straight line.\n\nmake examples be [\n    { ins: [0, 0], want: 0 },\n    { ins: [0, 1], want: 1 },\n    { ins: [1, 0], want: 1 },\n    { ins: [1, 1], want: 0 }\n]\n\nmake hidden be 3\nmake w1 be []\nmake b1 be []\nrepeat with h from 1 to hidden\n    add [random -1 to 1, random -1 to 1] to w1\n    add 0 to b1\nend\nmake w2 be []\nrepeat with h from 1 to hidden\n    make seed be random -1 to 1\n    add seed to w2\nend\nmake b2 be 0\nmake rate be 0.5\n\nto squash with n\n    give back 1 divided by (1 plus exponent of (0 minus n))\nend\n\nto think with ins\n    make hs be []\n    repeat with h from 1 to hidden\n        make sum be item h of b1\n        make ws be item h of w1\n        repeat with i from 1 to 2\n            set sum to sum plus ((item i of ins) times (item i of ws))\n        end\n        add squash with sum to hs\n    end\n    make out be b2\n    repeat with h from 1 to hidden\n        set out to out plus ((item h of hs) times (item h of w2))\n    end\n    give back { hs: hs, out: squash with out }\nend\n\nrepeat with round from 1 to 4000\n    for each one in examples\n        make ins be ins of one\n        make got be think with ins\n        make out be out of got\n        make hs be hs of got\n\n        # How wrong, and which way to lean.\n        make slip be (want of one) minus out\n        make lean be slip times out times (1 minus out)\n\n        repeat with h from 1 to hidden\n            make hv be item h of hs\n            make hlean be lean times (item h of w2) times hv times (1 minus hv)\n            make ws be item h of w1\n            repeat with i from 1 to 2\n                set item i of ws to (item i of ws) plus (rate times hlean times (item i of ins))\n            end\n            set item h of w1 to ws\n            set item h of b1 to (item h of b1) plus (rate times hlean)\n            set item h of w2 to (item h of w2) plus (rate times lean times hv)\n        end\n        set b2 to b2 plus (rate times lean)\n    end\nend\n\nshow "after training:"\nfor each one in examples\n    make got be think with ins of one\n    show "  {item 1 of ins of one} xor {item 2 of ins of one} -> {round (out of got) times 100 divided by 100}  (wanted {want of one})"\nend\n',
+        check: ({ lines }) => {
+          const said = lines.join(' ');
+          if (!said.includes('after training')) return 'Show the four answers after the training loop.';
+          const rights = lines.filter(line => {
+            const m = String(line).match(/-> ([0-9.]+) +\(wanted ([0-9]+)\)/);
+            if (!m) return false;
+            return Math.abs(Number(m[1]) - Number(m[2])) < 0.2;
+          });
+          if (rights.length < 4) return 'Not learned yet - all four should be within 0.2 of what was wanted. Check the nudging loop, and that rate is 0.5.';
+          return true;
+        }
+      },
+      {
+        task: 'Change something and see what it costs: set rate to 0.01, run, then try 4000 rounds at rate 5. Put it back to 0.5 when you are done.',
+        teach: `
+<p>You now have a working neural network, and the interesting part is
+breaking it.</p>
+<p><b>rate</b> is how big each nudge is. Too small and it barely moves - four
+thousand rounds will not be enough. Too big and it leaps straight past the
+answer and thrashes about. There is no correct value; there is only the value
+that works for this problem, found by trying.</p>
+<p><b>hidden</b> is how many neurons are in the middle. Try 2. Try 1 - with
+one, it <i>cannot</i> learn XOR no matter how long you train it, and watching
+that fail is worth more than being told.</p>
+<p>What you have written is the same shape as every large network in the
+world. The big ones have more layers, better nudging rules and a great deal
+more arithmetic - but this is the thing itself, and you wrote it in a language
+that reads like sentences.</p>`,
+        start: '# A neural net that learns XOR, in Plain.\n# XOR needs a hidden layer - it cannot be drawn with one straight line.\n\nmake examples be [\n    { ins: [0, 0], want: 0 },\n    { ins: [0, 1], want: 1 },\n    { ins: [1, 0], want: 1 },\n    { ins: [1, 1], want: 0 }\n]\n\nmake hidden be 3\nmake w1 be []\nmake b1 be []\nrepeat with h from 1 to hidden\n    add [random -1 to 1, random -1 to 1] to w1\n    add 0 to b1\nend\nmake w2 be []\nrepeat with h from 1 to hidden\n    make seed be random -1 to 1\n    add seed to w2\nend\nmake b2 be 0\nmake rate be 0.5\n\nto squash with n\n    give back 1 divided by (1 plus exponent of (0 minus n))\nend\n\nto think with ins\n    make hs be []\n    repeat with h from 1 to hidden\n        make sum be item h of b1\n        make ws be item h of w1\n        repeat with i from 1 to 2\n            set sum to sum plus ((item i of ins) times (item i of ws))\n        end\n        add squash with sum to hs\n    end\n    make out be b2\n    repeat with h from 1 to hidden\n        set out to out plus ((item h of hs) times (item h of w2))\n    end\n    give back { hs: hs, out: squash with out }\nend\n\nrepeat with round from 1 to 4000\n    for each one in examples\n        make ins be ins of one\n        make got be think with ins\n        make out be out of got\n        make hs be hs of got\n\n        # How wrong, and which way to lean.\n        make slip be (want of one) minus out\n        make lean be slip times out times (1 minus out)\n\n        repeat with h from 1 to hidden\n            make hv be item h of hs\n            make hlean be lean times (item h of w2) times hv times (1 minus hv)\n            make ws be item h of w1\n            repeat with i from 1 to 2\n                set item i of ws to (item i of ws) plus (rate times hlean times (item i of ins))\n            end\n            set item h of w1 to ws\n            set item h of b1 to (item h of b1) plus (rate times hlean)\n            set item h of w2 to (item h of w2) plus (rate times lean times hv)\n        end\n        set b2 to b2 plus (rate times lean)\n    end\nend\n\nshow "after training:"\nfor each one in examples\n    make got be think with ins of one\n    show "  {item 1 of ins of one} xor {item 2 of ins of one} -> {round (out of got) times 100 divided by 100}  (wanted {want of one})"\nend\n',
+        check: ({ lines }) => {
+          if (!lines.length) return 'Run it after your change and see what happened.';
+          return true;
+        }
+      }
+    ]
+  },
+
   {
     id: 'translate',
     title: 'Project: the same program in eleven languages',

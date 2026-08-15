@@ -17,6 +17,7 @@ import { mountPage, stylesheet } from '../web/render.js';
 import { translate, targetNames } from '../../src/translate/index.js';
 import { PROGRAM_STARTS } from '../../src/translate/runtimes.js';
 import { LESSONS, PROJECTS, totalSteps } from './course.js';
+import { PACKS, intoLanguage } from '../../src/languages.js';
 import { colourEditor, HIGHLIGHT_STYLE } from './highlight.js';
 
 const STYLE = `
@@ -27,6 +28,8 @@ body { margin: 0; background: #0b0d13; color: #e8ecf4;
 .map { background: #0e111a; border-right: 1px solid #1e2432; padding: 20px 0 40px; overflow: auto; }
 .map h1 { font-size: 15px; margin: 0 20px 4px; letter-spacing: .2px; }
 .map .done { font-size: 12px; color: #7c8497; margin: 0 20px 16px; }
+.map .saying { width: 100%; margin: 0 0 14px; padding: 7px 9px; border-radius: 8px;
+  background: #171a22; color: #e8ecf4; border: 1px solid #2b3243; font: inherit; font-size: 13px; }
 .map .group { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: #6b7385;
   margin: 20px 20px 8px; }
 .map button { display: block; width: 100%; text-align: left; border: 0; background: none;
@@ -95,6 +98,39 @@ export function startLearning(doc, win) {
   root.innerHTML = `<div class="map"></div><div class="page"></div>`;
   doc.body.appendChild(root);
   const map = root.querySelector('.map');
+
+  // Which language the examples are shown in. Plain reads six besides
+  // English, and a lesson is much easier in a language you think in - so
+  // every piece of code on the page can be turned into yours. The words
+  // around it stay English for now, and the course says so rather than
+  // pretending otherwise.
+  const LANGUAGE_KEY = 'plain-learn-language';
+  let saying = (() => {
+    try { return win.localStorage.getItem(LANGUAGE_KEY) || 'english'; }
+    catch { return 'english'; }
+  })();
+
+  const sayCode = (code) => {
+    if (saying === 'english' || !PACKS[saying]) return code;
+    const marker = {
+      spanish: 'en español', french: 'en français', german: 'auf deutsch',
+      portuguese: 'em português', italian: 'in italiano', dutch: 'in het nederlands'
+    }[saying];
+    return marker + '\n' + intoLanguage(code, PACKS[saying]);
+  };
+
+  // Every <pre> in a lesson holds Plain, so every one can be said again.
+  const teachIn = (html) => {
+    if (saying === 'english') return html;
+    return String(html).replace(/<pre>([\s\S]*?)<\/pre>/g, (whole, inside) => {
+      const plain = inside
+        .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+      const said = sayCode(plain)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return '<pre>' + said + '</pre>';
+    });
+  };
   const page = root.querySelector('.page');
 
   // ------------------------------------------------------------ progress
@@ -123,6 +159,34 @@ export function startLearning(doc, win) {
   function drawMap() {
     const finished = [...done].length;
     map.innerHTML = `<h1>Learn Plain</h1><p class="done">${finished} of ${totalSteps()} steps done</p>`;
+
+    // The language every example is shown in. Plain reads all of these, so
+    // a learner can follow the course in the words they think in.
+    const picker = doc.createElement('select');
+    picker.className = 'saying';
+    const choices = [
+      ['english', 'English'], ['spanish', 'español'], ['french', 'français'],
+      ['german', 'deutsch'], ['portuguese', 'português'], ['italian', 'italiano'],
+      ['dutch', 'nederlands']
+    ];
+    for (const [value, label] of choices) {
+      const option = doc.createElement('option');
+      option.value = value;
+      option.textContent = label;
+      if (value === saying) option.selected = true;
+      picker.appendChild(option);
+    }
+    picker.addEventListener('change', () => {
+      saying = picker.value;
+      try { win.localStorage.setItem(LANGUAGE_KEY, saying); } catch { /* private mode */ }
+      drawPage();
+      drawMap();
+    });
+    const pickerLine = doc.createElement('p');
+    pickerLine.className = 'group';
+    pickerLine.textContent = 'Examples in';
+    map.appendChild(pickerLine);
+    map.appendChild(picker);
 
     const group = (title) => {
       const heading = doc.createElement('p');
@@ -193,7 +257,7 @@ export function startLearning(doc, win) {
 
     page.innerHTML = `
       ${heading}
-      ${teaching ? `<div class="teach">${teaching}</div>` : ''}
+      ${teaching ? `<div class="teach">${teachIn(teaching)}</div>` : ''}
       <div class="task"><b>Your turn</b>${isLesson ? item.task : step.task}</div>
       <div class="editor"><textarea spellcheck="false"></textarea></div>
       <div class="buttons">

@@ -175,6 +175,25 @@ export function runCourseChecks(check) {
       'if it fails',
       '    show "I could not: {the problem}"',
       'end'
+    ].join('\n'),
+
+    streams: [
+      'make counting be numbers from 10 onwards',
+      'show the first 5 of counting'
+    ].join('\n'),
+
+    working: [
+      'to double with n',
+      '    give back n times 2',
+      'end',
+      'make job be start working on "double" with 21',
+      'show the answer of job'
+    ].join('\n'),
+
+    tools: [
+      'show "the checker is your friend"',
+      'make score be 3',
+      'show score'
     ].join('\n')
   };
 
@@ -382,6 +401,10 @@ export function runCourseChecks(check) {
     'affiche nombres'
   ].join('\n');
 
+  const BRAIN_1 = 'to squash with n\n    give back 1 divided by (1 plus exponent of (0 minus n))\nend\nshow squash with 0\nshow squash with 4\nshow squash with -4\n';
+  const BRAIN_2 = '# A neural net that learns XOR, in Plain.\n# XOR needs a hidden layer - it cannot be drawn with one straight line.\n\nmake examples be [\n    { ins: [0, 0], want: 0 },\n    { ins: [0, 1], want: 1 },\n    { ins: [1, 0], want: 1 },\n    { ins: [1, 1], want: 0 }\n]\n\nmake hidden be 3\nmake w1 be []\nmake b1 be []\nrepeat with h from 1 to hidden\n    add [random -1 to 1, random -1 to 1] to w1\n    add 0 to b1\nend\nmake w2 be []\nrepeat with h from 1 to hidden\n    make seed be random -1 to 1\n    add seed to w2\nend\nmake b2 be 0\nmake rate be 0.5\n\nto squash with n\n    give back 1 divided by (1 plus exponent of (0 minus n))\nend\n\nto think with ins\n    make hs be []\n    repeat with h from 1 to hidden\n        make sum be item h of b1\n        make ws be item h of w1\n        repeat with i from 1 to 2\n            set sum to sum plus ((item i of ins) times (item i of ws))\n        end\n        add squash with sum to hs\n    end\n    make out be b2\n    repeat with h from 1 to hidden\n        set out to out plus ((item h of hs) times (item h of w2))\n    end\n    give back { hs: hs, out: squash with out }\nend\n\nfor each one in examples\n    make got be think with ins of one\n    show "guessed {round (out of got) times 100 divided by 100}, wanted {want of one}"\nend\n';
+  const BRAIN_3 = '# A neural net that learns XOR, in Plain.\n# XOR needs a hidden layer - it cannot be drawn with one straight line.\n\nmake examples be [\n    { ins: [0, 0], want: 0 },\n    { ins: [0, 1], want: 1 },\n    { ins: [1, 0], want: 1 },\n    { ins: [1, 1], want: 0 }\n]\n\nmake hidden be 3\nmake w1 be []\nmake b1 be []\nrepeat with h from 1 to hidden\n    add [random -1 to 1, random -1 to 1] to w1\n    add 0 to b1\nend\nmake w2 be []\nrepeat with h from 1 to hidden\n    make seed be random -1 to 1\n    add seed to w2\nend\nmake b2 be 0\nmake rate be 0.5\n\nto squash with n\n    give back 1 divided by (1 plus exponent of (0 minus n))\nend\n\nto think with ins\n    make hs be []\n    repeat with h from 1 to hidden\n        make sum be item h of b1\n        make ws be item h of w1\n        repeat with i from 1 to 2\n            set sum to sum plus ((item i of ins) times (item i of ws))\n        end\n        add squash with sum to hs\n    end\n    make out be b2\n    repeat with h from 1 to hidden\n        set out to out plus ((item h of hs) times (item h of w2))\n    end\n    give back { hs: hs, out: squash with out }\nend\n\nrepeat with round from 1 to 4000\n    for each one in examples\n        make ins be ins of one\n        make got be think with ins\n        make out be out of got\n        make hs be hs of got\n\n        # How wrong, and which way to lean.\n        make slip be (want of one) minus out\n        make lean be slip times out times (1 minus out)\n\n        repeat with h from 1 to hidden\n            make hv be item h of hs\n            make hlean be lean times (item h of w2) times hv times (1 minus hv)\n            make ws be item h of w1\n            repeat with i from 1 to 2\n                set item i of ws to (item i of ws) plus (rate times hlean times (item i of ins))\n            end\n            set item h of w1 to ws\n            set item h of b1 to (item h of b1) plus (rate times hlean)\n            set item h of w2 to (item h of w2) plus (rate times lean times hv)\n        end\n        set b2 to b2 plus (rate times lean)\n    end\nend\n\nshow "after training:"\nfor each one in examples\n    make got be think with ins of one\n    show "  {item 1 of ins of one} xor {item 2 of ins of one} -> {round (out of got) times 100 divided by 100}  (wanted {want of one})"\nend\n';
+
   const TRANSLATE_1 = [
     'to double with n',
     '    give back n times 2',
@@ -504,6 +527,7 @@ export function runCourseChecks(check) {
     game: [GAME_1, GAME_2, GAME_3, GAME_4],
     world: [WORLD_1, WORLD_2, WORLD_3, WORLD_4],
     video: [FILM_1, FILM_2, FILM_3],
+    brain: [BRAIN_1, BRAIN_2, BRAIN_3, BRAIN_3],
     spanish: [SPANISH_1, SPANISH_2],
     translate: [TRANSLATE_1, TRANSLATE_1, TRANSLATE_1, TRANSLATE_SORTED, TRANSLATE_SORTED],
     protocol: [PROTO_1, PROTO_2, PROTO_3],

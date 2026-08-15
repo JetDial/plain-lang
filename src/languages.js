@@ -492,6 +492,113 @@ export const PACKS = {
 
 export const USE_WORDS = ['use', 'usa', 'utilise', 'benutze', 'gebruik'];
 
+// The dictionary backwards: English -> this language.
+//
+// The packs are written the way a program is read - their words to ours.
+// Teaching wants the other direction: here is a Plain sentence, show it to
+// me in Spanish. Several of their words often mean one of ours ("haz" and
+// "crea" are both "make"), so the FIRST one wins, which is the one the
+// pack lists first and so the one its author reached for.
+//
+// Multi-word entries reverse too: "for each" -> "por cada". Longest first
+// again, so "for each" beats "for".
+export function backwards(pack) {
+  if (pack._backwards) return pack._backwards;
+
+  const out = new Map();
+
+  for (const [theirs, ours] of Object.entries(pack.words)) {
+    if (theirs.endsWith('_') || ours === '') continue;
+    if (!out.has(ours)) out.set(ours, theirs);
+  }
+
+  const entries = [...out.entries()].sort((a, b) => b[0].split(/\s+/).length - a[0].split(/\s+/).length);
+  pack._backwards = entries;
+  return entries;
+}
+
+// A piece of Plain, written in another language.
+//
+// One pass over the words, never over its own output - the mistake worth
+// naming, because it looks like it works until you read it: replacing
+// "a" with "un" and then walking the result turns "card" into "cunrd".
+// So each word is decided once and never looked at again.
+//
+// Text in quotes is left exactly alone; somebody's message is not
+// vocabulary. So is any word the dictionary has no word for.
+export function intoLanguage(source, pack) {
+  const entries = backwards(pack);
+  const longest = Math.max(...entries.map(([ours]) => ours.split(/\s+/).length));
+
+  // English -> theirs, by how many words the English side has.
+  const byLength = new Map();
+
+  for (const [ours, theirs] of entries) {
+    const size = ours.split(/\s+/).length;
+
+    if (!byLength.has(size)) byLength.set(size, new Map());
+    byLength.get(size).set(ours.toLowerCase(), theirs);
+  }
+
+  const sayLine = (line) => {
+    // Words and the gaps between them, kept apart so spacing survives.
+    const bits = line.split(/([\p{L}\p{N}_]+)/u);
+    const words = [];
+
+    for (let at = 0; at < bits.length; at++) {
+      if (at % 2 === 1) words.push({ word: bits[at], at });
+    }
+
+    const said = new Array(bits.length).fill(null);
+    let index = 0;
+
+    while (index < words.length) {
+      let matched = false;
+
+      for (let size = Math.min(longest, words.length - index); size >= 1 && !matched; size--) {
+        const run = words.slice(index, index + size);
+
+        // Only a run with nothing but spaces between its words is a phrase.
+        let joined = true;
+
+        for (let step = 1; step < size && joined; step++) {
+          const between = bits[run[step - 1].at + 1];
+
+          if (!/^[ 	]*$/.test(between)) joined = false;
+        }
+
+        if (!joined) continue;
+
+        const table = byLength.get(size);
+        const key = run.map(one => one.word.toLowerCase()).join(' ');
+        const theirs = table && table.get(key);
+
+        if (theirs !== undefined) {
+          said[run[0].at] = theirs;
+
+          for (let step = 1; step < size; step++) {
+            said[run[step].at] = '';
+            said[run[step].at - 1] = '';        // the space before it
+          }
+
+          index += size;
+          matched = true;
+        }
+      }
+
+      if (!matched) index += 1;
+    }
+
+    return bits.map((piece, at) => (said[at] === null ? piece : said[at])).join('');
+  };
+
+  return String(source).split('\n').map(line => {
+    const pieces = line.split(/("[^"]*"|'[^']*')/);
+
+    return pieces.map((piece, at) => (at % 2 === 1 ? piece : sayLine(piece))).join('');
+  }).join('\n');
+}
+
 // Which language is this source in? Returns { pack, cleaned } - the marker
 // line is blanked rather than removed so every line number stays honest.
 export function detectLanguage(source) {

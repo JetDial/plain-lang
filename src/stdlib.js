@@ -56,15 +56,26 @@ export function installCore(rt) {
   // definitions, runs that action, and writes the answer down. The answer
   // is fetched with "the answer of", which waits if it must. Two jobs
   // started together genuinely run on two processors.
-  rt.defineValue('start working on $action with $value', (a) => {
+  rt.defineValue('start working on $action with $value', (a, ctx) => {
     const work = rt.options.work;
-    if (!work) throw new Error('working in the background needs the command line ("plain run")');
+
+    // Nowhere to send it - a browser, or a program being tested - so it is
+    // done here and now instead. The answer is the same answer; what is
+    // lost is the other processor, not the result. A program written with
+    // workers still works everywhere, it is only quicker where there is
+    // somewhere to send the work.
+    if (!work) {
+      const doer = rt.interpreter.actionValue(String(a.action), 0);
+      return { __job: true, __answered: true, __answer: doer(a.value ?? null) };
+    }
+
     return { __job: true, ...work(String(a.action), JSON.stringify(a.value ?? null)) };
   });
 
   rt.defineValue('is $job finished', (a) => {
     const job = a.job;
     if (!job || !job.__job) return true;
+    if (job.__answered) return true;
     return !!(rt.options.workDone && rt.options.workDone(job));
   });
 
