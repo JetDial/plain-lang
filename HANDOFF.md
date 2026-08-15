@@ -135,9 +135,10 @@ see `INTEROP.md` for exactly what crosses it and what does not.
    objects in the broadphase). A different repository, the hottest loop in
    that server, and by its own handoff note it deserves a full session.
 3. Generators as lazy lists · workers · the embedded runtime.
-4. Airmash's remaining screen: country flags, crowns, level badges, ping,
-   mute and settings, `FROM Server` messages.
-5. Public-server things: moderation, accounts, votemute.
+4. Airmash's screen: flags, crowns, level badges, ping and FROM Server
+   are all worn now. Left: mute and settings buttons, VIEW ALL.
+5. Public-server things: moderation, accounts, votemute - an account
+   system is its own project, not an afternoon.
 
 ---
 
