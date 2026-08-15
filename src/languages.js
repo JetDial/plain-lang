@@ -214,13 +214,283 @@ const FRENCH = {
   'musique': 'music', 'joue': 'play', 'bip': 'beep'
 };
 
+
+const GERMAN = {
+  // --- the shape of the language -----------------------------------------
+  // "wenn" is if; events say "sobald" (as soon as), which keeps the two
+  // meanings German gives one word apart.
+  'wenn': 'if', 'falls': 'if', 'sonst': 'otherwise', 'ende': 'end',
+  'wiederhole': 'repeat', 'solange': 'while',
+  'f\u00fcr jedes': 'for each', 'f\u00fcr jede': 'for each', 'f\u00fcr jeden': 'for each',
+  'fuer jedes': 'for each', 'fuer jede': 'for each',
+  'jede': 'every', 'jeden': 'every', 'jedes': 'every', 'sobald': 'when', 'wann': 'when',
+  'zu': 'to', 'bis': 'to', 'ab': 'from',
+  'gib': 'give', 'gib zur\u00fcck': 'give back', 'zur\u00fcck': 'back', 'zurueck': 'back',
+  'stopp': 'stop', 'halt': 'stop', 'weiter': 'next', '\u00fcberspringe': 'skip',
+  'mache': 'make', 'mach': 'make', 'erstelle': 'make', 'sei': 'be', 'als': 'as',
+  'setze': 'set', '\u00e4ndere': 'set', 'aendere': 'set', 'zeige': 'show',
+  'mit': 'with', 'und': 'and', 'oder': 'or', 'ist nicht': 'is not', 'ist': 'is',
+  'ja': 'yes', 'wahr': 'yes', 'nein': 'no', 'falsch': 'no', 'nicht': 'not',
+  'nichts': 'nothing', 'benutze': 'use', 'warte': 'wait', 'dann': 'then',
+  'mal': 'times', 'f\u00fcr': 'for', 'fuer': 'for',
+  'der': 'the', 'die': 'the', 'das': 'the', 'den': 'the', 'dem': 'the',
+  'ein': 'a', 'eine': 'a', 'einen': 'a', 'einem': 'a', 'einer': 'a',
+  'der gr\u00f6\u00dfe': 'sized', 'gr\u00f6\u00dfe': 'sized', 'groesse': 'sized',
+  'der farbe': 'colored', 'gef\u00e4rbt': 'colored', 'gefaerbt': 'colored',
+  'bei': 'at', 'in': 'in', 'auf': 'on', 'durch': 'by',
+  'von': 'of', 'genannt': 'called', 'namens': 'called',
+  // Separable verbs leave a stump at the end of the sentence; it vanishes.
+  'hinzu': '', 'f\u00fcge': 'add', 'fuege': 'add',
+
+  // --- asking about things -----------------------------------------------
+  'ist \u00fcber': 'is above', 'ist gr\u00f6\u00dfer als': 'is above',
+  'ist kleiner als': 'is below', 'ist unter': 'is below',
+  'ist mindestens': 'is at least', 'ist h\u00f6chstens': 'is at most',
+  'enth\u00e4lt': 'contains', 'enthaelt': 'contains',
+  'beginnt mit': 'starts with', 'endet mit': 'ends with',
+  'ber\u00fchrt': 'touches', 'beruehrt': 'touches',
+
+  // --- numbers and lists -------------------------------------------------
+  'zahl': 'number', 'zahlen': 'numbers', 'element': 'item', 'elemente': 'items',
+  'liste': 'list', 'l\u00e4nge': 'length', 'laenge': 'length',
+  'entferne': 'remove', 'summe': 'total', 'durchschnitt': 'average',
+  'h\u00f6chste': 'highest', 'niedrigste': 'lowest',
+  'sortiert': 'sorted', 'umgekehrt': 'reversed', 'gemischt': 'shuffled',
+  'zuf\u00e4llig': 'random', 'zufaellig': 'random', 'zufall': 'random',
+  'erste': 'first', 'erstes': 'first', 'letzte': 'last', 'letztes': 'last',
+  'runde': 'round', 'gerundet': 'round', 'teil': 'part',
+  'verbinde': 'join', 'kopie': 'copy', 'wert': 'value', 'werte': 'values',
+  'leer': 'empty', 'zwischen': 'between', 'wurzel': 'root',
+  'quadratwurzel': 'square root', 'geteilt durch': 'divided by',
+
+  // --- the game ----------------------------------------------------------
+  'starte': 'start', 'beginne': 'start', 'spiel': 'game', 'welt': 'world',
+  'zeichne': 'draw', 'kiste': 'box', 'kasten': 'box', 'kreis': 'circle',
+  'kugel': 'ball', 'linie': 'line', 'w\u00fcrfel': 'cube', 'wuerfel': 'cube',
+  'boden': 'floor', 'himmel': 'sky', 'hintergrund': 'background',
+  'breite': 'width', 'h\u00f6he': 'height', 'hoehe': 'height',
+  'bewege': 'move', 'drehe': 'turn', 'links': 'left', 'rechts': 'right',
+  'hoch': 'up', 'oben': 'up', 'runter': 'down', 'unten': 'down',
+  'vorw\u00e4rts': 'forward', 'vorwaerts': 'forward',
+  'geschwindigkeit': 'speed', 'schwerkraft': 'gravity', 'schiebe': 'push',
+  'die taste': 'key', 'taste': 'key', 'gedr\u00fcckt': 'pressed',
+  'gedrueckt': 'pressed', 'gehalten': 'held', 'maus': 'mouse',
+  'geklickt': 'clicked', 'bild': 'picture', 'bedecke': 'cover',
+  'wiederholt': 'repeated', 'kamera': 'camera', 'verstecke': 'hide',
+  'enth\u00fclle': 'reveal', 'licht': 'light', 'lampe': 'lamp',
+  'schatten': 'shadows', 'schatten werfen': 'cast shadows', 'lass': 'let',
+  'sonne': 'sun', 'nebel': 'haze', 'sekunde': 'second', 'sekunden': 'seconds',
+  'rahmen': 'frame', 'ton': 'sound', 'musik': 'music', 'spiele': 'play',
+  'pfeil': 'arrow', 'leertaste': 'space', 'unter': 'under', '\u00fcber': 'over'
+};
+
+const PORTUGUESE = {
+  // --- the shape of the language -----------------------------------------
+  'se': 'if', 'sen\u00e3o': 'otherwise', 'senao': 'otherwise', 'fim': 'end',
+  'repita': 'repeat', 'enquanto': 'while',
+  'para cada': 'for each', 'cada': 'every', 'quando': 'when',
+  'para': 'to', 'a': 'to', 'at\u00e9': 'to', 'ate': 'to', 'desde': 'from',
+  'd\u00e1': 'give', 'devolve': 'give back', 'devolva': 'give back',
+  'pare': 'stop', 'pr\u00f3ximo': 'next', 'pule': 'skip',
+  'fa\u00e7a': 'make', 'faca': 'make', 'crie': 'make', 'ser': 'be',
+  'seja': 'be', 'como': 'as',
+  'mude': 'set', 'ajuste': 'set', 'mostre': 'show', 'mostra': 'show',
+  'com': 'with', 'e': 'and', 'ou': 'or', 'n\u00e3o \u00e9': 'is not',
+  'nao e': 'is not', '\u00e9': 'is',
+  'sim': 'yes', 'verdadeiro': 'yes', 'falso': 'no',
+  'nada': 'nothing', 'espere': 'wait', 'ent\u00e3o': 'then',
+  'vezes': 'times', 'durante': 'for',
+  'o': 'the', 'os': 'the', 'as': 'the',
+  'um': 'a', 'uma': 'a', 'uns': 'a', 'umas': 'a',
+  'de tamanho': 'sized', 'de cor': 'colored', 'colorido': 'colored',
+  'em': 'at', 'dentro de': 'in', 'sobre': 'on', 'por': 'by',
+  'de': 'of', 'que': 'that', 'chamado': 'called', 'chamada': 'called',
+  'n\u00e3o': 'not', 'nao': 'not',
+  'e de': 'y of',
+
+  // --- asking about things -----------------------------------------------
+  '\u00e9 maior que': 'is above', '\u00e9 menor que': 'is below',
+  '\u00e9 pelo menos': 'is at least', '\u00e9 no m\u00e1ximo': 'is at most',
+  'cont\u00e9m': 'contains', 'contem': 'contains',
+  'come\u00e7a com': 'starts with', 'termina com': 'ends with',
+  'toca': 'touches', 'tocou': 'touched',
+  'a tecla': 'key', 'qualquer tecla': 'any key',
+
+  // --- numbers and lists -------------------------------------------------
+  'n\u00famero': 'number', 'numero': 'number', 'elemento': 'item',
+  'elementos': 'items', 'lista': 'list', 'comprimento': 'length',
+  'adicione': 'add', 'some': 'add', 'remova': 'remove', 'tire': 'remove',
+  'total': 'total', 'm\u00e9dia': 'average', 'media': 'average',
+  'maior': 'highest', 'menor': 'lowest',
+  'ordenado': 'sorted', 'invertido': 'reversed', 'embaralhado': 'shuffled',
+  'aleat\u00f3rio': 'random', 'aleatorio': 'random',
+  'primeiro': 'first', '\u00faltimo': 'last', 'ultimo': 'last',
+  'arredonda': 'round', 'parte': 'part', 'posi\u00e7\u00e3o': 'position',
+  'posicao': 'position', 'junte': 'join', 'c\u00f3pia': 'copy',
+  'copia': 'copy', 'texto': 'text', 'valor': 'value', 'vazio': 'empty',
+  'entre': 'between', 'raiz': 'root', 'quadrada': 'square',
+  'mais': 'plus', 'menos': 'minus', 'dividido por': 'divided by',
+  'multiplicado por': 'times', 'm\u00f3dulo': 'modulo', 'modulo': 'modulo',
+
+  // --- the game ----------------------------------------------------------
+  'comece': 'start', 'inicie': 'start', 'jogo': 'game', 'mundo': 'world',
+  'desenhe': 'draw', 'desenha': 'draw', 'caixa': 'box',
+  'c\u00edrculo': 'circle', 'circulo': 'circle', 'bola': 'ball',
+  'linha': 'line', 'cubo': 'cube', 'bloco': 'block',
+  'ch\u00e3o': 'floor', 'chao': 'floor', 'c\u00e9u': 'sky', 'ceu': 'sky',
+  'fundo': 'background', 'largura': 'width', 'altura': 'height',
+  'mova': 'move', 'gire': 'turn', 'esquerda': 'left', 'direita': 'right',
+  'cima': 'up', 'baixo': 'down', 'frente': 'forward',
+  'velocidade': 'speed', 'gravidade': 'gravity', 'empurre': 'push',
+  'tecla': 'key', 'pressionada': 'pressed', 'segurada': 'held',
+  'rato': 'mouse', 'clicado': 'clicked', 'imagem': 'picture',
+  'cubra': 'cover', 'repetido': 'repeated', 'repetida': 'repeated',
+  'c\u00e2mera': 'camera', 'esconda': 'hide', 'revele': 'reveal',
+  'luz': 'light', 'l\u00e2mpada': 'lamp', 'lampada': 'lamp',
+  'sombras': 'shadows', 'sombra': 'shadow', 'n\u00e9voa': 'haze',
+  'segundo': 'second', 'segundos': 'seconds', 'quadro': 'frame',
+  'som': 'sound', 'm\u00fasica': 'music', 'musica': 'music',
+  'toque': 'play', 'seta': 'arrow', 'espa\u00e7o': 'space',
+  'espaco': 'space'
+};
+
+const ITALIAN = {
+  // --- the shape of the language -----------------------------------------
+  'se': 'if', 'altrimenti': 'otherwise', 'fine': 'end',
+  'ripeti': 'repeat', 'mentre': 'while',
+  'per ogni': 'for each', 'ogni': 'every', 'quando': 'when',
+  'a': 'to', 'fino a': 'to', 'da': 'from',
+  'dai': 'give', 'restituisci': 'give back', 'ferma': 'stop',
+  'prossimo': 'next', 'salta': 'skip',
+  'fai': 'make', 'crea': 'make', 'essere': 'be', 'sia': 'be', 'come': 'as',
+  'cambia': 'set', 'imposta': 'set', 'mostra': 'show',
+  'con': 'with', 'e': 'and', 'o': 'or', 'non \u00e8': 'is not',
+  'non e': 'is not', '\u00e8': 'is',
+  's\u00ec': 'yes', 'vero': 'yes', 'falso': 'no', 'non': 'not',
+  'niente': 'nothing', 'aspetta': 'wait', 'allora': 'then',
+  'volte': 'times', 'durante': 'for', 'per': 'for',
+  'il': 'the', 'la': 'the', 'lo': 'the', 'i': 'the', 'le': 'the', 'gli': 'the',
+  'un': 'a', 'una': 'a', 'uno': 'a',
+  'di dimensione': 'sized', 'di colore': 'colored', 'colorato': 'colored',
+  'su': 'at', 'in': 'in', 'sopra': 'on',
+  'di': 'of', 'che': 'that', 'chiamato': 'called', 'chiamata': 'called',
+  'e di': 'y of',
+
+  // --- asking about things -----------------------------------------------
+  '\u00e8 maggiore di': 'is above', '\u00e8 minore di': 'is below',
+  '\u00e8 almeno': 'is at least', '\u00e8 al massimo': 'is at most',
+  'contiene': 'contains', 'inizia con': 'starts with',
+  'finisce con': 'ends with', 'tocca': 'touches',
+  'il tasto': 'key', 'qualsiasi tasto': 'any key',
+
+  // --- numbers and lists -------------------------------------------------
+  'numero': 'number', 'numeri': 'numbers', 'elemento': 'item',
+  'elementi': 'items', 'lista': 'list', 'lunghezza': 'length',
+  'aggiungi': 'add', 'togli': 'remove', 'rimuovi': 'remove',
+  'totale': 'total', 'media': 'average', 'massimo': 'highest',
+  'minimo': 'lowest', 'ordinato': 'sorted', 'invertito': 'reversed',
+  'mescolato': 'shuffled', 'casuale': 'random',
+  'primo': 'first', 'ultimo': 'last', 'arrotonda': 'round',
+  'parte': 'part', 'posizione': 'position', 'unisci': 'join',
+  'copia': 'copy', 'testo': 'text', 'valore': 'value', 'vuoto': 'empty',
+  'tra': 'between', 'radice': 'root', 'quadrata': 'square',
+  'pi\u00f9': 'plus', 'piu': 'plus', 'meno': 'minus',
+  'diviso per': 'divided by', 'moltiplicato per': 'times',
+
+  // --- the game ----------------------------------------------------------
+  'inizia': 'start', 'avvia': 'start', 'gioco': 'game', 'mondo': 'world',
+  'disegna': 'draw', 'scatola': 'box', 'cerchio': 'circle',
+  'palla': 'ball', 'linea': 'line', 'cubo': 'cube', 'blocco': 'block',
+  'pavimento': 'floor', 'cielo': 'sky', 'sfondo': 'background',
+  'larghezza': 'width', 'altezza': 'height',
+  'muovi': 'move', 'gira': 'turn', 'sinistra': 'left', 'destra': 'right',
+  'alto': 'up', 'basso': 'down', 'avanti': 'forward',
+  'velocit\u00e0': 'speed', 'velocita': 'speed',
+  'gravit\u00e0': 'gravity', 'gravita': 'gravity', 'spingi': 'push',
+  'tasto': 'key', 'premuto': 'pressed', 'tenuto': 'held',
+  'cliccato': 'clicked', 'immagine': 'picture', 'copri': 'cover',
+  'ripetuto': 'repeated', 'ripetuta': 'repeated', 'telecamera': 'camera',
+  'nascondi': 'hide', 'rivela': 'reveal', 'luce': 'light',
+  'lampada': 'lamp', 'ombre': 'shadows', 'ombra': 'shadow',
+  'foschia': 'haze', 'secondo': 'second', 'secondi': 'seconds',
+  'fotogramma': 'frame', 'suono': 'sound', 'musica': 'music',
+  'suona': 'play', 'freccia': 'arrow', 'spazio': 'space'
+};
+
+const DUTCH = {
+  // --- the shape of the language -----------------------------------------
+  'als': 'if', 'anders': 'otherwise', 'einde': 'end',
+  'herhaal': 'repeat', 'zolang': 'while',
+  'voor elke': 'for each', 'voor elk': 'for each', 'elke': 'every',
+  'wanneer': 'when', 'naar': 'to', 'tot': 'to', 'aan': 'to',
+  'vanaf': 'from',
+  'geef': 'give', 'geef terug': 'give back', 'terug': 'back',
+  'volgende': 'next', 'sla over': 'skip',
+  'maak': 'make', 'wees': 'be', 'zijn': 'be',
+  'verander': 'set', 'zet': 'set', 'toon': 'show', 'laat zien': 'show',
+  'met': 'with', 'en': 'and', 'of': 'or', 'is niet': 'is not',
+  'ja': 'yes', 'waar': 'yes', 'nee': 'no', 'onwaar': 'no', 'niet': 'not',
+  'niets': 'nothing', 'gebruik': 'use', 'wacht': 'wait', 'dan': 'then',
+  'keer': 'times', 'maal': 'times', 'gedurende': 'for',
+  'de': 'the', 'het': 'the', 'een': 'a',
+  'met grootte': 'sized', 'ter grootte van': 'sized',
+  'met kleur': 'colored', 'gekleurd': 'colored',
+  'op': 'at', 'in': 'in', 'door': 'by',
+  'van': 'of', 'genaamd': 'called',
+  // The stump of a separable verb ("voeg ... toe") vanishes.
+  'toe': '', 'voeg': 'add',
+
+  // --- asking about things -----------------------------------------------
+  'is boven': 'is above', 'is groter dan': 'is above',
+  'is kleiner dan': 'is below', 'is onder': 'is below',
+  'is minstens': 'is at least', 'is hoogstens': 'is at most',
+  'bevat': 'contains', 'begint met': 'starts with',
+  'eindigt met': 'ends with', 'raakt': 'touches',
+  'de toets': 'key', 'elke toets': 'any key',
+
+  // --- numbers and lists -------------------------------------------------
+  'getal': 'number', 'getallen': 'numbers', 'lijst': 'list',
+  'lengte': 'length', 'verwijder': 'remove',
+  'totaal': 'total', 'gemiddelde': 'average', 'hoogste': 'highest',
+  'laagste': 'lowest', 'gesorteerd': 'sorted', 'omgekeerd': 'reversed',
+  'geschud': 'shuffled', 'willekeurig': 'random',
+  'eerste': 'first', 'laatste': 'last', 'afgerond': 'round',
+  'deel': 'part', 'positie': 'position', 'verbind': 'join',
+  'kopie': 'copy', 'tekst': 'text', 'waarde': 'value', 'leeg': 'empty',
+  'tussen': 'between', 'wortel': 'root', 'vierkante': 'square',
+  'min': 'minus', 'gedeeld door': 'divided by',
+  'vermenigvuldigd met': 'times',
+
+  // --- the game ----------------------------------------------------------
+  'begin': 'start', 'spel': 'game', 'wereld': 'world',
+  'teken': 'draw', 'doos': 'box', 'cirkel': 'circle', 'bal': 'ball',
+  'lijn': 'line', 'kubus': 'cube', 'blok': 'block', 'vloer': 'floor',
+  'lucht': 'sky', 'achtergrond': 'background',
+  'breedte': 'width', 'hoogte': 'height',
+  'beweeg': 'move', 'draai': 'turn', 'links': 'left', 'rechts': 'right',
+  'omhoog': 'up', 'omlaag': 'down', 'vooruit': 'forward',
+  'snelheid': 'speed', 'zwaartekracht': 'gravity', 'duw': 'push',
+  'toets': 'key', 'ingedrukt': 'pressed', 'vastgehouden': 'held',
+  'muis': 'mouse', 'geklikt': 'clicked', 'afbeelding': 'picture',
+  'bedek': 'cover', 'herhaald': 'repeated', 'verberg': 'hide',
+  'onthul': 'reveal', 'licht': 'light', 'lamp': 'lamp',
+  'schaduwen': 'shadows', 'schaduw': 'shadow', 'nevel': 'haze',
+  'seconde': 'second', 'seconden': 'seconds', 'beeld': 'frame',
+  'geluid': 'sound', 'muziek': 'music', 'speel': 'play',
+  'pijl': 'arrow', 'spatie': 'space'
+};
+
 // The line that names the language, and the words that pull in a file.
 export const PACKS = {
   spanish: { marker: /^[ \t]*en[ \t]+espa(ñ|n)ol[ \t]*$/im, words: SPANISH, name: 'español' },
-  french: { marker: /^[ \t]*en[ \t]+fran(ç|c)ais[ \t]*$/im, words: FRENCH, name: 'français' }
+  french: { marker: /^[ \t]*en[ \t]+fran(ç|c)ais[ \t]*$/im, words: FRENCH, name: 'français' },
+  german: { marker: /^[ \t]*auf[ \t]+deutsch[ \t]*$/im, words: GERMAN, name: 'deutsch' },
+  portuguese: { marker: /^[ \t]*em[ \t]+portugu(ê|e)s[ \t]*$/im, words: PORTUGUESE, name: 'português' },
+  italian: { marker: /^[ \t]*in[ \t]+italiano[ \t]*$/im, words: ITALIAN, name: 'italiano' },
+  dutch: { marker: /^[ \t]*in[ \t]+het[ \t]+nederlands[ \t]*$/im, words: DUTCH, name: 'nederlands' }
 };
 
-export const USE_WORDS = ['use', 'usa', 'utilise'];
+export const USE_WORDS = ['use', 'usa', 'utilise', 'benutze', 'gebruik'];
 
 // Which language is this source in? Returns { pack, cleaned } - the marker
 // line is blanked rather than removed so every line number stays honest.
@@ -245,7 +515,7 @@ function tablesFor(pack) {
   for (const [from, to] of Object.entries(pack.words)) {
     if (from.endsWith('_')) continue;          // reserved spelling variants
     const parts = from.toLowerCase().split(/\s+/);
-    const out = to.split(/\s+/);
+    const out = to === '' ? [] : to.split(/\s+/);
     if (parts.length > 1) multi.push({ parts, out });
     else single.set(parts[0], out);
   }

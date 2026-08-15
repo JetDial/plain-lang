@@ -6,7 +6,7 @@
 # the one that finishes the set: a game editor, a sprite editor, a film
 # editor and now a page builder, each writing its output as Plain.
 #
-# Click to add a piece, up and down to move it, T changes what it is, and S
+# Click to add a piece, up and down to move it, T changes sortof it is, and S
 # writes the page out as the sentences the web engine reads.
 
 start a game called "Site Builder" sized 1000 by 640
@@ -25,7 +25,7 @@ make pieces be [
 ]
 
 make chosen be 1
-make told be "click a piece, up and down move it, T changes what it is, N adds one, backspace removes, S writes it out"
+make told be "click a piece, up and down move it, T changes sortof it is, N adds one, backspace removes, S writes it out"
 make edgeleft be 60
 make edgetop be 150
 make tall be 46
@@ -118,9 +118,9 @@ when any key is pressed
         add "describe this page as \"A page built by hand.\"" to written
         make inrow be no
         for each piece in pieces
-            make what be sort of piece
+            make sortof be sort of piece
             make saying be wording of piece
-            if what is "card"
+            if sortof is "card"
                 if inrow is no
                     add "start a row" to written
                     set inrow to yes
@@ -133,16 +133,16 @@ when any key is pressed
                     add "end" to written
                     set inrow to no
                 end
-                if what is "title"
+                if sortof is "title"
                     add "add a title \"{saying}\"" to written
                 end
-                if what is "heading"
+                if sortof is "heading"
                     add "add a heading \"{saying}\"" to written
                 end
-                if what is "text"
+                if sortof is "text"
                     add "add text \"{saying}\"" to written
                 end
-                if what is "button"
+                if sortof is "button"
                     add "add a button \"{saying}\" going to \"/more\"" to written
                 end
             end

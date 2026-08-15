@@ -131,9 +131,20 @@ function readFlags(args) {
 }
 
 function readProgram(file) {
-  if (!file) fail('Which file? Try: plain run hello.plain');
-  const full = path.resolve(process.cwd(), file);
+  if (!file) fail('Which file? Try: plain run hello.plain, or a project folder');
+  let full = path.resolve(process.cwd(), file);
   if (!fs.existsSync(full)) fail(`I cannot find "${file}"`);
+  // A folder is a program too: the one whose front door is main.plain.
+  // Everything else in the folder - other .plain files, pictures, sounds -
+  // belongs to it, pulled in with "use" or fetched by the page.
+  if (fs.statSync(full).isDirectory()) {
+    const door = path.join(full, 'main.plain');
+    if (!fs.existsSync(door)) {
+      fail(`"${file}" is a folder without a main.plain.\n` +
+        `A project folder starts at main.plain; make one, or name a file.`);
+    }
+    return { full: door, source: fs.readFileSync(door, 'utf8'), name: path.basename(full) };
+  }
   return { full, source: fs.readFileSync(full, 'utf8'), name: path.basename(full, path.extname(full)) };
 }
 
@@ -841,7 +852,7 @@ function shadowedNames(runtime, tree) {
 
 async function commandCheck(file) {
   const program = readProgram(file);
-  const { runtime } = buildRuntime(() => {});
+  const { runtime } = buildRuntime(() => {}, program.full);
   try {
     const tree = runtime.parse(program.source, path.basename(program.full));
     console.log(`${file} looks fine.`);
@@ -885,11 +896,24 @@ function commandWords() {
 // ---------------------------------------------------------------------- new
 
 function commandNew(name) {
-  const file = (name || 'hello') + (path.extname(name || '') ? '' : '.plain');
-  const full = path.resolve(process.cwd(), file);
-  if (fs.existsSync(full)) fail(`"${file}" already exists.`);
-  fs.writeFileSync(full, STARTER, 'utf8');
-  console.log(`Made ${file}. Run it with:\n\n    plain run ${file}\n`);
+  // "plain new game" makes a project folder; "plain new game.plain" still
+  // makes the single file, for the five-line program that deserves no more.
+  if (name && path.extname(name)) {
+    const full = path.resolve(process.cwd(), name);
+    if (fs.existsSync(full)) fail(`"${name}" already exists.`);
+    fs.writeFileSync(full, STARTER, 'utf8');
+    console.log(`Made ${name}. Run it with:\n\n    plain run ${name}\n`);
+    return;
+  }
+  const folder = name || 'hello';
+  const full = path.resolve(process.cwd(), folder);
+  if (fs.existsSync(full)) fail(`"${folder}" already exists.`);
+  fs.mkdirSync(full, { recursive: true });
+  fs.writeFileSync(path.join(full, 'main.plain'), STARTER, 'utf8');
+  fs.writeFileSync(path.join(full, 'helpers.plain'),
+    '# Sentences shared by the project live in files like this one.\n' +
+    '# Pull them in from main.plain with:  use "helpers.plain"\n', 'utf8');
+  console.log(`Made ${folder}${path.sep}main.plain. Run it with:\n\n    plain run ${folder}\n`);
 }
 
 // -------------------------------------------------------------------- parts
@@ -1274,15 +1298,28 @@ function whatIsIt(source) {
 
 async function commandDesk() {
   const here = process.cwd();
-  const files = fs.readdirSync(here).filter(name => name.endsWith('.plain')).sort();
+  // Programs on the desk: .plain files, and project folders whose door is
+  // main.plain - shown by their folder name, opened through their door.
+  const entries = [];
+  for (const name of fs.readdirSync(here).sort()) {
+    const full = path.join(here, name);
+    if (name.endsWith('.plain')) entries.push({ name, full });
+    else {
+      try {
+        if (fs.statSync(full).isDirectory() && fs.existsSync(path.join(full, 'main.plain'))) {
+          entries.push({ name, full: path.join(full, 'main.plain'), folder: true });
+        }
+      } catch { /* not ours to worry about */ }
+    }
+  }
   const found = [];
-  for (const name of files) {
+  for (const { name, full, folder } of entries) {
     let source = '';
-    try { source = fs.readFileSync(path.join(here, name), 'utf8'); } catch { continue; }
+    try { source = fs.readFileSync(full, 'utf8'); } catch { continue; }
     const about = whatIsIt(source);
     // The first comment line, if there is one, is what the program says it is.
     const firstNote = (source.match(/^#\s*(.+)$/m) || [])[1] || '';
-    found.push({ name, ...about, note: firstNote.slice(0, 90) });
+    found.push({ name, ...about, note: firstNote.slice(0, 90), folder: !!folder });
   }
 
   const ports = new Map();

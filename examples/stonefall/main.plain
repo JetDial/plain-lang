@@ -1,0 +1,26 @@
+# STONEFALL - the flagship game, and the flagship project folder.
+#
+#     plain play examples/stonefall
+#
+# One game, several files, each about one thing. "use" pulls them in; the
+# pictures live in pictures/ beside them. This is what any Plain project
+# bigger than a page should look like.
+#
+# A walled stone garden at low sun. Seven relics lie among the ruins; three
+# wardens walk their rounds. Take every relic and reach the gate before
+# your three hearts are gone.
+#
+# Arrows walk and turn. Space jumps. Hold Z to sprint.
+
+start a world called "Stonefall" sized 1000 by 640
+set the sky to "#dfb98c"
+set the light to 0.55 , 0.7 , 0.35
+set the light colour to "#ffe2b0"
+set the haze to 0.5
+set world gravity to 0.03
+let the sun cast shadows
+
+use "garden.plain"
+use "people.plain"
+use "relics.plain"
+use "game.plain"

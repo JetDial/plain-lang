@@ -320,6 +320,53 @@ export function installWorld(rt, host = {}) {
     body._skinImage = pictureOf(source);
   };
 
+  // ---------------------------------------------------------------- models
+  //
+  // A shape nobody typed: a wavefront .obj file, the plainest model format
+  // there is, fetched once however many things wear it. The model is
+  // scaled into a one-unit box, so "sized 3" means what it means for a
+  // cube. Until the file arrives the thing simply is not drawn - a crate
+  // pretending to be a castle would be worse than a castle a moment late.
+  const modelFiles = new Map();
+  const modelTextOf = (source, body) => {
+    const named = toText(source);
+    const found = modelFiles.get(named);
+    if (found !== undefined) {
+      if (typeof found === 'string') body._modelText = found;
+      else found.push(body);
+      return;
+    }
+    const waiting = [body];
+    modelFiles.set(named, waiting);
+    if (host.window && host.window.fetch) {
+      host.window.fetch(named)
+        .then(answer => answer.text())
+        .then(text => {
+          modelFiles.set(named, text);
+          for (const one of waiting) one._modelText = text;
+        })
+        .catch(() => { modelFiles.set(named, ''); });
+    }
+  };
+
+  rt.define('make #name be a model $source at $x , $y , $z sized $size colored $color', (a, ctx) => {
+    const body = make(ctx, a.name, {
+      shape: 'model', x: a.x, y: a.y, z: a.z,
+      width: a.size, height: a.size, depth: a.size, color: toText(a.color)
+    });
+    body.model = toText(a.source);
+    modelTextOf(a.source, body);
+  });
+
+  rt.define('make #name be a model $source at $x , $y , $z sized $width by $height by $depth colored $color', (a, ctx) => {
+    const body = make(ctx, a.name, {
+      shape: 'model', x: a.x, y: a.y, z: a.z,
+      width: a.width, height: a.height, depth: a.depth, color: toText(a.color)
+    });
+    body.model = toText(a.source);
+    modelTextOf(a.source, body);
+  });
+
   // Shadows cast by things onto other things, from the sun. Off unless
   // asked for, because a small machine should not pay for what a program
   // never mentions.

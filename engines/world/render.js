@@ -214,6 +214,21 @@ export function createRenderer(canvas) {
     cone: upload(gl, coneMesh(20))
   };
 
+  // A model is a mesh that arrives later: parsed and uploaded the first
+  // frame its text is here, drawn as nothing at all until then - a thing
+  // has no stand-in shape, because a crate pretending to be a castle is
+  // worse than a castle a moment late.
+  const models = new Map();
+  const meshFor = (body) => {
+    if (body.shape !== 'model') return meshes[body.shape] || meshes.cube;
+    const named = body.model || '';
+    if (models.has(named)) return models.get(named);
+    if (!body._modelText) return null;
+    const made = objMesh(body._modelText);
+    models.set(named, made ? upload(gl, made) : null);
+    return models.get(named);
+  };
+
   gl.enable(gl.DEPTH_TEST);
   gl.enable(gl.CULL_FACE);
 
@@ -259,7 +274,8 @@ export function createRenderer(canvas) {
         gl.uniformMatrix4fv(shadow.uniforms.lightView, false, lightView);
         for (const body of world.bodies) {
           if (body.hidden || body.gone) continue;
-          const mesh = meshes[body.shape] || meshes.cube;
+          const mesh = meshFor(body);
+          if (!mesh) continue;
           gl.uniformMatrix4fv(shadow.uniforms.model, false, matricesFor(body).model);
           drawMesh(gl, mesh, shadow.attributes);
         }
@@ -300,7 +316,8 @@ export function createRenderer(canvas) {
 
       for (const body of world.bodies) {
         if (body.hidden || body.gone) continue;
-        const mesh = meshes[body.shape] || meshes.cube;
+        const mesh = meshFor(body);
+        if (!mesh) continue;
         const { rotation, model } = matricesFor(body);
         const color = toRGB(body.color);
         gl.uniformMatrix4fv(uniforms.model, false, model);
@@ -324,6 +341,75 @@ export function createRenderer(canvas) {
 }
 
 function isTwos(n) { return (n & (n - 1)) === 0 && n > 0; }
+
+// ------------------------------------------------------------------- models
+//
+// A wavefront .obj file, the plainest model format there is: v lines are
+// corners, f lines are faces. Faces may name normals (v//vn) or not; a
+// face with more than three corners becomes a fan of triangles; a file
+// with no normals gets flat ones worked out from each triangle. The whole
+// shape is scaled into a one-unit box and centred, so "sized 3" means the
+// same thing for a model as for a cube.
+export function objMesh(text) {
+  const corners = [];
+  const normals = [];
+  const outPositions = [];
+  const outNormals = [];
+
+  const lines = String(text).split(/\r?\n/);
+  const faces = [];
+  for (const line of lines) {
+    const parts = line.trim().split(/\s+/);
+    if (parts[0] === 'v') corners.push([+parts[1], +parts[2], +parts[3]]);
+    else if (parts[0] === 'vn') normals.push([+parts[1], +parts[2], +parts[3]]);
+    else if (parts[0] === 'f') faces.push(parts.slice(1));
+  }
+  if (!corners.length || !faces.length) return null;
+
+  // Into a one-unit box, centred - worked out before any triangle is laid.
+  let least = [Infinity, Infinity, Infinity], most = [-Infinity, -Infinity, -Infinity];
+  for (const c of corners) for (let axis = 0; axis < 3; axis++) {
+    if (c[axis] < least[axis]) least[axis] = c[axis];
+    if (c[axis] > most[axis]) most[axis] = c[axis];
+  }
+  const middle = [0, 1, 2].map(axis => (least[axis] + most[axis]) / 2);
+  const size = Math.max(most[0] - least[0], most[1] - least[1], most[2] - least[2]) || 1;
+  const placed = corners.map(c => [0, 1, 2].map(axis => (c[axis] - middle[axis]) / size));
+
+  const cornerOf = (piece) => {
+    const [v, , vn] = piece.split('/');
+    let at = Number(v);
+    at = at < 0 ? placed.length + at : at - 1;   // negative counts from the end
+    let n = vn === undefined || vn === '' ? null : Number(vn);
+    if (n !== null) n = n < 0 ? normals.length + n : n - 1;
+    return { place: placed[at], normal: n === null ? null : normals[n] };
+  };
+
+  for (const face of faces) {
+    // A fan: corner 0 with each neighbouring pair.
+    for (let third = 2; third < face.length; third++) {
+      const three = [cornerOf(face[0]), cornerOf(face[third - 1]), cornerOf(face[third])];
+      let flat = null;
+      if (three.some(one => !one.normal)) {
+        const [a, b, c] = three.map(one => one.place);
+        const ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+        const ac = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+        flat = [
+          ab[1] * ac[2] - ab[2] * ac[1],
+          ab[2] * ac[0] - ab[0] * ac[2],
+          ab[0] * ac[1] - ab[1] * ac[0]
+        ];
+        const length = Math.hypot(flat[0], flat[1], flat[2]) || 1;
+        flat = flat.map(part => part / length);
+      }
+      for (const one of three) {
+        outPositions.push(...one.place);
+        outNormals.push(...(one.normal || flat));
+      }
+    }
+  }
+  return { positions: new Float32Array(outPositions), normals: new Float32Array(outNormals), count: outPositions.length / 3 };
+}
 
 function norm(v) {
   const size = Math.hypot(v[0], v[1], v[2]) || 1;

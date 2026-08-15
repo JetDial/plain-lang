@@ -33,16 +33,16 @@ to lengthof with piece
 end
 
 to filmlength
-    make total be 0
+    make counted be 0
     for each one in clips
-        set total to total plus (lengthof with one) minus cross of one
+        set counted to counted plus (lengthof with one) minus cross of one
     end
-    give back total
+    give back counted
 end
 
 # Where a clip starts, in seconds, once everything before it is counted.
 to startof with which
-    make total be 0
+    make counted be 0
     # Guarded, because "repeat with n from 1 to 0" does not do nothing - it
     # counts DOWN, so it runs with n as 1 and then as 0, and item 0 of a
     # list is nothing. That is what was breaking this: the very first clip
@@ -50,10 +50,10 @@ to startof with which
     if which is above 1
         repeat with n from 1 to (which minus 1)
             make one be item n of clips
-            set total to total plus (lengthof with one) minus cross of one
+            set counted to counted plus (lengthof with one) minus cross of one
         end
     end
-    give back total
+    give back counted
 end
 
 to clipunder

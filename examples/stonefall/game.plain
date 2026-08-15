@@ -1,0 +1,193 @@
+# The rules: states, hearts, breath, grabbing, being caught, winning.
+
+make state be "front"
+make hearts be 3
+make taken be 0
+make hurt be 0
+make clock be 0
+make breath be 100
+
+to hitby with guard
+    if hurt is at most 0
+        take 1 from hearts
+        set hurt to 50
+        shake the view
+        play a thud
+        # Knocked back towards the gate, away from the warden.
+        make away be x of hero minus x of guard
+        make awayz be z of hero minus z of guard
+        move hero by away times 2 , 0.4 , awayz times 2
+        if hearts is at most 0
+            set state to "lost"
+        end
+    end
+end
+
+every frame
+    add 1 to clock
+
+    # Wardens walk their rounds whatever else is happening: the garden
+    # does not care who is watching it.
+    repeat with n from 1 to 3
+        make plan be item n of wardens
+        set value "beat" of plan to (beat of plan) plus 1
+        make edge be ((wide of plan) plus (deep of plan)) times 2
+        make tick be ((beat of plan) modulo (lap of plan)) times edge divided by (lap of plan)
+        make spot be placeof with plan and tick
+        make guard be item n of guards
+        move guard to x of spot , 1 , z of spot
+        turn guard left by 2
+    end
+
+    # The relics idle where they lie, waiting to be noticed.
+    repeat with n from 1 to 7
+        turn item n of relics left by 3
+    end
+
+    if state is "front"
+        draw "STONEFALL" centred at 500 , 200 sized 44 colored "#3a2c18"
+        draw "seven relics lie in the garden - the wardens would rather they stayed" centred at 500 , 260 sized 15 colored "#6b5637"
+        draw "arrows walk and turn - space jumps - hold Z to sprint" centred at 500 , 300 sized 14 colored "#6b5637"
+        draw "take all seven, then reach the lamp at the gate" centred at 500 , 330 sized 14 colored "#6b5637"
+        draw "press ENTER" centred at 500 , 400 sized 18 colored "#a03a2a"
+    end
+
+    if state is "playing"
+        # Sprinting spends breath; walking earns it back. A chase you can
+        # not win forever is what makes the wardens matter.
+        make pace be 0.16
+        if key "z" is held and breath is above 0
+            set pace to 0.3
+            take 2 from breath
+        otherwise
+            if breath is below 100
+                add 1 to breath
+            end
+        end
+
+        if key "left" is held
+            turn hero left by 3
+        end
+        if key "right" is held
+            turn hero right by 3
+        end
+        if key "up" is held
+            move hero forward by pace
+        end
+        if key "down" is held
+            move hero back by 0.1
+        end
+
+        if hurt is above 0
+            take 1 from hurt
+        end
+
+        # The top of the screen: hearts, relics, breath.
+        make marks be ""
+        repeat hearts times
+            set marks to "{marks}#"
+        end
+        draw "hearts {marks}" at 20 , 18 sized 15 colored "#a03a2a"
+        draw "relics {taken} of 7" at 20 , 44 sized 15 colored "#1d6d6d"
+        draw "breath {round breath}" at 20 , 70 sized 13 colored "#5a6b3a"
+        if taken is 7
+            draw "the gate is open - the lamp is lit for you" centred at 500 , 30 sized 15 colored "#a05f1e"
+        end
+    end
+
+    if state is "won"
+        draw "THE GARDEN FORGIVES YOU" centred at 500 , 240 sized 32 colored "#1d6d6d"
+        draw "seven relics, {hearts} hearts to spare" centred at 500 , 300 sized 16 colored "#3a2c18"
+        draw "press ENTER to walk in again" centred at 500 , 360 sized 14 colored "#6b5637"
+    end
+    if state is "lost"
+        draw "THE WARDENS KEEP THEIR GARDEN" centred at 500 , 240 sized 32 colored "#7a2020"
+        draw "you fell {7 minus taken} relics short" centred at 500 , 300 sized 16 colored "#3a2c18"
+        draw "press ENTER to try once more" centred at 500 , 360 sized 14 colored "#6b5637"
+    end
+end
+
+when key "space" is pressed
+    if state is "playing" and hero is resting
+        push hero up by 0.42
+        play a blip at 520
+    end
+end
+
+when key "enter" is pressed
+    if state is not "playing"
+        set state to "playing"
+        set hearts to 3
+        set taken to 0
+        set breath to 100
+        move hero to 0 , 1 , 24
+        repeat with n from 1 to 7
+            make spot be item n of spots
+            make relic be item n of relics
+            move relic to x of spot , 1.1 , z of spot
+            reveal relic
+        end
+        play a beep at 660
+    end
+end
+
+when hero touches warden1
+    if state is "playing"
+        hitby with warden1
+    end
+end
+when hero touches warden2
+    if state is "playing"
+        hitby with warden2
+    end
+end
+when hero touches warden3
+    if state is "playing"
+        hitby with warden3
+    end
+end
+
+to grab with relic
+    if state is "playing"
+        hide relic
+        add 1 to taken
+        play a beep at 880
+        if taken is 7
+            play a beep at 1320
+        end
+    end
+end
+
+when hero touches relic1
+    grab with relic1
+end
+when hero touches relic2
+    grab with relic2
+end
+when hero touches relic3
+    grab with relic3
+end
+when hero touches relic4
+    grab with relic4
+end
+when hero touches relic5
+    grab with relic5
+end
+when hero touches relic6
+    grab with relic6
+end
+when hero touches relic7
+    grab with relic7
+end
+
+# Home: the space between the gate pillars, once every relic is in hand.
+when hero touches gateleft
+    if state is "playing" and taken is 7
+        set state to "won"
+    end
+end
+when hero touches gateright
+    if state is "playing" and taken is 7
+        set state to "won"
+    end
+end

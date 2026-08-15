@@ -1,0 +1,41 @@
+# The place itself: ground, walls, ruins, the gate and its lamp.
+
+make ground be a floor at 0 , 0 , 0 sized 64 by 64 colored "#b6c98f"
+cover ground with the picture "pictures/grass.png" repeated 24 times
+
+# The wall around everything, stone on all four sides.
+make northwall be a block at 0 , 2 , -30 sized 62 by 4 by 2 colored "#d8d8d8"
+make southwall be a block at 0 , 2 , 30 sized 62 by 4 by 2 colored "#d8d8d8"
+make eastwall be a block at 30 , 2 , 0 sized 2 by 4 by 58 colored "#d8d8d8"
+make westwall be a block at -30 , 2 , 0 sized 2 by 4 by 58 colored "#d8d8d8"
+cover northwall with the picture "pictures/stone.png" repeated 12 times
+cover southwall with the picture "pictures/stone.png" repeated 12 times
+cover eastwall with the picture "pictures/stone.png" repeated 12 times
+cover westwall with the picture "pictures/stone.png" repeated 12 times
+
+# Ruins to hide behind - their shadows are half the game.
+make ruin1 be a block at -12 , 2 , -8 sized 8 by 4 by 2 colored "#e0dccc"
+make ruin2 be a block at 10 , 1.5 , 6 sized 2 by 3 by 10 colored "#e0dccc"
+make ruin3 be a block at 4 , 2.5 , -16 sized 6 by 5 by 2 colored "#e0dccc"
+make ruin4 be a block at -16 , 1 , 14 sized 10 by 2 by 2 colored "#e0dccc"
+cover ruin1 with the picture "pictures/stone.png" repeated 4 times
+cover ruin2 with the picture "pictures/stone.png" repeated 4 times
+cover ruin3 with the picture "pictures/stone.png" repeated 4 times
+cover ruin4 with the picture "pictures/stone.png" repeated 4 times
+
+# A standing stone: a model, the first shape here nobody typed. It leans
+# and tapers the way no box or post can.
+make oldstone be a model "stone.obj" at -20 , 1.5 , -20 sized 3 colored "#c9c2b2"
+
+make post1 be a post at -6 , 2 , 10 sized 1 by 4 colored "#e8e4d4"
+make post2 be a post at 16 , 2 , -12 sized 1 by 4 colored "#e8e4d4"
+cover post1 with the picture "pictures/stone.png" repeated 3 times
+cover post2 with the picture "pictures/stone.png" repeated 3 times
+
+# The gate: two wooden pillars in the south wall, and a lamp burning there
+# so you can find your way home late in the game.
+make gateleft be a block at -3 , 2 , 29 sized 1 by 4 by 1 colored "#caa06a"
+make gateright be a block at 3 , 2 , 29 sized 1 by 4 by 1 colored "#caa06a"
+cover gateleft with the picture "pictures/wood.png" repeated 2 times
+cover gateright with the picture "pictures/wood.png" repeated 2 times
+put a lamp at 0 , 3 , 27 reaching 12 colored "#ffb347"

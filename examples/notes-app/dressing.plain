@@ -1,0 +1,22 @@
+# How the notes app looks. Single quotes take CSS exactly as typed -
+# braces inside double quotes are where Plain puts values in.
+
+to dressing
+    give back '<style>
+  body { margin: 0; background: #0f1117; color: #eef0f6;
+         font: 16px/1.6 ui-sans-serif, system-ui, sans-serif; }
+  main { max-width: 680px; margin: 0 auto; padding: 40px 22px 80px; }
+  h1 { font-size: 30px; margin: 0 0 4px; }
+  .who { color: #a3a9b8; margin: 0 0 26px; }
+  .who a { color: #8fb3ff; }
+  form { display: flex; gap: 8px; margin: 0 0 26px; }
+  input, button { font: inherit; border-radius: 9px; border: 1px solid #2b3243; padding: 10px 13px; }
+  input { flex: 1; background: #171a22; color: #eef0f6; }
+  button { background: #6c8cff; border-color: #6c8cff; color: #0f1117; font-weight: 600; cursor: pointer; }
+  .note { background: #171a22; border: 1px solid #272b36; border-radius: 12px;
+          padding: 14px 16px; margin-bottom: 10px; display: flex; gap: 12px; align-items: center; }
+  .note span { flex: 1; }
+  .note a { color: #ff8fa3; text-decoration: none; font-size: 14px; }
+  .empty { color: #7f8698; }
+</style>'
+end

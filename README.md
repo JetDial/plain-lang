@@ -21,8 +21,10 @@ end
 No semicolons, no curly braces, no `public static void`. Lines start with a
 verb, blocks end with `end`, and indentation is yours to choose.
 
-And the sentences do not have to be English ones. Say **en español** or
-**en français** on the first line and write the whole file in that language -
+And the sentences do not have to be English ones. Say **en español**,
+**en français**, **auf deutsch**, **em português**, **in italiano** or
+**in het nederlands** on the first line and write the whole file in that
+language -
 `haz puntos ser 0`, `por cada carta dentro de cartas`, `si ... fin`. The
 checker checks it, the translator turns it into Python, and a Spanish file
 can use an English one, because the language belongs to the file. Underneath it
@@ -45,11 +47,11 @@ you one folder to copy to a server.
 | **Video** | a timeline, a studio, and a WebM file at the end, muxed by hand |
 | **Eleven other languages** | JavaScript, TypeScript, Python, Ruby, PHP, Java, C#, Go, Lua, Rust, C — real code, built and run by the test suite |
 | **A course** | 16 lessons and 9 projects in the browser, every step checked by running what you wrote |
-| **Two human languages besides English** | Spanish and French, per file, one dictionary each - adding another is adding words |
+| **Six human languages besides English** | Spanish, French, German, Portuguese, Italian and Dutch, per file, one dictionary each - adding another is adding words |
 
 Made with it: **[Skyward](https://github.com/JetDial/skyward)**, a multiplayer
 flying game whose whole server is one file of Plain sentences - and
-**Stonefall** (`plain play examples/stonefall.plain`), a textured, shadowed
+**Stonefall** (`plain play examples/stonefall`), a textured, shadowed
 3D game in one file, played from title screen to victory.
 
 Made *in* it: a level editor, a sprite editor, a film editor and a site
@@ -297,10 +299,13 @@ written in the language they are for. Each writes its output **as Plain**, so
 there is no file format to agree on and nothing to import.
 
 ```bash
-plain play examples/level-editor.plain    # click to place, S writes the level
-plain play examples/sprite-editor.plain   # paint 16x16, S writes the picture
-plain play examples/film-editor.plain     # a timeline, S writes the film
-plain play examples/site-builder.plain    # a page, S writes the site
+# Each of these is a project folder: main.plain is the door, the other
+# files arrive through "use", and pictures live beside them. Your own
+# projects can be folders too - plain new <name> makes one.
+plain play examples/level-editor    # click to place, S writes the level
+plain play examples/sprite-editor   # paint 16x16, S writes the picture
+plain play examples/film-editor     # a timeline, S writes the film
+plain play examples/site-builder    # a page, S writes the site
 plain edit examples/site.plain           # the designer
 plain build examples/site.plain --out site
 ```
@@ -492,7 +497,7 @@ Plus `send them to "/"`, `answer that nothing is there`, `answer with ... and
 code 418`, and `hand out the files in "public"` for pictures and stylesheets.
 
 ```bash
-plain run examples/notes-app.plain     # then open localhost:3010
+plain run examples/notes-app     # then open localhost:3010
 plain run examples/live-chat.plain     # a room everyone hears at once
 ```
 

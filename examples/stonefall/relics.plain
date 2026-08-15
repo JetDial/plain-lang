@@ -1,0 +1,18 @@
+# Seven relics, and where they lie.
+
+make spots be [
+    { x: -12, z: -12 }, { x: 14, z: -18 }, { x: -22, z: 4 },
+    { x: 22, z: 12 }, { x: 4, z: -22 }, { x: -8, z: 20 }, { x: 18, z: -2 }
+]
+make relic1 be a ball at 0 , 1.1 , 0 sized 0.9 colored "#38d9d9"
+make relic2 be a ball at 0 , 1.1 , 0 sized 0.9 colored "#38d9d9"
+make relic3 be a ball at 0 , 1.1 , 0 sized 0.9 colored "#38d9d9"
+make relic4 be a ball at 0 , 1.1 , 0 sized 0.9 colored "#38d9d9"
+make relic5 be a ball at 0 , 1.1 , 0 sized 0.9 colored "#38d9d9"
+make relic6 be a ball at 0 , 1.1 , 0 sized 0.9 colored "#38d9d9"
+make relic7 be a ball at 0 , 1.1 , 0 sized 0.9 colored "#38d9d9"
+make relics be [relic1, relic2, relic3, relic4, relic5, relic6, relic7]
+repeat with n from 1 to 7
+    make spot be item n of spots
+    move item n of relics to x of spot , 1.1 , z of spot
+end

@@ -13,7 +13,7 @@ rediscovered. Everything below was measured or run, not assumed.
 | **`C:\Users\user\skyward-server`** | the game server, in Plain (`master`) |
 | **`C:\Users\user\skyward-client`** | the browser half, in Plain (`master`) |
 
-All three private on GitHub under JetDial. 432 checks pass
+All three private on GitHub under JetDial. 435 checks pass
 (`node tests/run-tests.js`).
 
 ## Four tools, written in Plain
@@ -23,10 +23,10 @@ for. Each writes its output **as Plain**, so there is no file format to agree
 on and nothing to import.
 
 ```bash
-plain play examples/level-editor.plain    # click to place, S writes the level
-plain play examples/sprite-editor.plain   # paint 16x16, S writes the picture
-plain play examples/film-editor.plain     # a timeline, S writes the film
-plain play examples/site-builder.plain    # a page, S writes the site
+plain play examples/level-editor    # click to place, S writes the level
+plain play examples/sprite-editor   # paint 16x16, S writes the picture
+plain play examples/film-editor     # a timeline, S writes the film
+plain play examples/site-builder    # a page, S writes the site
 ```
 
 And one world to look at rather than use:
@@ -34,6 +34,10 @@ And one world to look at rather than use:
 ```bash
 plain play examples/skins.plain           # pictures on things, in 3D
 ```
+
+A program can be a **folder** too: the door is `main.plain`, everything else
+arrives through `use`, and pictures and models live beside them. `plain new
+game` makes one; stonefall and all four tools are shaped like this now.
 
 ## Opening it
 
@@ -66,7 +70,13 @@ in `src/languages.js`, longest match first ("por cada" → "for each",
 "no es" → "is not"), names left alone, any English word still working. A
 language is a dictionary, not code.
 
-**The flagship:** `examples/stonefall.plain` - a textured, shadowed 3D game
+**Models:** `make statue be a model "stone.obj" at ... sized 3` - wavefront
+obj, triangulated, centred and scaled into the unit box, flat normals worked
+out when the file names none, fetched once however many things wear it, and
+not drawn at all until it arrives. Stonefall's standing stone is one.
+
+**The flagship:** `examples/stonefall` - a folder project now - a textured,
+shadowed 3D game
 in one file: three patrolling wardens, seven relics, hearts, sprint and
 breath, a lamp-lit gate, title, win and loss. Played end to end in a real
 browser by driving frames.
@@ -100,7 +110,8 @@ see `INTEROP.md` for exactly what crosses it and what does not.
 1. **Struct layout** - the only performance item the measurements support.
    See `PERFORMANCE.md`, which also says why cloning and field lookup were
    measured and rejected, so neither gets retried on how the code looks.
-2. **Loading a model**, so a world can hold a shape nobody typed.
+2. **Sound files** - the sound kit needs no files, which also means it
+   cannot play one. `play the sound "door.ogg"` is the missing sentence.
 3. Generators as lazy lists · workers · the embedded runtime.
 4. Airmash's remaining screen: country flags, crowns, level badges, ping,
    mute and settings, `FROM Server` messages.

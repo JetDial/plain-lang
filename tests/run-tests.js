@@ -14,6 +14,7 @@ import { numericNames } from '../src/translate/numbers.js';
 import { PlainError } from '../src/errors.js';
 import { installGame } from '../engines/game/engine.js';
 import { installWorld } from '../engines/world/engine.js';
+import { objMesh } from '../engines/world/render.js';
 import { installWeb } from '../engines/web/engine.js';
 import { installVideo } from '../engines/video/engine.js';
 import { installStore } from '../engines/store/engine.js';
@@ -222,6 +223,53 @@ check('an English program is untouched by the language packs', () => {
     'show si plus es'
   ].join('\n'));
   assert.deepEqual(lines, ['3']);
+});
+
+check('German, Portuguese, Italian and Dutch all run', () => {
+  const german = run([
+    'auf deutsch',
+    'mache summe sei 0',
+    'für jedes blatt in [3, 1, 2]',
+    '    setze summe zu summe plus blatt',
+    'ende',
+    // A separable verb: the stump at the end simply vanishes.
+    'füge 4 zu summe hinzu',
+    'wenn summe ist über 5',
+    '    zeige "gross: {summe}"',
+    'ende'
+  ].join(String.fromCharCode(10)));
+  assert.deepEqual(german, ['gross: 10']);
+
+  const portuguese = run([
+    'em português',
+    'faça cartas ser [3, 1, 2]',
+    'mostre ordenado cartas',
+    'se 6 é maior que 5',
+    '    mostre "grande"',
+    'fim'
+  ].join(String.fromCharCode(10)));
+  assert.deepEqual(portuguese, ['[1, 2, 3]', 'grande']);
+
+  const italian = run([
+    'in italiano',
+    'fai somma essere 0',
+    'per ogni carta in [3, 1, 2]',
+    '    cambia somma a somma più carta',
+    'fine',
+    'mostra "totale: {somma}"'
+  ].join(String.fromCharCode(10)));
+  assert.deepEqual(italian, ['totale: 6']);
+
+  const dutch = run([
+    'in het nederlands',
+    'maak punten zijn 10',
+    'voeg 5 toe aan punten',
+    'toon punten',
+    'als punten is groter dan 12',
+    '    toon "groot"',
+    'einde'
+  ].join(String.fromCharCode(10)));
+  assert.deepEqual(dutch, ['15', 'groot']);
 });
 
 check('sorted', () => assert.equal(first('show text of sorted [3, 1, 2]'), '[1, 2, 3]'));
@@ -1211,6 +1259,30 @@ check('a world can be started', () => {
   assert.equal(world.started, true);
   assert.equal(game.width, 400);
   assert.equal(world.bodies.length, 3);
+});
+
+check('a model can stand in a world', () => {
+  const { world } = runtimeFor(WORLD + String.fromCharCode(10) +
+    'make statue be a model "statue.obj" at 2 , 1 , 0 sized 3 colored "#d8c8a8"');
+  const statue = world.bodies[3];
+  assert.equal(statue.shape, 'model');
+  assert.equal(statue.model, 'statue.obj');
+  assert.equal(statue.width, 3);
+  // Away from a browser nothing is fetched and nothing fails: a model with
+  // no text yet is simply not drawn.
+  assert.ok(!statue._modelText);
+});
+
+check('the obj reader triangulates, centres and scales', () => {
+  const pyramid = objMesh('v 0 0 0' + String.fromCharCode(10) + 'v 2 0 0' + String.fromCharCode(10) + 'v 0 2 0' + String.fromCharCode(10) + 'v 0 0 2' + String.fromCharCode(10) + 'f 1 2 3' + String.fromCharCode(10) + 'f 1 3 4' + String.fromCharCode(10) + 'f 1 4 2' + String.fromCharCode(10) + 'f 2 4 3');
+  assert.equal(pyramid.count, 12);                       // four triangles
+  const spread = Math.max(...pyramid.positions.map(Math.abs));
+  assert.ok(spread <= 0.51, 'a model two units wide should be scaled into the unit box');
+  // Four corners in one face come out as two triangles, and every triangle
+  // gets a normal even though the file named none.
+  const quad = objMesh('v 0 0 0' + String.fromCharCode(10) + 'v 1 0 0' + String.fromCharCode(10) + 'v 1 1 0' + String.fromCharCode(10) + 'v 0 1 0' + String.fromCharCode(10) + 'f 1 2 3 4');
+  assert.equal(quad.count, 6);
+  assert.equal(quad.normals.length, 18);
 });
 
 check('the sun can be told to cast shadows', () => {
@@ -3668,13 +3740,31 @@ check('every piece of Plain the documents show is Plain it understands', () => {
 });
 
 check('every example still runs', () => {
-  for (const file of fs.readdirSync(path.join(ROOT, 'examples'))) {
-    if (!file.endsWith('.plain') || file === 'guess.plain') continue;
-    const source = fs.readFileSync(path.join(ROOT, 'examples', file), 'utf8');
-    if (['website-server.plain', 'notes-app.plain', 'live-chat.plain'].includes(file)) {
+  // An example is a .plain file, or a project folder whose door is
+  // main.plain - in which case its other files arrive through "use",
+  // resolved from the folder exactly as the command line resolves them.
+  const entries = [];
+  for (const name of fs.readdirSync(path.join(ROOT, 'examples'))) {
+    const full = path.join(ROOT, 'examples', name);
+    if (name.endsWith('.plain')) entries.push({ file: name, full });
+    else if (fs.statSync(full).isDirectory() && fs.existsSync(path.join(full, 'main.plain'))) {
+      entries.push({ file: name, full: path.join(full, 'main.plain'), folder: full });
+    }
+  }
+  assert.ok(entries.some(one => one.folder), 'no folder projects among the examples?');
+  for (const { file, full, folder } of entries) {
+    if (file === 'guess.plain') continue;
+    const source = fs.readFileSync(full, 'utf8');
+    const resolve = folder
+      ? (used) => {
+          const there = path.join(folder, used);
+          return fs.existsSync(there) ? fs.readFileSync(there, 'utf8') : null;
+        }
+      : undefined;
+    if (['website-server.plain', 'notes-app', 'live-chat.plain'].includes(file)) {
       // These wait for visitors, which a test run has none of. Their routes
       // are checked above; here we only insist they read and build.
-      const rt = createRuntime({ onOutput: () => {} });
+      const rt = createRuntime({ onOutput: () => {}, resolve });
       installGame(rt, {});
       installWeb(rt, {});
       installStore(rt, {});
@@ -3692,7 +3782,7 @@ check('every example still runs', () => {
       finally { fs.rmSync(folder, { recursive: true, force: true }); }
       continue;
     }
-    runtimeFor(source);
+    runtimeFor(source, resolve ? { resolve } : {});
   }
 });
 

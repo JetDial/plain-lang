@@ -1,39 +1,17 @@
-# A whole small web application: pages, a form, a table that keeps what you
-# typed, and a visitor the server can tell apart from anybody else.
+# A whole small web application, as a project folder: pages, a form, a
+# table that keeps what you wrote, and a visitor the server can tell apart
+# from anybody else.
 #
-#     plain run examples/notes-app.plain
+#     plain run examples/notes-app
 #     then open http://localhost:3010
 #
-# Everything below is the same language the games and the websites are
+# Everything here is the same language the games and the websites are
 # written in. There is no database to install and no framework to learn.
+# The looks live in dressing.plain; the working of it lives here.
+
+use "dressing.plain"
 
 make notes be a table called "notes"
-
-# ---------------------------------------------------------------- the page
-#
-# The stylesheet is in single quotes, which are taken exactly as typed. CSS
-# is mostly braces, and braces inside "double quotes" are where Plain puts
-# values in - so single quotes are what you want for anything like this.
-
-to dressing
-    give back '<style>
-  body { margin: 0; background: #0f1117; color: #eef0f6;
-         font: 16px/1.6 ui-sans-serif, system-ui, sans-serif; }
-  main { max-width: 680px; margin: 0 auto; padding: 40px 22px 80px; }
-  h1 { font-size: 30px; margin: 0 0 4px; }
-  .who { color: #a3a9b8; margin: 0 0 26px; }
-  .who a { color: #8fb3ff; }
-  form { display: flex; gap: 8px; margin: 0 0 26px; }
-  input, button { font: inherit; border-radius: 9px; border: 1px solid #2b3243; padding: 10px 13px; }
-  input { flex: 1; background: #171a22; color: #eef0f6; }
-  button { background: #6c8cff; border-color: #6c8cff; color: #0f1117; font-weight: 600; cursor: pointer; }
-  .note { background: #171a22; border: 1px solid #272b36; border-radius: 12px;
-          padding: 14px 16px; margin-bottom: 10px; display: flex; gap: 12px; align-items: center; }
-  .note span { flex: 1; }
-  .note a { color: #ff8fa3; text-decoration: none; font-size: 14px; }
-  .empty { color: #7f8698; }
-</style>'
-end
 
 to page with body
     make top be "<!doctype html><meta charset='utf-8'>"
@@ -43,7 +21,7 @@ to page with body
     give back top joined with "<main>{body}</main>"
 end
 
-# Anything a visitor typed goes back out as words, never as markup.
+# Anything a visitor wrote goes back out as words, never as markup.
 to escaped with words
     make out be text of words
     set out to replace "&" with "&amp;" in out
@@ -52,10 +30,10 @@ to escaped with words
     give back out
 end
 
-to shown with row
+to shown with entry
     make out be "<div class='note'><span>"
-    set out to out joined with escaped with title of row
-    set out to out joined with "</span><a href='/notes/{id of row}/remove'>remove</a></div>"
+    set out to out joined with escaped with title of entry
+    set out to out joined with "</span><a href='/notes/{id of entry}/remove'>remove</a></div>"
     give back out
 end
 
@@ -68,8 +46,8 @@ when someone visits "/"
     end
 
     make listed be ""
-    for each row in rows of notes sorted by "id"
-        set listed to listed joined with shown with row
+    for each entry in rows of notes sorted by "id"
+        set listed to listed joined with shown with entry
     end
     if listed is ""
         set listed to "<p class='empty'>No notes yet. Write the first one.</p>"
@@ -88,9 +66,9 @@ end
 # ------------------------------------------------------------- adding one
 
 when someone sends to "/notes"
-    make typed be trimmed the form field "title"
-    if typed is not ""
-        save { title: typed, by: who is signed in } in notes
+    make wrote be trimmed the form field "title"
+    if wrote is not ""
+        save { title: wrote, by: who is signed in } in notes
     end
     send them to "/"
 end

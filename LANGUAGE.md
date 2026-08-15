@@ -728,7 +728,7 @@ take it in turns to overwrite the other. Writes go to one side and are moved
 into place, so a program stopped mid-write leaves the old file, never half a
 new one.
 
-`examples/notes-app.plain` is all of it in one file: a list, a form that adds
+`examples/notes-app` is all of it in one small project folder: a list, a form that adds
 to it, a link that removes one, a name the server remembers for your browser,
 and everything kept when the program stops.
 
@@ -1070,7 +1070,7 @@ you walk away and lights the side of a thing that faces it. Haze is the
 cheapest way to make a world feel large, because it stops the far edge of it
 looking like an edge.
 
-## Writing Plain in Spanish or French
+## Writing Plain in six languages
 
 A program says what language it is in on its first meaningful line, and from
 then on the whole file may be written in it:
@@ -1095,6 +1095,23 @@ fin
 affiche l'élément 1 de cartes
 ```
 
+German, Portuguese, Italian and Dutch work the same way - `auf deutsch`,
+`em português`, `in italiano`, `in het nederlands` on the first line:
+
+```
+auf deutsch
+mache summe sei 0
+für jedes blatt in [3, 1, 2]
+    setze summe zu summe plus blatt
+ende
+füge 4 zu summe hinzu
+zeige summe
+```
+
+German and Dutch split some of their verbs in two - füge ... hinzu,
+voeg ... toe - and the trailing half is understood and dropped, so the
+sentence reads the way the language actually says it.
+
 The language is per file, so a Spanish program can `usa` an English library
 and the other way round. Everything downstream is unchanged: `plain check`
 checks it, `plain play` plays it, and `plain translate` will turn a Spanish
@@ -1115,6 +1132,35 @@ What to know before writing:
 
 A language is a dictionary in `src/languages.js`, not code. Adding one is
 adding words.
+
+## A program that is a folder
+
+A program bigger than a page should be a folder. The door is `main.plain`;
+the rest arrives through `use`; pictures and models live beside them.
+
+```
+plain new game        makes game/main.plain and a helpers.plain
+plain run game        runs the folder
+plain play game       plays it
+plain check game      checks it, used files and all
+```
+
+Stonefall is the working example: main.plain pulls in garden.plain,
+people.plain, relics.plain and game.plain, each about one thing.
+
+## A shape nobody typed
+
+```
+make statue be a model "stone.obj" at 0 , 1 , 0 sized 3 colored "#c9c2b2"
+```
+
+A wavefront `.obj` file, the plainest model format there is. Faces with
+four or more corners become fans of triangles; a file that names no normals
+gets flat ones worked out from each face; the whole shape is scaled into a
+one-unit box and centred, so `sized 3` means the same for a model as for a
+cube. The file is fetched once however many things wear it, and a thing
+whose model has not arrived is not drawn at all - a crate pretending to be
+a castle would be worse than a castle a moment late.
 
 ## Shadows cast by things
 
