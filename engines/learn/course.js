@@ -1077,6 +1077,106 @@ when you watch it back rather than being told it.</p>`,
   },
 
   {
+    id: 'protocol',
+    title: 'Project: agreeing on a shorthand',
+    about: 'Two programs, one agreement, no words at all.',
+    steps: [
+      {
+        teach: `<p>You have sent writing between two programs already. Now the other way
+- the way most real programs do it, and the way you talk to something that
+was never built with you in mind.</p>
+<p>A <b>protocol</b> is an agreement about what goes where. That is all it
+is. Here is one, and it is complete:</p>
+<div class="lines"><div><code>byte 1</code><span>what kind of message this is</span></div>
+<div><code>bytes 2-3</code><span>who it is about</span></div>
+<div><code>bytes 4-5</code><span>how far across they are</span></div>
+<div><code>bytes 6-7</code><span>how far down</span></div></div>
+<p>Seven bytes. Nobody sends the words "how far across" - both ends already
+know that bytes 4 and 5 are how far across, so the words would be a waste of
+a wire. That is the whole trade: a protocol is smaller and faster than
+writing, and it is completely unreadable to anybody who has not got the
+list.</p>
+<p>Building one message:</p>
+` + walk([
+          ['make packet be []', 'A run of bytes is an ordinary list.'],
+          ['add the byte 1 to packet', 'Kind 1, meaning "somebody moved". A number both ends have agreed on. It could have been 7 or 200; what matters is that the other end agrees.'],
+          ['add the number 4096 in 2 bytes to packet', 'Who. Two bytes hold up to 65535, so this game can have that many players and no more. That is a decision, and you have just made it.'],
+          ['add the number 1200 in 2 bytes to packet', 'How far across.'],
+          ['add the number 800 in 2 bytes to packet', 'How far down. Seven bytes in total, whoever it is and wherever they are.']
+        ]) + `
+<p>Make that, and show <code>hex of packet</code> so you can see it.</p>`,
+        task: 'Build one message in that shape - kind 1, then a number for who, then across, then down - and show its hex.',
+        start: `make packet be []
+add the byte 1 to packet
+`,
+        check: ({ lines, source }) => {
+          if (!has(source, 'add the byte')) return 'Start with the kind: add the byte 1 to packet';
+          if ((source.match(/in 2 bytes/g) || []).length < 3) return 'Three two-byte numbers: who, across and down.';
+          if (!has(source, 'hex of')) return 'Show it: show hex of packet';
+          if (!lines.length) return 'Nothing was shown - is the "show" line there?';
+          const written = String(lines[lines.length - 1]).trim().split(/\s+/);
+          if (written.length !== 7) return `That came out ${written.length} bytes long. The shape above is exactly 7.`;
+          return true;
+        }
+      },
+      {
+        teach: `<p>Now read it back, which is the half that catches mistakes. Writing a
+protocol wrong is not like writing ordinary code wrong: it does not
+complain, and it does not stop. It hands you a number that is nearly right,
+or a name made of rubbish, and everything after it in that message is
+rubbish too, because you are now counting from the wrong place.</p>
+` + walk([
+          ['the number in packet at 2 over 2 bytes', 'Who: start at byte 2, take two. <b>Counting starts at 1</b>, and being one out here is the single most common way to get this wrong.'],
+          ['the number in packet at 4 over 2 bytes', 'Across: bytes 4 and 5.'],
+          ['the number in packet at 6 over 2 bytes', 'Down: bytes 6 and 7.']
+        ]) + `
+<p>Read all three out of the packet you built, and show them. If they are
+not the three numbers you put in, count again - the packet is fine, the
+counting is what is wrong.</p>`,
+        task: 'Read who, across and down back out of your packet and show all three.',
+        check: ({ lines, source }) => {
+          if (!has(source, 'the number in packet at')) return 'Read one back: show the number in packet at 2 over 2 bytes';
+          if ((source.match(/the number in packet at/g) || []).length < 3) return 'All three: who, across and down.';
+          const shown = lines.map(line => String(line).trim());
+          if (!shown.includes('4096') || !shown.includes('1200') || !shown.includes('800')) {
+            return 'The three numbers back out should be the three you put in. If one is wrong, check where you started counting.';
+          }
+          return true;
+        }
+      },
+      {
+        teach: `<p>One last thing, and it is the reason protocols look so strange from
+outside.</p>
+<p>Positions are hardly ever sent as they are. A game sends where forty
+aircraft are, sixteen times a second, forever - so every byte is worth
+arguing about. If a position can be half a pixel out without anybody
+noticing, then it does not need a big number, it needs a small one with the
+fraction multiplied away:</p>
+` + walk([
+          ['make squeezed be round (x times 512)', 'Multiply by 512 and round. The brackets matter: without them Plain rounds x first and then multiplies, which throws away the very fraction you were trying to keep. Now half a pixel is a whole number, and no fraction has to be sent at all.'],
+          ['make back be squeezed divided by 512', 'And the other end divides by 512 to get it back. Both ends know the 512. It is part of the agreement, like everything else.']
+        ]) + `
+<p>That is genuinely all that is happening in the packed positions of a real
+game. The number looks meaningless on its own — 4718592 — and is a position
+divided by nothing more mysterious than a number both ends agreed on.</p>
+<p>Try it: squeeze a position with a fraction in it, put it in three bytes,
+read it back, and show it. Three bytes hold up to 16 million, which at 512
+to the pixel is a sky about 32000 across. Every one of those numbers is
+somebody's decision.</p>`,
+        task: 'Squeeze a position like 1234.5 by 512, put it in 3 bytes, read it out and unsqueeze it. Show the result - it should be 1234.5 again.',
+        check: ({ lines, source }) => {
+          if (!has(source, 'in 3 bytes')) return 'Three bytes this time: add the number squeezed in 3 bytes to packet';
+          if (!has(source, '512')) return 'Multiply by 512 before packing, and divide by 512 after.';
+          if (!lines.some(line => String(line).trim() === '1234.5')) {
+            return 'It should come back as 1234.5 exactly. If it came back whole, the multiply is missing; if it came back huge, the divide is.';
+          }
+          return true;
+        }
+      }
+    ]
+  },
+
+  {
     id: 'translate',
     title: 'Project: the same program in eleven languages',
     about: 'Write it once in Plain, read it in JavaScript, Python, Java, Go, Rust, C and five more.',

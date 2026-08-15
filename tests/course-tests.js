@@ -446,6 +446,29 @@ export function runCourseChecks(check) {
     'end'
   ].join('\n');
 
+  const PROTO_1 = [
+    'make packet be []',
+    'add the byte 1 to packet',
+    'add the number 4096 in 2 bytes to packet',
+    'add the number 1200 in 2 bytes to packet',
+    'add the number 800 in 2 bytes to packet',
+    'show hex of packet'
+  ].join('\n');
+
+  const PROTO_2 = PROTO_1 + '\n' + [
+    'show the number in packet at 2 over 2 bytes',
+    'show the number in packet at 4 over 2 bytes',
+    'show the number in packet at 6 over 2 bytes'
+  ].join('\n');
+
+  const PROTO_3 = [
+    'make packet be []',
+    'make squeezed be round (1234.5 times 512)',
+    'add the number squeezed in 3 bytes to packet',
+    'make back be the number in packet at 1 over 3 bytes',
+    'show back divided by 512'
+  ].join('\n');
+
   const PROJECT_ANSWERS = {
     quiz: [QUIZ, QUIZ_LISTED, QUIZ_MARKED, QUIZ_DONE],
     site: [SITE_1, SITE_2, SITE_3, SITE_4],
@@ -453,6 +476,7 @@ export function runCourseChecks(check) {
     world: [WORLD_1, WORLD_2, WORLD_3, WORLD_4],
     video: [FILM_1, FILM_2, FILM_3],
     translate: [TRANSLATE_1, TRANSLATE_1, TRANSLATE_1, TRANSLATE_SORTED, TRANSLATE_SORTED],
+    protocol: [PROTO_1, PROTO_2, PROTO_3],
     guestbook: [BOOK_1, BOOK_2, BOOK_3, BOOK_4]
   };
 
