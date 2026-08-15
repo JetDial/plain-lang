@@ -66,9 +66,6 @@ see `INTEROP.md` for exactly what crosses it and what does not.
 
 1. **3D textures**, then shadows cast, then loading a model. The most asked
    for and most visibly missing: a world of flat colours reads as a diagram.
-2. **The film editor** — written, failing, in the scratchpad as
-   `film-editor.unfinished.plain`. Debug it by tracing, not by poking from
-   the console.
 3. **Struct layout** — the only performance item the measurements support.
    See `PERFORMANCE.md`, which also says why cloning and field lookup were
    measured and rejected, so neither gets retried on how the code looks.
@@ -112,3 +109,9 @@ their numbers so the next person does not spend a day on either.
 
 **Restart the server before believing the test.** One result was reported
 from a process that had never picked up the change.
+
+**"repeat with n from 1 to 0" counts DOWN.** It does not do nothing - it
+runs with n as 1 and then as 0, and item 0 of a list is nothing. That broke
+the film editor for an hour and looked exactly like a shadowed name, which
+is why guessing at a cause is worse than spending two minutes proving one:
+one four-line program settled it.

@@ -1,0 +1,212 @@
+# A video editor, written in Plain.
+#
+#     plain play film-editor.plain
+#
+# The third application written in this language rather than under it, and
+# the one that makes the point best: Plain already has a video engine with
+# clips, fades, crossfades, speed and colour in it - what it did not have was
+# somewhere to move them about with a mouse.
+#
+# So this is a timeline. Click a clip to pick it up, drag it along, the keys
+# change what it is and what happens to it, and S writes the whole film out
+# as Plain - the same sentences the video engine reads.
+
+start a game called "Film Editor" sized 1100 by 620
+set the background to "#0a0e18"
+
+# A clip is what it looks like, how long it is, and what is done to it.
+make clips be [
+    { sort: "title", words: "COAST", seconds: 3, paint: "#0b1020", fade: "in", speed: 1, cross: 0 },
+    { sort: "card", words: "somewhere on the west coast", seconds: 4, paint: "#1b2a41", fade: "", speed: 1, cross: 1 },
+    { sort: "card", words: "the tide came in for six hours", seconds: 6, paint: "#2c3a4f", fade: "", speed: 0.5, cross: 1 },
+    { sort: "title", words: "THE END", seconds: 3, paint: "#0f1725", fade: "out", speed: 1, cross: 0 }
+]
+
+make holding be 0
+make told be "click a clip - arrows make it longer or shorter, F fades, X crosses, H halves the speed, S writes it out"
+make secondwide be 46
+make trackleft be 40
+make tracktop be 300
+
+to lengthof with piece
+    give back seconds of piece divided by speed of piece
+end
+
+to filmlength
+    make total be 0
+    for each one in clips
+        set total to total plus (lengthof with one) minus cross of one
+    end
+    give back total
+end
+
+# Where a clip starts, in seconds, once everything before it is counted.
+to startof with which
+    make total be 0
+    # Guarded, because "repeat with n from 1 to 0" does not do nothing - it
+    # counts DOWN, so it runs with n as 1 and then as 0, and item 0 of a
+    # list is nothing. That is what was breaking this: the very first clip
+    # asked what came before it and was handed nothing to measure.
+    if which is above 1
+        repeat with n from 1 to (which minus 1)
+            make one be item n of clips
+            set total to total plus (lengthof with one) minus cross of one
+        end
+    end
+    give back total
+end
+
+to clipunder
+    repeat with n from 1 to number of items in clips
+        make one be item n of clips
+        make begins be trackleft plus ((startof with n) times secondwide)
+        make wide be (lengthof with one) times secondwide
+        if mouse x is at least begins
+            if mouse x is at most (begins plus wide)
+                if mouse y is at least tracktop
+                    if mouse y is at most (tracktop plus 90)
+                        give back n
+                    end
+                end
+            end
+        end
+    end
+    give back 0
+end
+
+when the mouse is clicked
+    make which be clipunder
+    set holding to which
+    if which is 0
+        set told to "nothing there"
+    otherwise
+        make one be item which of clips
+        set told to "clip {which}: {words of one}"
+    end
+end
+
+when any key is pressed
+    make pressing be the key pressed
+
+    if holding is above 0
+        make one be item holding of clips
+
+        if pressing is "right"
+            set value "seconds" of one to seconds of one plus 0.5
+            set told to "{round seconds of one} seconds"
+        end
+        if pressing is "left"
+            if seconds of one is above 1
+                set value "seconds" of one to seconds of one minus 0.5
+            end
+            set told to "{round seconds of one} seconds"
+        end
+        if pressing is "f"
+            if fade of one is "in"
+                set value "fade" of one to "out"
+                set told to "fades out"
+            otherwise if fade of one is "out"
+                set value "fade" of one to ""
+                set told to "no fade"
+            otherwise
+                set value "fade" of one to "in"
+                set told to "fades in"
+            end
+        end
+        if pressing is "x"
+            if cross of one is above 0
+                set value "cross" of one to 0
+                set told to "cut, not crossed"
+            otherwise
+                set value "cross" of one to 1
+                set told to "crosses into the one before over a second"
+            end
+        end
+        if pressing is "h"
+            if speed of one is 1
+                set value "speed" of one to 0.5
+                set told to "half speed, so twice as long"
+            otherwise
+                set value "speed" of one to 1
+                set told to "ordinary speed"
+            end
+        end
+    end
+
+    if pressing is "s"
+        # The point of the whole thing: it writes the film out as the same
+        # sentences the video engine reads.
+        make written be []
+        add "make a video called \"My Film\" sized 1280 by 720" to written
+        for each one in clips
+            if sort of one is "title"
+                add "add a title \"{words of one}\" for {seconds of one} seconds colored \"{paint of one}\"" to written
+            otherwise
+                add "add a background \"{paint of one}\" for {seconds of one} seconds" to written
+                add "put the words \"{words of one}\" on the last clip" to written
+            end
+            if cross of one is above 0
+                add "cross into the last clip over 1 seconds" to written
+            end
+            if fade of one is "in"
+                add "fade the last clip in over 1 seconds" to written
+            end
+            if fade of one is "out"
+                add "fade the last clip out over 1 seconds" to written
+            end
+            if speed of one is not 1
+                add "play the last clip at {speed of one} speed" to written
+            end
+        end
+        show join written with "\n"
+        set told to "{number of items in written} lines written out - look in the console"
+    end
+end
+
+every frame
+    # The ruler, so seconds are something you can see rather than count.
+    repeat with n from 0 to 22
+        make x be trackleft plus (n times secondwide)
+        draw a box at x , 250 sized 1 by 24 colored "#1e2836"
+        draw "{n}" at x minus 3 , 226 sized 10 colored "#3f4d63"
+    end
+
+    # The clips, laid end to end, each as wide as it is long. A crossfade
+    # overlaps the one before, which is why the film is shorter than the
+    # sum of its parts - and here you can see it happen.
+    repeat with n from 1 to number of items in clips
+        make one be item n of clips
+        make begins be trackleft plus ((startof with n) times secondwide)
+        make wide be (lengthof with one) times secondwide
+        make middle be begins plus (wide divided by 2)
+
+        draw a box at middle , (tracktop plus 45) sized wide by 90 colored paint of one
+        if n is holding
+            draw a box at middle , (tracktop plus 45) sized wide by 3 colored "#ffffff"
+            draw a box at middle , (tracktop plus 88) sized wide by 3 colored "#ffffff"
+        end
+        draw words of one centred at middle , (tracktop plus 34) sized 12 colored "#e8ecf4"
+
+        make caption be "{round (lengthof with one) times 10 divided by 10}s"
+        if speed of one is not 1
+            set caption to "{caption}  half speed"
+        end
+        if fade of one is not ""
+            set caption to "{caption}  fade {fade of one}"
+        end
+        draw caption centred at middle , (tracktop plus 56) sized 10 colored "#93a7c4"
+
+        if cross of one is above 0
+            # The overlap, drawn where it actually happens.
+            draw a box at begins , (tracktop plus 45) sized (secondwide) by 90 colored "#2a2233"
+            draw "cross" centred at begins , (tracktop plus 70) sized 9 colored "#e879f9"
+        end
+    end
+
+    draw "Film Editor" at 20 , 20 sized 16 colored "#c3cfe2"
+    draw "written in Plain, and it writes Plain" at 20 , 42 sized 12 colored "#3f4d63"
+    make howlong be round filmlength times 10 divided by 10
+    draw "{number of items in clips} clips, {howlong} seconds" at 20 , 66 sized 14 colored "#9fd0e6"
+    draw told at 20 , 92 sized 13 colored "#93a7c4"
+    draw "click a clip   left and right change its length   F fade   X cross   H half speed   S write it out" at 40 , 560 sized 12 colored "#3f4d63"
+end
