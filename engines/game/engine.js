@@ -36,6 +36,7 @@ export class Thing {
     this.source = options.source ?? '';    // picture url
     this.hidden = false;
     this.gone = false;
+    this.group = '';                       // which lot it belongs to, if any
     this.facing = 1;                       // 1 looks right, -1 looks left
     this.fade = 1;                         // 1 solid, 0 invisible
     this.data = {};                        // anything the program invents
@@ -96,6 +97,7 @@ export class Thing {
       case 'top': return this.top;
       case 'bottom': return this.bottom;
       case 'speed': return Math.hypot(this.dx, this.dy);
+      case 'group': return this.group;
       case 'facing': return this.facing;
       case 'fade': return this.fade;
       case 'hidden': return this.hidden;
@@ -117,6 +119,7 @@ export class Thing {
       case 'size': this.width = toNumber(value); this.height = toNumber(value); return;
       case 'color': this.color = toText(value); return;
       case 'text': this.text = toText(value); return;
+      case 'group': this.group = toText(value); return;
       case 'facing': this.facing = toNumber(value) < 0 ? -1 : 1; return;
       case 'fade': this.fade = Math.max(0, Math.min(1, toNumber(value))); return;
       case 'hidden': this.hidden = truthy(value); return;
@@ -302,6 +305,28 @@ export class Game {
     if (this.world) this.world.step();
 
     for (const rule of this.collisions) {
+      if (!this.showing(rule)) continue;
+      if (rule.groups) {
+        // Every one of this lot against every one of that lot. A pair that
+        // is already touching does not fire again until it has come apart,
+        // which is what makes "when a bullet hits a rock" happen once.
+        rule.met = rule.met || new Set();
+        const met = new Set();
+        for (const one of this.things) {
+          if (one.gone || one.hidden || one.group !== rule.groups[0]) continue;
+          for (const other of this.things) {
+            if (other === one || other.gone || other.hidden || other.group !== rule.groups[1]) continue;
+            if (!one.touches(other)) continue;
+            const pair = `${this.things.indexOf(one)}:${this.things.indexOf(other)}`;
+            met.add(pair);
+            if (rule.met.has(pair)) continue;
+            this.touched = { one, other };
+            this.safely(() => rule.run(one, other));
+          }
+        }
+        rule.met = met;
+        continue;
+      }
       const hit = rule.a.touches(rule.b);
       // Fire once per contact, not once per frame of contact.
       if (hit && !rule.touching) this.safely(() => rule.run(rule.a, rule.b));
@@ -718,6 +743,32 @@ export function installGame(rt, host = {}) {
     const wait = Math.max(0, toNumber(a.seconds));
     game.timers.push({ every: wait, next: game.time + wait, run: ctx.block, once: true });
   });
+
+  // ------------------------------------------------------------- groups
+  //
+  // A game with forty bullets and thirty rocks cannot name every pair. It
+  // has two lots of things and one rule about what happens when one lot
+  // meets the other, which is what every engine calls layers.
+  //
+  //     put bullet in the group "shots"
+  //     put rock in the group "rocks"
+  //
+  //     when anything in "shots" touches anything in "rocks"
+  //         remove the one that touched from the game
+  //         remove the other one from the game
+  //     end
+  rt.define('put $thing in the group $name', (a, ctx) => {
+    thingOf(a.thing, ctx).group = toText(a.name);
+  });
+
+  rt.define('when anything in $one touches anything in $other ...', (a, ctx) => {
+    game.collisions.push({
+      groups: [toText(a.one), toText(a.other)], run: ctx.block, scene: game.writingScene
+    });
+  });
+
+  rt.defineValue('the one that touched', () => (game.touched ? game.touched.one : null));
+  rt.defineValue('the other one', () => (game.touched ? game.touched.other : null));
 
   rt.define('when $one touches $other ...', (a, ctx) => {
     game.collisions.push({

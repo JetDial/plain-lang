@@ -998,6 +998,25 @@ failure says what it expected and what turned up:
 Also `checks that passed`, `checks that failed`, and `forget the checks so
 far`.
 
+## Groups — one lot of things meeting another
+
+A game with forty bullets and thirty rocks cannot name every pair. It has two
+lots of things and one rule about what happens when one lot meets the other.
+
+```
+put bullet in the group "shots"
+put rock in the group "rocks"
+
+when anything in "shots" touches anything in "rocks"
+    remove the one that touched from the game
+    remove the other one from the game
+end
+```
+
+A pair that is already touching does not fire again until it has come apart,
+so "when a bullet hits a rock" happens once rather than every frame it is
+still there.
+
 ## Facing and fading
 
 ```

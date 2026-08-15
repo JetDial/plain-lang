@@ -505,6 +505,33 @@ check('Plain can check its own work', () => {
   assert.match(String(g.get('bad')), /expected 99 but got 10/);
 });
 
+check('one lot of things meeting another lot', () => {
+  const { game, rt } = runtimeFor([
+    'start a game called "Groups" sized 400 by 300',
+    'make rock be a box at 100 , 100 sized 30 by 30 colored "#888"',
+    'make other be a box at 300 , 100 sized 30 by 30 colored "#888"',
+    'put rock in the group "rocks"',
+    'put other in the group "rocks"',
+    'make shot be a box at 100 , 100 sized 6 by 6 colored "#fff"',
+    'put shot in the group "shots"',
+    'make hits be 0',
+    'when anything in "shots" touches anything in "rocks"',
+    '    add 1 to hits',
+    'end'
+  ].join('\n'));
+  const g = rt.interpreter.globals;
+  game.simulate(3);
+  // One shot sitting on one rock: one hit, and it does not fire again every
+  // frame it stays there.
+  assert.equal(g.get('hits'), 1);
+  game.simulate(10);
+  assert.equal(g.get('hits'), 1);
+  // Move it onto the other rock and it counts again.
+  game.things[2].x = 300;
+  game.simulate(3);
+  assert.equal(g.get('hits'), 2);
+});
+
 check('bursts and slides move themselves', () => {
   const { game, rt } = runtimeFor([
     'start a game called "Feel" sized 400 by 300',
