@@ -45,6 +45,18 @@ field lookups hoisted out by hand     0.207 s
 Slightly *worse*. Cloning a `Value` is an enum copy or a reference count
 bump, and neither shows up. **Do not spend time on this.**
 
+**Faster field lookup.** The obvious next suspect: `plain_field` walks a
+thing's fields comparing names, ignoring case, on every access. Adding a
+plain equality fast path for the case that always hits — a lowercase program
+read with lowercase names — changed nothing at all:
+
+```
+0.206 s before, 0.210 s after
+```
+
+Reverted. Comparing two short names is not what costs; that leaves the boxes
+themselves and the `Rc<RefCell>` behind every thing.
+
 ## What the measurement says to do next
 
 The things benchmark is 7.8× off, and the generated code says why:
@@ -55,6 +67,11 @@ plain_field(one.clone(), "score")
 
 `plain_field` walks a thing's field list comparing strings, on every single
 access. It is the lookup that costs, not the clone and not the box.
+
+Two hypotheses have now been eliminated by measurement rather than argument —
+cloning and lookup — and both pointed the same way when they failed. What is
+left is the representation itself: a thing is a reference-counted, borrow-
+checked bag holding boxed values, and every read pays for all three.
 
 So the next piece of work is **struct layout**: `a kind called Plane has x,
 has y` already declares a struct, and the translator can emit a real Rust
