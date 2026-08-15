@@ -46,7 +46,7 @@ you one folder to copy to a server.
 | **Websites** | typed, or dragged about in a designer that writes Plain sentences back out |
 | **Video** | a timeline, a studio, and a WebM file at the end, muxed by hand |
 | **Eleven other languages** | JavaScript, TypeScript, Python, Ruby, PHP, Java, C#, Go, Lua, Rust, C — real code, built and run by the test suite |
-| **A course** | 16 lessons and 9 projects in the browser, every step checked by running what you wrote |
+| **A course** | 22 lessons and 10 projects in the browser, every step checked by running what you wrote - including a neural network built from nothing |
 | **Six human languages besides English** | Spanish, French, German, Portuguese, Italian and Dutch, per file, one dictionary each - adding another is adding words |
 
 Made with it: **[Skyward](https://github.com/JetDial/skyward)**, a multiplayer
@@ -59,6 +59,27 @@ builder, each written in Plain and each writing its output back out as
 Plain (`plain desk` opens everything in this folder in one page).
 
 ---
+
+## The course teaches all of it
+
+```bash
+plain learn
+```
+
+22 lessons and 10 projects, every step checked by *running* what you wrote
+rather than matching text. It covers the language, the engines, streams,
+background work, the tools - and finishes with **a neural network written
+from nothing**: a squash, a hidden layer, and backpropagation explained as
+what it actually is - blame passed backwards along the weight it came
+forward on. It trains on XOR in the browser and gets all four answers
+right, and the test suite runs it on every commit.
+
+Every code example in the course can be shown **in any of the six human
+languages Plain reads** - pick one in the sidebar and the samples change,
+because the same dictionary that reads Spanish can write it.
+
+Plain is also a track on **Code Teacher**, with five projects to build and
+step-by-step help for each.
 
 ## Getting started
 
