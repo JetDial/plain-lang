@@ -1,0 +1,64 @@
+# Pictures on things, in a 3D world.
+#
+#     plain play examples/skins.plain
+#
+# A world of flat colours reads as a diagram. This is the same world with
+# pictures on it - grass underfoot, wood on the crates, stone on the walls -
+# which is one sentence a thing.
+#
+# Left and right turn, up and down walk.
+
+start a world called "Skins" sized 900 by 600
+set the sky to "#9ec9ee"
+set the light colour to "#fff3d6"
+set the haze to 0.55
+
+make ground be a floor at 0 , 0 , 0 sized 60 by 60 colored "#cfe0b8"
+cover ground with the picture "pictures/grass.png" repeated 24 times
+
+# Crates. The same picture on all of them, but the colour is still there
+# underneath, so a green crate is green wood rather than a green square.
+make crate be a cube at -4 , 1 , -6 sized 2 colored "#ffffff"
+cover crate with the picture "pictures/wood.png"
+
+make green be a cube at 0 , 1 , -8 sized 2 colored "#9ee493"
+cover green with the picture "pictures/wood.png"
+
+make tall be a block at 5 , 2 , -7 sized 2 by 4 by 2 colored "#ffd8a8"
+cover tall with the picture "pictures/wood.png" repeated 2 times
+
+# A ball. This is where working the picture out in the shader earns its
+# keep: the ball has no texture corners on it and no seam down its side.
+make boulder be a ball at -8 , 1.6 , -3 sized 3.2 colored "#ffffff"
+cover boulder with the picture "pictures/stone.png" repeated 2 times
+
+make tower be a post at 8 , 2 , -2 sized 1 by 4 colored "#ffffff"
+cover tower with the picture "pictures/stone.png" repeated 3 times
+
+# A wall, to show tiling: one 64 by 64 picture across twenty metres.
+make wall be a block at 0 , 2 , -14 sized 30 by 4 by 1 colored "#e9e9e9"
+cover wall with the picture "pictures/stone.png" repeated 14 times
+
+# And one thing left bare, so the difference is in front of you rather
+# than in the notes.
+make bare be a cube at 3 , 1 , -3 sized 2 colored "#ef476f"
+
+make hero be a cube at 0 , 1 , 4 sized 1.2 colored "#ffd166"
+follow hero with the camera
+set the camera distance to 9
+set the camera height to 4
+
+every frame
+    if key "left" is held
+        turn hero left by 3
+    end
+    if key "right" is held
+        turn hero right by 3
+    end
+    if key "up" is held
+        move hero forward by 0.2
+    end
+    if key "down" is held
+        move hero back by 0.15
+    end
+end

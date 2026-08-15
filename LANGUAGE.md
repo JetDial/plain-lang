@@ -1070,6 +1070,34 @@ you walk away and lights the side of a thing that faces it. Haze is the
 cheapest way to make a world feel large, because it stops the far edge of it
 looking like an edge.
 
+## Pictures on things
+
+A world of flat colours reads as a diagram. One sentence a thing is what
+makes it stone, or grass, or wood.
+
+```
+cover ground with the picture "grass.png" repeated 24 times
+cover crate with the picture "wood.png"
+uncover crate
+```
+
+The picture is multiplied by the thing's colour rather than replacing it, so
+one grey stone picture gives you grey stone, green stone and red stone
+without three files. A thing whose picture has not finished loading is
+simply its colour, which is what it would have been anyway - nothing
+flickers and nothing has to be waited for.
+
+`repeated` tiles it. Twenty-four across a sixty-metre floor is a grass tile
+every two and a half metres; one is the whole picture stretched over the
+whole thing. Tiling needs a picture whose sides are a power of two - 64 by
+64, 128 by 128. Any other size still works, it just cannot repeat.
+
+The shapes are built with corners and normals and **no texture corners at
+all**, so the picture is not carried on the shape: it is projected onto it
+from all three directions at once and mixed by which way each surface faces.
+On a box that is exactly the answer texture corners would have given. On a
+ball it is better than they would have given, because there is no seam.
+
 Out of somebody's own eyes, rather than over their shoulder:
 
 ```

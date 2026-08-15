@@ -12,12 +12,19 @@ uniform mat4 rotation;
 varying vec3 shadedNormal;
 varying float depthFade;
 varying vec3 worldPlace;
+varying vec3 localPlace;
+varying vec3 localNormal;
 void main() {
   vec4 world = model * vec4(position, 1.0);
   vec4 eye = view * world;
   gl_Position = projection * eye;
   shadedNormal = normalize((rotation * vec4(normal, 0.0)).xyz);
   worldPlace = world.xyz;
+  // Kept in the shape's own space, before it is moved or turned, so a
+  // picture stays put on a thing that is walking about instead of the
+  // thing sliding along underneath its own skin.
+  localPlace = position;
+  localNormal = normal;
   depthFade = clamp(-eye.z / 140.0, 0.0, 1.0);
 }`;
 
@@ -32,14 +39,41 @@ uniform vec3 lamp;          // where a lamp is, if there is one
 uniform vec3 lampColor;
 uniform float lampReach;    // 0 means there is no lamp
 uniform float fogFrom;      // how much of the distance fades into the sky
+uniform sampler2D skin;
+uniform float skinned;      // 0 means this thing has no picture on it
+uniform float repeated;     // how many times the picture tiles across it
 varying vec3 shadedNormal;
 varying float depthFade;
 varying vec3 worldPlace;
+varying vec3 localPlace;
+varying vec3 localNormal;
 void main() {
   vec3 face = normalize(shadedNormal);
+
+  // A picture on a thing, worked out here rather than carried on the mesh.
+  // The shapes are built with corners and normals and no texture corners at
+  // all, so instead of adding them the picture is projected from all three
+  // directions at once and mixed by which way the surface points. On a box
+  // that is exactly the same answer as proper texture corners would give;
+  // on a ball it has no seam, which proper corners would.
+  vec3 paint = color;
+  if (skinned > 0.5) {
+    vec3 blend = abs(normalize(localNormal));
+    blend = blend / max(blend.x + blend.y + blend.z, 0.0001);
+    vec2 fromX = (localPlace.zy + 0.5) * repeated;
+    vec2 fromY = (localPlace.xz + 0.5) * repeated;
+    vec2 fromZ = (localPlace.xy + 0.5) * repeated;
+    vec3 painted = texture2D(skin, fromX).rgb * blend.x
+                 + texture2D(skin, fromY).rgb * blend.y
+                 + texture2D(skin, fromZ).rgb * blend.z;
+    // Multiplied by the colour rather than replacing it, so one grey stone
+    // picture makes grey stone, green stone and red stone.
+    paint = painted * color;
+  }
+
   // The sun: one direction, the same everywhere.
   float lit = max(dot(face, normalize(light)), 0.0);
-  vec3 shaded = color * (ambient + (1.0 - ambient) * lit) * lightColor;
+  vec3 shaded = paint * (ambient + (1.0 - ambient) * lit) * lightColor;
 
   // A lamp: a place rather than a direction, so it falls off with distance
   // and lights the side of a thing that faces it.
@@ -48,7 +82,7 @@ void main() {
     float far = length(towards);
     float near = max(1.0 - far / lampReach, 0.0);
     float facing = max(dot(face, normalize(towards)), 0.0);
-    shaded += color * lampColor * facing * near * near;
+    shaded += paint * lampColor * facing * near * near;
   }
 
   gl_FragColor = vec4(mix(shaded, sky, depthFade * fogFrom), 1.0);
@@ -67,9 +101,36 @@ export function createRenderer(canvas) {
     normal: gl.getAttribLocation(program, 'normal')
   };
   const uniforms = {};
-  for (const name of ['model', 'view', 'projection', 'rotation', 'color', 'light', 'sky', 'lightColor', 'ambient', 'lamp', 'lampColor', 'lampReach', 'fogFrom']) {
+  for (const name of ['model', 'view', 'projection', 'rotation', 'color', 'light', 'sky', 'lightColor', 'ambient', 'lamp', 'lampColor', 'lampReach', 'fogFrom', 'skin', 'skinned', 'repeated']) {
     uniforms[name] = gl.getUniformLocation(program, name);
   }
+
+  // A picture becomes a texture once, however many things wear it, and only
+  // once the browser has finished loading it - until then the thing is its
+  // plain colour, which is what it would have been anyway.
+  const skins = new Map();
+  const skinFor = (image) => {
+    if (!image || !image.complete || !image.naturalWidth) return null;
+    const found = skins.get(image);
+    if (found) return found;
+    const texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+    // Tiling needs sides that are a power of two. Anything else can still
+    // be worn, it just cannot repeat, so it is clamped instead of refused.
+    const twos = isTwos(image.naturalWidth) && isTwos(image.naturalHeight);
+    if (twos) {
+      gl.generateMipmap(gl.TEXTURE_2D);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    } else {
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    }
+    skins.set(image, { texture, twos });
+    return skins.get(image);
+  };
 
   const meshes = {
     cube: upload(gl, cubeMesh()),
@@ -127,11 +188,24 @@ export function createRenderer(canvas) {
         gl.uniformMatrix4fv(uniforms.model, false, model);
         gl.uniformMatrix4fv(uniforms.rotation, false, rotation);
         gl.uniform3f(uniforms.color, color[0], color[1], color[2]);
+
+        const worn = skinFor(body._skinImage);
+        if (worn) {
+          gl.activeTexture(gl.TEXTURE0);
+          gl.bindTexture(gl.TEXTURE_2D, worn.texture);
+          gl.uniform1i(uniforms.skin, 0);
+          gl.uniform1f(uniforms.skinned, 1);
+          gl.uniform1f(uniforms.repeated, worn.twos ? (body.skinRepeat || 1) : 1);
+        } else {
+          gl.uniform1f(uniforms.skinned, 0);
+        }
         drawMesh(gl, mesh, attributes);
       }
     }
   };
 }
+
+function isTwos(n) { return (n & (n - 1)) === 0 && n > 0; }
 
 // ------------------------------------------------------------------ shaders
 

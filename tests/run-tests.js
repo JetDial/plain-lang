@@ -1138,6 +1138,26 @@ check('a world can be started', () => {
   assert.equal(world.bodies.length, 3);
 });
 
+check('a picture can be worn on a thing in the world', () => {
+  const { world } = runtimeFor([
+    WORLD,
+    'cover ground with the picture "grass.png" repeated 8 times',
+    'cover hero with the picture "wood.png"',
+    'cover prize with the picture "stone.png"',
+    'uncover prize'
+  ].join('\n'));
+  const [ground, hero, prize] = world.bodies;
+  assert.equal(ground.skin, 'grass.png');
+  assert.equal(ground.skinRepeat, 8);
+  assert.equal(hero.skin, 'wood.png');
+  assert.equal(hero.skinRepeat, 1);           // one picture across the whole thing
+  assert.equal(prize.skin, '');               // taken off again
+  // Nothing is loaded away from a browser, and that is not an error: a thing
+  // whose picture has not arrived is simply its colour, which is what it
+  // would have been anyway.
+  assert.equal(hero._skinImage, null);
+});
+
 check('things fall to the ground', () => {
   const { world } = runtimeFor(WORLD);
   world.step(); world.step();

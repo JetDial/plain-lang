@@ -40,6 +40,9 @@ export class Body {
     this.hidden = false;
     this.gone = false;
     this.heavy = true;                      // does world gravity pull on it
+    this.skin = '';                         // a picture worn on it, if any
+    this.skinRepeat = 1;                    // how many times that picture tiles
+    this._skinImage = null;
     this.data = {};
   }
 
@@ -290,6 +293,44 @@ export function installWorld(rt, host = {}) {
     void make(ctx, a.name, { shape: 'cone', x: a.x, y: a.y, z: a.z, width: a.size, height: a.height, depth: a.size, color: toText(a.color) }));
 
   rt.define('remove $body from the world', (a, ctx) => { bodyOf(a.body, ctx).gone = true; });
+  // ------------------------------------------------------------- pictures
+  //
+  // A world of flat colours reads as a diagram. A picture on a thing is what
+  // makes it stone, or grass, or wood.
+  //
+  //     cover ground with the picture "grass.png" repeated 8 times
+  //
+  // Loaded once however many things wear it, and until it has loaded the
+  // thing is simply its colour - which is what it would have been anyway,
+  // so nothing flickers and nothing has to be waited for.
+  const pictures = new Map();
+  const pictureOf = (source) => {
+    const named = toText(source);
+    if (pictures.has(named)) return pictures.get(named);
+    if (!host.window || !host.window.Image) { pictures.set(named, null); return null; }
+    const image = new host.window.Image();
+    image.src = named;
+    pictures.set(named, image);
+    return image;
+  };
+
+  const cover = (body, source, times) => {
+    body.skin = toText(source);
+    body.skinRepeat = times;
+    body._skinImage = pictureOf(source);
+  };
+
+  rt.define('cover $body with the picture $source', (a, ctx) =>
+    void cover(bodyOf(a.body, ctx), a.source, 1));
+
+  rt.define('cover $body with the picture $source repeated $times times', (a, ctx) =>
+    void cover(bodyOf(a.body, ctx), a.source, Math.max(toNumber(a.times), 0.0001)));
+
+  rt.define('uncover $body', (a, ctx) => {
+    const body = bodyOf(a.body, ctx);
+    body.skin = ''; body._skinImage = null;
+  });
+
   rt.define('let $body float', (a, ctx) => { bodyOf(a.body, ctx).heavy = false; });
   rt.define('let $body fall', (a, ctx) => { bodyOf(a.body, ctx).heavy = true; });
 

@@ -1105,6 +1105,8 @@ than like a diagram:</p>
 ` + walk([
       ['set the shadows to 0.8', 'How dark the unlit side of things is. 0 is flat and lifeless; 1 is black shadows.'],
       ['put a lamp at 0 , 4 , 0 reaching 14 colored "#ffb347"', 'A light with a <b>place</b> rather than a direction. It falls off as you walk away and lights the side of a thing that faces it, which a sun cannot do.'],
+      ['cover ground with the picture "grass.png" repeated 24 times', '<b>A picture on a thing.</b> A world of flat colours reads as a diagram; this is what makes it grass. <b>repeated</b> tiles it - 24 across a 60 metre floor is a tile every two and a half metres. Tiling wants a picture 64 by 64 or 128 by 128; other sizes work but cannot repeat.'],
+      ['cover crate with the picture "wood.png"', 'Without <b>repeated</b>, the picture is stretched once over the whole thing. The picture is <b>multiplied by the colour</b>, so the same wood picture on a green crate gives green wood - one file, any colour you like. And until the picture has loaded the thing is just its colour, so nothing flickers.'],
       ['set the haze to 0.4', 'How much of the distance fades into the sky. The cheapest way to make a world feel large, because it stops the far edge looking like an edge.']
     ]) + `
 <p>Last, the question a 3D program cannot answer without help — and which

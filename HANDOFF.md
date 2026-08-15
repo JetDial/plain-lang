@@ -13,7 +13,7 @@ rediscovered. Everything below was measured or run, not assumed.
 | **`C:\Users\user\skyward-server`** | the game server, in Plain (`master`) |
 | **`C:\Users\user\skyward-client`** | the browser half, in Plain (`master`) |
 
-All three private on GitHub under JetDial. 420 checks pass
+All three private on GitHub under JetDial. 423 checks pass
 (`node tests/run-tests.js`).
 
 ## Four tools, written in Plain
@@ -27,6 +27,12 @@ plain play examples/level-editor.plain    # click to place, S writes the level
 plain play examples/sprite-editor.plain   # paint 16x16, S writes the picture
 plain play examples/film-editor.plain     # a timeline, S writes the film
 plain play examples/site-builder.plain    # a page, S writes the site
+```
+
+And one world to look at rather than use:
+
+```bash
+plain play examples/skins.plain           # pictures on things, in 3D
 ```
 
 ## Opening it
@@ -49,7 +55,8 @@ pictures, including one frame out of a sheet · a sound kit that needs no
 files.
 
 **3D:** shadows, a coloured sun, a lamp with a place, haze · picking (what is
-under the mouse) · a first person camera.
+under the mouse) · a first person camera · **pictures on things**, projected
+in the shader from three directions so the shapes need no texture corners.
 
 **The language itself:** bytes · asking without waiting · toolkits (calling C
 through WebAssembly) · room (memory with a size and no address) · days ·
@@ -77,32 +84,16 @@ see `INTEROP.md` for exactly what crosses it and what does not.
 
 ## Still open, in the order worth taking
 
-1. **3D textures**, then shadows cast, then loading a model. The most asked
-   for and most visibly missing: a world of flat colours reads as a diagram.
-
-   Looked at, not started, because it is bigger than it sounds. The meshes in
-   `engines/world/render.js` carry positions and normals and **no texture
-   coordinates at all**, so this is four jobs rather than one:
-
-   - texture coordinates on `cubeMesh`, `sphereMesh`, `cylinderMesh` and
-     `coneMesh`, or - much less work and nearly as good for built-in shapes -
-     work them out in the shader from the world position and the normal,
-     which needs no change to the meshes at all
-   - a `sampler2D` in the fragment shader, and a flag for bodies without one
-   - loading a picture into a GL texture, one per source, kept like the 2D
-     side keeps its pictures
-   - one sentence: `cover $body with the picture $source`
-
-   Do the shader-side coordinates first. It is the version that can be tried
-   in an afternoon, and if it looks right there is no reason to touch the
-   meshes.
-3. **Struct layout** — the only performance item the measurements support.
+1. **Struct layout** - the only performance item the measurements support.
    See `PERFORMANCE.md`, which also says why cloning and field lookup were
    measured and rejected, so neither gets retried on how the code looks.
+2. **Shadows cast by things**, now that pictures are on them. The next most
+   visibly missing thing in a 3D world.
+3. **Loading a model**, so a world can hold a shape nobody typed.
 4. Generators as lazy lists · workers · the embedded runtime.
-6. Airmash's remaining screen: country flags, crowns, level badges, ping,
+5. Airmash's remaining screen: country flags, crowns, level badges, ping,
    mute and settings, `FROM Server` messages.
-7. Public-server things: moderation, accounts, votemute.
+6. Public-server things: moderation, accounts, votemute.
 
 ---
 
