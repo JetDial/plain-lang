@@ -38,6 +38,7 @@ export class Server {
     this.heard = '';
     this.joined = false;
     this.said = '';            // what it just said
+    this.sent = [];            // and the same as bytes, for a shorthand
   }
 
   // "/notes/{id}" matches "/notes/7" and remembers that id is 7. Anything
@@ -182,7 +183,10 @@ export function readFrame(held) {
 
   const body = Buffer.from(held.slice(at, at + length));
   if (mask) for (let n = 0; n < body.length; n++) body[n] ^= mask[n % 4];
-  return { used: at + length, opcode, text: body.toString('utf8') };
+  // The bytes as well as the text. A frame carrying a picture, or a game
+  // speaking its own shorthand, is not writing at all, and turning it into
+  // text loses it. Both are handed over and the reader picks.
+  return { used: at + length, opcode, text: body.toString('utf8'), bytes: [...body] };
 }
 
 // The eight bytes a very long frame's length is written in.
@@ -372,6 +376,25 @@ export function installNet(rt, host = {}) {
     host.tellOne(Math.round(toNumber(a.number)), toText(a.value));
   });
 
+  // The same, in bytes rather than writing. A great many programs speak a
+  // shorthand of their own rather than text, and a Plain program that wants
+  // to talk to one has to be able to answer in the same shorthand.
+  rt.define('tell connection $number the bytes $bytes', (a, ctx) => {
+    if (!host.tellOne) needTerminal(ctx, 'Talking to a connection');
+    host.tellOne(Math.round(toNumber(a.number)), a.bytes, true);
+  });
+
+  rt.define('tell them the bytes $bytes', (a, ctx) => {
+    if (!host.tell) needTerminal(ctx, 'Talking to a connection');
+    host.tell(server.who, a.bytes, true);
+  });
+
+  // What just arrived, as bytes. Empty unless the other end spoke in bytes.
+  // Not "what they sent" - that already means the body of a form somebody
+  // posted, and two meanings for one sentence is how a language starts
+  // lying to the person reading it.
+  rt.defineValue('the bytes they sent', () => server.sent || []);
+
   rt.define('tell everyone else $value', (a, ctx) => {
     if (!host.tellAll) needTerminal(ctx, 'Talking to a connection');
     host.tellAll(toText(a.value), server.who);
@@ -396,6 +419,7 @@ export function installNet(rt, host = {}) {
   rt.define('when the server goes away ...', (a, ctx) => { server.onLost.push(ctx.block); });
 
   rt.defineValue('what the server said', () => server.heard);
+  rt.defineValue('the bytes the server sent', () => server.heardBytes || []);
   rt.defineValue('the server is there', () => Boolean(server.joined));
 
   rt.define('send $value to the server', (a, ctx) => {

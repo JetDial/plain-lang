@@ -574,6 +574,70 @@ end
   },
 
   {
+    id: 'bytes',
+    title: 'Talking to a program that does not speak English',
+    teach: `<p>Everything so far has sent <i>writing</i> - a page, a message, some
+JSON. Most of what computers actually send each other is not writing at all.
+A picture is not writing. A sound is not writing. And a game sending where
+forty aircraft are, sixteen times a second, does not send the word
+"aircraft" forty times either - it sends numbers, in an order both ends have
+agreed on beforehand.</p>
+<p>That agreed order is called a <b>protocol</b>, and it is much less
+mysterious than it sounds. It is a list like "first a number saying which
+kind of message this is, then two bytes for who it is about, then four bytes
+for where they are".</p>
+<p>A <b>byte</b> is a number from 0 to 255. That is the whole idea. A run of
+them, in Plain, is an ordinary list - so everything you already know works on
+it.</p>
+<pre>make packet be []
+add the byte 5 to packet
+add the number 1234 in 2 bytes to packet
+add the text "hi" to packet</pre>
+` + walk([
+      ['make packet be []', 'An empty list. Nothing new to learn: a run of bytes is a list of numbers, and that is all it ever is.'],
+      ['add the byte 5 to packet', 'Put the single number 5 on the end. Often the first byte says which kind of message this is - a number both ends have agreed means "hello", or "I pressed a key".'],
+      ['add the number 1234 in 2 bytes to packet', '1234 does not fit in one byte, because a byte stops at 255. This puts it in two, which between them can hold up to 65535. <b>You have to say how many</b>, because the program at the other end will be reading exactly that many and no more.'],
+      ['add the text "hi" to packet', 'The letters, as the numbers they are stored as. Two letters, two bytes - though a letter with an accent on it takes more, which is exactly the sort of thing that has to be got right rather than assumed.']
+    ]) + `
+<p>Reading is the same list, the other way round. Counting starts at 1, as it
+does everywhere else in Plain:</p>
+` + walk([
+      ['the number in packet at 2 over 2 bytes', 'Start at the second byte, read two of them, give back the number they make: <b>1234</b>.'],
+      ['the text in packet at 4 for 2', 'Start at the fourth byte, read two, give back the letters: <b>hi</b>.'],
+      ['hex of packet', 'The whole thing written out as pairs like <code>05 d2 04 68 69</code>. Nobody reads bytes as decimal numbers - this is how you check that what you built is what you meant.']
+    ]) + `
+<p>Two things worth knowing before you use this for real.</p>
+<p><b>Least important byte first.</b> 1234 comes out as <code>d2 04</code>,
+not <code>04 d2</code>. It looks backwards and it is what almost every
+protocol and almost every computer does, so Plain does it too.</p>
+<p><b>Bytes and writing travel differently.</b> A program expecting a
+shorthand will ignore anything you send as writing, even if the letters are
+right. So there are separate sentences for it: a server says
+<code>tell them the bytes packet</code> and reads <code>the bytes they
+sent</code>; a page says <code>send the bytes packet to the server</code> and
+reads <code>the bytes the server sent</code>.</p>
+<p>This is the part of Plain that lets it talk to something that was never
+built with Plain in mind - a game somebody else wrote, a piece of hardware, a
+file format from 1991. You do not need permission from either end. You need
+their list, and a way to count.</p>`,
+    task: 'Build a little message: a byte saying 7, then the number 2024 in two bytes, then your name as text. Show the hex of it, then read the 2024 back out and show it.',
+    start: 'make packet be []\nadd the byte 7 to packet\n',
+    check: ({ lines, source, runtime }) => {
+      if (!has(source, 'add the byte')) return 'Start with a byte: add the byte 7 to packet';
+      if (!has(source, 'in 2 bytes')) return 'Put 2024 in two bytes: add the number 2024 in 2 bytes to packet';
+      if (!has(source, 'add the text')) return 'Add your name: add the text "Ada" to packet';
+      if (!has(source, 'hex of')) return 'Show what you built: show hex of packet';
+      if (!lines.some(line => String(line).includes('e8 07'))) {
+        return '2024 in two bytes is "e8 07" - least important byte first. Check the hex you showed.';
+      }
+      if (!lines.some(line => String(line).trim() === '2024')) {
+        return 'Read it back out and show it: show the number in packet at 2 over 2 bytes';
+      }
+      return true;
+    }
+  },
+
+  {
     id: 'tour',
     title: 'Everything else Plain can do',
     teach: `<p>The sentences you have learned - names, questions, repeating, lists,
@@ -591,6 +655,7 @@ it. The projects further down build several of these properly.</p>
       ['send an email to "ada@example.com" saying "hello"', '<b>Email.</b> The same sentence whether it goes out through a real mail server or is written to a file while you are testing.'],
       ['connect to "ws://localhost:3040"', '<b>Two programs talking.</b> A page and a server sending messages back and forth, which is what a multiplayer game is made of.'],
       ['this part needs "colours" version 1 from "./colours.plain"', '<b>Other people’s code.</b> Split a big program into parts, and use parts somebody else wrote - including packages from npm.'],
+      ['add the number 1234 in 2 bytes to packet', '<b>Bytes.</b> Talking to a program that does not speak English - a game somebody else wrote, a piece of hardware, a file format from 1991. <i>Lesson: talking to a program that does not speak English.</i>'],
       ['show the rust of this program', '<b>Eleven other languages.</b> The same program written out as JavaScript, Python, Java, Go, Rust, C and more, to run where Plain is not installed. <i>Project: the same program in eleven languages.</i>']
     ]) + `
 <p>Two things worth knowing about all of them:</p>

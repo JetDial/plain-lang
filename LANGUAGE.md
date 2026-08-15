@@ -835,6 +835,39 @@ when ball leaves the screen
 end
 ```
 
+## Bytes
+
+Most of what computers send each other is not writing. A picture, a sound, or
+a game speaking its own shorthand is a run of numbers from 0 to 255. In Plain
+that run is an ordinary list, so everything you already know works on it —
+`number of items in`, `item 3 of`, `for each`. These phrases do the packing.
+
+```
+make packet be []
+add the byte 5 to packet
+add the number 1234 in 2 bytes to packet
+add the decimal 3.5 to packet
+add the text "hi" to packet
+show hex of packet                       05 d2 04 00 00 60 40 68 69
+```
+
+Reading it back: `the number in packet at 2 over 2 bytes`, `the decimal in
+packet at 4`, `the text in packet at 8 for 2`, `the bytes in packet at 2 for
+4`. Counting starts at 1, as everywhere else in Plain.
+
+Also `bytes of text "..."`, `text of bytes ...`, `hex of ...` and `bytes from
+hex "de ad be ef"` — the last two mainly so a test can say what it means.
+
+Numbers are packed least important byte first, which is what nearly every
+protocol and every ordinary computer uses.
+
+To send them, a server says `tell connection 3 the bytes packet` or `tell them
+the bytes packet`, and reads what arrived with `the bytes they sent`. A page
+says `send the bytes packet to the server` and reads `the bytes the server
+sent`. Writing and bytes travel differently on the wire, and a program that
+expects a shorthand will ignore anything sent as writing — so the difference
+is not cosmetic.
+
 ## Asking about the game
 
 `key "left" is held`, `mouse x`, `mouse y`, `mouse is down`,

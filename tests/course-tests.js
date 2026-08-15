@@ -133,6 +133,15 @@ export function runCourseChecks(check) {
       'show title of row 1 of notes'
     ].join('\n'),
 
+    bytes: [
+      'make packet be []',
+      'add the byte 7 to packet',
+      'add the number 2024 in 2 bytes to packet',
+      'add the text "Ada" to packet',
+      'show hex of packet',
+      'show the number in packet at 2 over 2 bytes'
+    ].join('\n'),
+
     tour: [
       'start a game called "Mine" sized 640 by 480',
       'make ball be a circle at 320 , 240 sized 20 colored "#ffd166"'

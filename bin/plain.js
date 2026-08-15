@@ -171,10 +171,10 @@ function buildRuntime(onOutput, baseFile = process.cwd()) {
   const server = installNet(runtime, {
     ...netHost(runtime),
     putFile: keeping.putFile,
-    tell: (who, words) => (server.host ? server.host.tell(who, words) : null),
+    tell: (who, words, raw) => (server.host ? server.host.tell(who, words, raw) : null),
     tellAll: (words, except) => (server.host ? server.host.tellAll(words, except) : null),
     connected: () => (server.host ? server.host.connected() : 0),
-    tellOne: (number, words) => (server.host ? server.host.tellOne(number, words) : null),
+    tellOne: (number, words, raw) => (server.host ? server.host.tellOne(number, words, raw) : null),
     whoIs: (who) => (server.host ? server.host.whoIs(who) : 0)
   });
   const mail = installMail(runtime, { sendMail });
@@ -358,19 +358,27 @@ function netHost(runtime) {
       // the words, which from a browser are muddled with a four-byte mask.
       const talking = new Set();
 
-      const speak = (socket, words) => {
-        const body = Buffer.from(String(words), 'utf8');
+      // Writing and bytes go out the same way, differing in one bit of the
+      // first byte: 0x81 says "this is text", 0x82 says "this is a run of
+      // bytes". A program at the other end that expects a shorthand will
+      // ignore anything sent as text, so the difference matters.
+      const speak = (socket, words, raw) => {
+        const body = raw
+          ? Buffer.from(Array.isArray(words) ? words.map(b => Number(b) & 0xff) : [])
+          : Buffer.from(String(words), 'utf8');
+        const kind = raw ? 0x82 : 0x81;
         const head = body.length < 126
-          ? Buffer.from([0x81, body.length])
+          ? Buffer.from([kind, body.length])
           : body.length < 65536
-            ? Buffer.from([0x81, 126, body.length >> 8, body.length & 255])
-            : Buffer.concat([Buffer.from([0x81, 127]), sixtyFour(body.length)]);
+            ? Buffer.from([kind, 126, body.length >> 8, body.length & 255])
+            : Buffer.concat([Buffer.from([kind, 127]), sixtyFour(body.length)]);
         try { socket.write(Buffer.concat([head, body])); } catch { /* they went away */ }
       };
 
-      const say = (blocks, socket, words) => {
+      const say = (blocks, socket, words, bytes) => {
         server.who = socket;
         server.said = words === undefined ? '' : words;
+        server.sent = bytes || [];
         for (const run of blocks) {
           try { run(); }
           catch (error) {
@@ -407,6 +415,12 @@ function netHost(runtime) {
               if (frame.opcode === 8) { socket.end(); return; }         // goodbye
               if (frame.opcode === 9) { socket.write(Buffer.from([0x8a, 0])); continue; }  // are you there
               if (frame.opcode === 1) say(server.onSay, socket, frame.text);
+              // A binary frame. The handler is the same one - a program that
+              // speaks a shorthand reads "what they sent" instead of "what
+              // they said", and one that does not will see empty text and
+              // ignore it, which is the right thing to do with a message you
+              // cannot read.
+              if (frame.opcode === 2) say(server.onSay, socket, '', frame.bytes);
             }
           });
 
@@ -434,10 +448,10 @@ function netHost(runtime) {
           }
           return numbers.get(socket);
         },
-        tell: (socket, words) => { if (socket) speak(socket, words); },
-        tellOne: (number, words) => {
+        tell: (socket, words, raw) => { if (socket) speak(socket, words, raw); },
+        tellOne: (number, words, raw) => {
           const socket = byNumber.get(number);
-          if (socket && talking.has(socket)) speak(socket, words);
+          if (socket && talking.has(socket)) speak(socket, words, raw);
           else byNumber.delete(number);
         },
         tellAll: (words, except) => {

@@ -290,6 +290,32 @@ check('key presses run their block', () => {
   assert.equal(rt.interpreter.globals.get('jumps'), 2);
 });
 
+check('numbers can be packed into bytes and read back', () => {
+  const { rt } = runtimeFor([
+    'make packet be []',
+    'add the byte 5 to packet',
+    'add the number 1234 in 2 bytes to packet',
+    'add the number 70000 in 4 bytes to packet',
+    'add the decimal 3.5 to packet',
+    'add the text "hi" to packet',
+    'make written be hex of packet',
+    'make small be the number in packet at 2 over 2 bytes',
+    'make big be the number in packet at 4 over 4 bytes',
+    'make rough be the decimal in packet at 8',
+    'make words be the text in packet at 12 for 2',
+    'make roundtrip be text of bytes (bytes of text "café 你好")'
+  ].join('\n'));
+  const g = rt.interpreter.globals;
+  assert.equal(g.get('written'), '05 d2 04 70 11 01 00 00 00 60 40 68 69');
+  assert.equal(g.get('small'), 1234);
+  assert.equal(g.get('big'), 70000);
+  assert.equal(g.get('rough'), 3.5);
+  assert.equal(g.get('words'), 'hi');
+  // Anything that is not plain English has to survive as well, or the bytes
+  // are only useful for talking to programs written in one language.
+  assert.equal(g.get('roundtrip'), 'café 你好');
+});
+
 check('a list of things can be sorted by one of their values', () => {
   const { rt } = runtimeFor([
     'make people be [{ name: "Ada", score: 3 }, { name: "Bo", score: 9 }, { name: "Cy" }]',

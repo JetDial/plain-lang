@@ -104,6 +104,103 @@ export function installCore(rt) {
   rt.defineValue('replace $find with $replacement in $text', a =>
     toText(a.text).split(toText(a.find)).join(toText(a.replacement)));
 
+  // ------------------------------------------------------------------ bytes
+  //
+  // Most of what a computer sends over a wire is not writing. A picture, a
+  // sound, or a game speaking its own shorthand is a run of numbers from 0
+  // to 255, and until now Plain had no way to build one or read one.
+  //
+  // A run of bytes here is an ordinary list of numbers, so everything you
+  // already know works on it: "number of items in", "item 3 of", "for each".
+  // What these add is the packing - turning a number into the two or four
+  // bytes a program at the other end expects, and turning them back.
+  //
+  // Least important byte first, which is what nearly every protocol and
+  // every ordinary computer uses. If you need it the other way round the
+  // phrase says so.
+
+  const asBytes = (value) => {
+    const out = [];
+    for (const item of list(value)) out.push(toNumber(item) & 0xff);
+    return out;
+  };
+
+  rt.defineValue('bytes of text $text', a => [...new TextEncoder().encode(toText(a.text))]);
+  rt.defineValue('text of bytes $bytes', a => new TextDecoder().decode(Uint8Array.from(asBytes(a.bytes))));
+
+  rt.define('add the byte $number to $bytes', (a, ctx) => {
+    const into = a.bytes;
+    if (!Array.isArray(into)) ctx.fail('That is not a run of bytes', 'start one with: make packet be []');
+    into.push(toNumber(a.number) & 0xff);
+  });
+
+  // Whole numbers, in however many bytes the other end is expecting.
+  rt.define('add the number $number in $size bytes to $bytes', (a, ctx) => {
+    const into = a.bytes;
+    if (!Array.isArray(into)) ctx.fail('That is not a run of bytes', 'start one with: make packet be []');
+    const size = Math.max(1, Math.min(6, Math.round(toNumber(a.size))));
+    let left = Math.round(toNumber(a.number));
+    if (left < 0) left += Math.pow(256, size);          // negative counts back from the top
+    for (let n = 0; n < size; n++) {
+      into.push(left & 0xff);
+      left = Math.floor(left / 256);
+    }
+  });
+
+  // Numbers with a fractional part, in the four bytes almost everything uses.
+  rt.define('add the decimal $number to $bytes', (a, ctx) => {
+    const into = a.bytes;
+    if (!Array.isArray(into)) ctx.fail('That is not a run of bytes', 'start one with: make packet be []');
+    const view = new DataView(new ArrayBuffer(4));
+    view.setFloat32(0, toNumber(a.number), true);
+    for (let n = 0; n < 4; n++) into.push(view.getUint8(n));
+  });
+
+  rt.define('add the text $text to $bytes', (a, ctx) => {
+    const into = a.bytes;
+    if (!Array.isArray(into)) ctx.fail('That is not a run of bytes', 'start one with: make packet be []');
+    for (const byte of new TextEncoder().encode(toText(a.text))) into.push(byte);
+  });
+
+  rt.define('add the bytes $more to $bytes', (a, ctx) => {
+    const into = a.bytes;
+    if (!Array.isArray(into)) ctx.fail('That is not a run of bytes', 'start one with: make packet be []');
+    for (const byte of asBytes(a.more)) into.push(byte);
+  });
+
+  // Reading. Counting starts at 1, as it does everywhere else in Plain.
+  rt.defineValue('the number in $bytes at $at over $size bytes', a => {
+    const bytes = asBytes(a.bytes);
+    const at = Math.round(toNumber(a.at)) - 1;
+    const size = Math.max(1, Math.min(6, Math.round(toNumber(a.size))));
+    let out = 0;
+    for (let n = size - 1; n >= 0; n--) out = out * 256 + (bytes[at + n] || 0);
+    return out;
+  });
+
+  rt.defineValue('the decimal in $bytes at $at', a => {
+    const bytes = asBytes(a.bytes);
+    const at = Math.round(toNumber(a.at)) - 1;
+    const view = new DataView(new ArrayBuffer(4));
+    for (let n = 0; n < 4; n++) view.setUint8(n, bytes[at + n] || 0);
+    return view.getFloat32(0, true);
+  });
+
+  rt.defineValue('the text in $bytes at $at for $size', a => {
+    const bytes = asBytes(a.bytes).slice(Math.round(toNumber(a.at)) - 1,
+                                         Math.round(toNumber(a.at)) - 1 + Math.round(toNumber(a.size)));
+    return new TextDecoder().decode(Uint8Array.from(bytes));
+  });
+
+  rt.defineValue('the bytes in $bytes at $at for $size', a =>
+    asBytes(a.bytes).slice(Math.round(toNumber(a.at)) - 1,
+                           Math.round(toNumber(a.at)) - 1 + Math.round(toNumber(a.size))));
+
+  // For looking at, and for writing tests that say what they mean.
+  rt.defineValue('hex of $bytes', a => asBytes(a.bytes).map(b => b.toString(16).padStart(2, '0')).join(' '));
+  rt.defineValue('bytes from hex $text', a =>
+    (toText(a.text).match(/[0-9a-fA-F]{2}/g) || []).map(pair => parseInt(pair, 16)));
+
   // ------------------------------------------------------------ number bits
 
   rt.defineValue('round $number', a => Math.round(toNumber(a.number)));
