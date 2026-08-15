@@ -249,6 +249,94 @@ export function installCore(rt) {
   rt.defineValue('time now', () => Date.now());
   rt.defineValue('today', () => new Date().toISOString().slice(0, 10));
 
+  // ------------------------------------------------------------- days
+  //
+  // Plain could say what day it is and could not say anything else about
+  // it: not what tomorrow is, not how long until something, not which day
+  // of the week a date falls on. That is most of what anybody wants dates
+  // for - a booking, a deadline, an age, a "three days ago".
+  //
+  // A day here is written the way the whole world writes it down,
+  // "2026-08-14", because it is the one form that sorts correctly as text
+  // and reads correctly to a person. Anything that takes a day also takes
+  // "today", so a program can say what it means.
+
+  const asDay = (value) => {
+    const written = toText(value).trim();
+    if (written === '' || written.toLowerCase() === 'today') return new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00Z');
+    if (/^\d{4}-\d{2}-\d{2}$/.test(written)) return new Date(written + 'T00:00:00Z');
+    const made = new Date(written);
+    return Number.isNaN(made.getTime()) ? new Date(NaN) : made;
+  };
+
+  const dayText = (when) => (Number.isNaN(when.getTime()) ? '' : when.toISOString().slice(0, 10));
+  const DAY = 86400000;
+  const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
+                  'July', 'August', 'September', 'October', 'November', 'December'];
+
+  rt.defineValue('the day after $when', a => dayText(new Date(asDay(a.when).getTime() + DAY)));
+  rt.defineValue('the day before $when', a => dayText(new Date(asDay(a.when).getTime() - DAY)));
+  rt.defineValue('the day $days days after $when', a => dayText(new Date(asDay(a.when).getTime() + Math.round(toNumber(a.days)) * DAY)));
+  rt.defineValue('the day $days days before $when', a => dayText(new Date(asDay(a.when).getTime() - Math.round(toNumber(a.days)) * DAY)));
+
+  rt.defineValue('days between $from and $to', a => {
+    const from = asDay(a.from), to = asDay(a.to);
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return 0;
+    return Math.round((to.getTime() - from.getTime()) / DAY);
+  });
+
+  rt.defineValue('the year of $when', a => asDay(a.when).getUTCFullYear());
+  rt.defineValue('the month of $when', a => asDay(a.when).getUTCMonth() + 1);
+  rt.defineValue('the day of $when', a => asDay(a.when).getUTCDate());
+  rt.defineValue('the weekday of $when', a => WEEKDAYS[asDay(a.when).getUTCDay()] || '');
+  rt.defineValue('the month name of $when', a => MONTHS[asDay(a.when).getUTCMonth()] || '');
+
+  // The one people actually want to show somebody.
+  rt.defineValue('the date $when in words', a => {
+    const when = asDay(a.when);
+    if (Number.isNaN(when.getTime())) return '';
+    return `${WEEKDAYS[when.getUTCDay()]} ${when.getUTCDate()} ${MONTHS[when.getUTCMonth()]} ${when.getUTCFullYear()}`;
+  });
+
+  rt.defineValue('is $when a real day', a => !Number.isNaN(asDay(a.when).getTime()));
+  rt.defineInfix('$when is before $other', a => asDay(a.when).getTime() < asDay(a.other).getTime());
+  rt.defineInfix('$when is after $other', a => asDay(a.when).getTime() > asDay(a.other).getTime());
+
+  // ------------------------------------------------------------- sets
+  //
+  // A list with nothing repeated in it, and the three questions people ask
+  // of two lists. Other languages hand you a whole second kind of container
+  // for this; here it is four sentences about the lists you already have.
+
+  rt.defineValue('unique $list', a => {
+    const out = [];
+    for (const item of list(a.list)) if (!out.some(kept => equals(kept, item))) out.push(item);
+    return out;
+  });
+
+  rt.defineValue('everything in $list not in $other', a => {
+    const drop = list(a.other);
+    return list(a.list).filter(item => !drop.some(one => equals(one, item)));
+  });
+
+  rt.defineValue('everything in $list also in $other', a => {
+    const both = list(a.other);
+    const out = [];
+    for (const item of list(a.list)) {
+      if (both.some(one => equals(one, item)) && !out.some(kept => equals(kept, item))) out.push(item);
+    }
+    return out;
+  });
+
+  rt.defineValue('everything in $list and $other', a => {
+    const out = [];
+    for (const item of [...list(a.list), ...list(a.other)]) {
+      if (!out.some(kept => equals(kept, item))) out.push(item);
+    }
+    return out;
+  });
+
   // -------------------------------------------------------- kind checking
 
   rt.defineValue('kind of $value', a => typeName(a.value));

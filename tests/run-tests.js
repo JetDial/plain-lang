@@ -344,6 +344,41 @@ check('a name given text inside an if is not a number', () => {
   assert.ok(found.has('b'), 'b is only ever a number');
 });
 
+check('days can be counted, named and compared', () => {
+  const { rt } = runtimeFor([
+    'make tomorrow be the day after "2026-08-14"',
+    'make later be the day 20 days after "2026-08-14"',
+    'make back be the day 1 days before "2026-01-01"',
+    'make gap be days between "2026-08-14" and "2026-12-25"',
+    'make named be the weekday of "2026-08-14"',
+    'make written be the date "2026-08-14" in words',
+    'make first be "2026-01-01" is before "2026-08-14"'
+  ].join('\n'));
+  const g = rt.interpreter.globals;
+  assert.equal(g.get('tomorrow'), '2026-08-15');
+  assert.equal(g.get('later'), '2026-09-03');
+  // Crossing a year is where hand-rolled date sums go wrong.
+  assert.equal(g.get('back'), '2025-12-31');
+  assert.equal(g.get('gap'), 133);
+  assert.equal(g.get('named'), 'Friday');
+  assert.equal(g.get('written'), 'Friday 14 August 2026');
+  assert.equal(g.get('first'), true);
+});
+
+check('lists answer the questions people ask of two lists', () => {
+  const { rt } = runtimeFor([
+    'make once be unique [1, 2, 2, 3, 1]',
+    'make missing be everything in [1, 2, 3, 4] not in [2, 4]',
+    'make shared be everything in [1, 2, 3] also in [2, 3, 9]',
+    'make all be everything in [1, 2] and [2, 5]'
+  ].join('\n'));
+  const g = rt.interpreter.globals;
+  assert.deepEqual(g.get('once'), [1, 2, 3]);
+  assert.deepEqual(g.get('missing'), [1, 3]);
+  assert.deepEqual(g.get('shared'), [2, 3]);
+  assert.deepEqual(g.get('all'), [1, 2, 5]);
+});
+
 check('serving twice is one server, not a failed second one', () => {
   // A program that uses another one inherits its "start serving" line as
   // well as its own. That must not try to open the port twice: the second

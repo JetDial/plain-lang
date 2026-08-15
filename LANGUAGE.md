@@ -865,6 +865,37 @@ what you use to skip drawing the rest of it.
 Also `draw a line from $x , $y to $x , $y thick $n colored $c`, which follows
 the same rule.
 
+## Days
+
+A day is written the way the world writes it down — `"2026-08-14"` — because
+that is the one form that sorts correctly as text and reads correctly to a
+person. Anywhere a day is wanted, `today` works too.
+
+```
+show the day after "2026-08-14"              2026-08-15
+show the day 20 days after today
+show the day 1 days before "2026-01-01"      2025-12-31
+show days between "2026-08-14" and "2026-12-25"    133
+show the weekday of "2026-08-14"             Friday
+show the date "2026-08-14" in words          Friday 14 August 2026
+```
+
+Also `the year of`, `the month of`, `the day of`, `the month name of`,
+`is $when a real day`, and the two questions: `$when is before $other`,
+`$when is after $other`.
+
+## Sets, without a second kind of list
+
+Other languages hand you a whole new container for this. Here it is four
+sentences about the lists you already have.
+
+```
+show unique [1, 2, 2, 3, 1]                          [1, 2, 3]
+show everything in [1, 2, 3, 4] not in [2, 4]        [1, 3]
+show everything in [1, 2, 3] also in [2, 3, 9]       [2, 3]
+show everything in [1, 2] and [2, 5]                 [1, 2, 5]
+```
+
 ## Bytes
 
 Most of what computers send each other is not writing. A picture, a sound, or
