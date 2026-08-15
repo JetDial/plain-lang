@@ -765,6 +765,20 @@ export function installGame(rt, host = {}) {
     host.keepGoing(game);
   });
 
+  // Sounds a game actually needs, none of which are a beep.
+  //
+  // A game with no sound files should still be able to make a noise. A beep
+  // is a pure tone, and nothing in the world is a pure tone: an explosion is
+  // a rush of noise that dies away, a missile is noise that slides downwards,
+  // a pickup is a short rise. All three are noise shaped by hand, which
+  // takes no files, no downloads and no permission.
+  rt.define('play a bang', () => noise(host, { seconds: 0.45, from: 900, to: 60, level: 0.35 }));
+  rt.define('play a thud', () => noise(host, { seconds: 0.18, from: 400, to: 40, level: 0.3 }));
+  rt.define('play a whoosh', () => noise(host, { seconds: 0.25, from: 1800, to: 300, level: 0.12 }));
+  rt.define('play a blip at $pitch', (a) => tone(host, toNumber(a.pitch), 0.08, 0.14));
+  rt.define('play a rising note', () => tone(host, 420, 0.16, 0.16, 900));
+  rt.define('play a falling note', () => tone(host, 700, 0.22, 0.16, 180));
+
   rt.define('play a beep', () => beep(host, 440));
   rt.define('play a beep at $pitch', (a) => beep(host, toNumber(a.pitch)));
 
@@ -818,6 +832,53 @@ function drawPolygon(ctx, points) {
   points.forEach(([x, y], at) => (at === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)));
   ctx.closePath();
   ctx.fill();
+}
+
+// Noise, filtered so it slides from one pitch to another while it fades.
+// That shape - loud, bright, then gone - is what the ear reads as a bang.
+function noise(host, { seconds, from, to, level }) {
+  const w = host.window;
+  if (!w || !(w.AudioContext || w.webkitAudioContext)) return;
+  try {
+    host._audio = host._audio || new (w.AudioContext || w.webkitAudioContext)();
+    const audio = host._audio;
+    const frames = Math.floor(audio.sampleRate * seconds);
+    const store = audio.createBuffer(1, frames, audio.sampleRate);
+    const at = store.getChannelData(0);
+    for (let n = 0; n < frames; n++) at[n] = Math.random() * 2 - 1;
+
+    const voice = audio.createBufferSource();
+    voice.buffer = store;
+    const sieve = audio.createBiquadFilter();
+    sieve.type = 'lowpass';
+    sieve.frequency.setValueAtTime(from, audio.currentTime);
+    sieve.frequency.exponentialRampToValueAtTime(Math.max(20, to), audio.currentTime + seconds);
+    const loud = audio.createGain();
+    loud.gain.setValueAtTime(level, audio.currentTime);
+    loud.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + seconds);
+    voice.connect(sieve).connect(loud).connect(audio.destination);
+    voice.start();
+  } catch { /* sound is a nice-to-have */ }
+}
+
+// A note, optionally sliding to another pitch on the way out.
+function tone(host, pitch, seconds, level, slideTo) {
+  const w = host.window;
+  if (!w || !(w.AudioContext || w.webkitAudioContext)) return;
+  try {
+    host._audio = host._audio || new (w.AudioContext || w.webkitAudioContext)();
+    const audio = host._audio;
+    const osc = audio.createOscillator();
+    const loud = audio.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(pitch, audio.currentTime);
+    if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, audio.currentTime + seconds);
+    loud.gain.setValueAtTime(level, audio.currentTime);
+    loud.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + seconds);
+    osc.connect(loud).connect(audio.destination);
+    osc.start();
+    osc.stop(audio.currentTime + seconds);
+  } catch { /* sound is a nice-to-have */ }
 }
 
 function beep(host, frequency) {

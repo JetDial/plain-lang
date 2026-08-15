@@ -908,7 +908,13 @@ end</pre>
           ['when star touches basket', 'Plain watches those two, every frame, and runs this the moment they overlap. You never have to check distances yourself.'],
           ['add 1 to score', 'One more than whatever was in the box. Not "score is 1" - <b>one more than before</b>, which is why it keeps climbing.'],
           ['move star to random 30 to 610 , 20', 'Put the star back at the top, at a randomly chosen place across. <code>random 30 to 610</code> picks a fresh number each time, which is the whole reason the game does not become the same catch over and over.']
-        ]) + `<p>Last, the score has to be visible, or the player is being marked in
+        ]) + `<p>And a noise, because a catch with no sound barely happened:</p>
+<pre>play a rising note</pre>
+<p>There is a small kit of these - <code>play a bang</code>, <code>play a
+thud</code>, <code>play a whoosh</code>, <code>play a blip at 660</code> -
+and none of them need a sound file. They are noise shaped by hand, which is
+what an explosion actually is.</p>
+<p>Last, the score has to be visible, or the player is being marked in
 secret. Inside <code>every frame</code>:</p>
 <pre>draw "score {score}" at 18 , 16 sized 16 colored "#ffffff"</pre>
 <p>The <code>{score}</code> in the middle of the words means "drop the

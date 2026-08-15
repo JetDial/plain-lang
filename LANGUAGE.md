@@ -865,6 +865,25 @@ what you use to skip drawing the rest of it.
 Also `draw a line from $x , $y to $x , $y thick $n colored $c`, which follows
 the same rule.
 
+## Sounds a game actually needs
+
+A game with no sound files should still be able to make a noise. A beep is a
+pure tone, and nothing in the world is a pure tone — an explosion is a rush
+of noise that dies away, a missile is noise sliding downwards, a pickup is a
+short rise.
+
+```
+play a bang            an explosion
+play a thud            something heavy landing
+play a whoosh          something going past
+play a blip at 660     a short note at that pitch
+play a rising note     picked something up
+play a falling note    lost something
+```
+
+No files, no downloads, nothing to install. `play the sound "x.mp3"` is still
+there for when you have real recordings.
+
 ## Room — memory, without addresses
 
 What a C programmer reaches for memory to do is nearly always one of two
