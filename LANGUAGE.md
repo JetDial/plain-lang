@@ -1029,6 +1029,36 @@ set the fade of ghost to 0.4
 `facing of hero` is 1 or -1, `fade of hero` runs from 0 to 1. Fading is how
 anything appears, disappears, or flickers while it cannot be hurt.
 
+## Lighting a world, and picking things out of it
+
+One directional light was enough to see a world and not enough to make one.
+
+```
+set the shadows to 0.8              0 is flat, 1 is black shadows
+set the light colour to "warm"
+put a lamp at 0 , 4 , 0 reaching 14 colored "#ffb347"
+move the lamp to 2 , 5 , 0
+take the lamp away
+set the haze to 0.4                 how much distance fades into the sky
+```
+
+A lamp is a light with a **place** rather than a direction: it falls off as
+you walk away and lights the side of a thing that faces it. Haze is the
+cheapest way to make a world feel large, because it stops the far edge of it
+looking like an edge.
+
+And the question a 3D program cannot answer without help:
+
+```
+show what is under the mouse
+show what the camera is looking at
+show what is at 400 , 300 on the screen
+```
+
+Every editor, strategy game and point-and-click needs this. It draws a line
+out of the camera through that point on the screen and gives back whichever
+body it meets first.
+
 ## Arcs
 
 ```

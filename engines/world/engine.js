@@ -104,6 +104,27 @@ export class Body {
   }
 }
 
+// A colour said as words or as a # number, turned into three numbers from
+// nought to one, which is the only thing a shader understands.
+function colourOf(said) {
+  const named = {
+    white: '#ffffff', black: '#000000', red: '#ff0000', green: '#00ff00',
+    blue: '#0000ff', yellow: '#ffe066', orange: '#ff8c42', warm: '#ffd7a8',
+    cold: '#a8d7ff', grey: '#888888', gray: '#888888'
+  };
+  let text = String(said == null ? '' : said).trim().toLowerCase();
+  if (named[text]) text = named[text];
+  if (text.length === 4 && text[0] === '#') {
+    text = '#' + text[1] + text[1] + text[2] + text[2] + text[3] + text[3];
+  }
+  if (!/^#[0-9a-f]{6}$/.test(text)) return { r: 1, g: 1, b: 1 };
+  return {
+    r: parseInt(text.slice(1, 3), 16) / 255,
+    g: parseInt(text.slice(3, 5), 16) / 255,
+    b: parseInt(text.slice(5, 7), 16) / 255
+  };
+}
+
 export class World {
   constructor() {
     this.started = false;
@@ -113,6 +134,12 @@ export class World {
     this.bodies = [];
     this.camera = { x: 0, y: 6, z: 12, atX: 0, atY: 0, atZ: 0, follow: null, distance: 12, height: 6 };
     this.light = { x: 0.4, y: 1, z: 0.6 };
+    this.lightColor = { r: 1, g: 1, b: 1 };
+    // How much of a thing is lit when the sun is not on it. Nought is a
+    // world with black shadows; one is a world with no shadows at all.
+    this.ambient = 0.42;
+    this.lamp = null;                 // one lamp: a place rather than a way
+    this.fog = 0.75;                  // how much distance fades into the sky
   }
 
   add(body) { this.bodies.push(body); return body; }
@@ -187,6 +214,47 @@ export function installWorld(rt, host = {}) {
     if (world.ground === null) world.ground = 0;
   });
   rt.define('set the ground level to $level', (a) => { world.ground = toNumber(a.level); });
+  // ------------------------------------------------------------- lighting
+  //
+  // One directional light was enough to see a world and not enough to make
+  // one. These are the three that every 3D program reaches for next: how
+  // dark the shadows are, what colour the sun is, and a lamp - a light with
+  // a place, which falls off as you walk away from it and lights the side
+  // of a thing that faces it.
+
+  rt.define('set the shadows to $amount', (a) => {
+    // Said the way a person thinks about it: more shadow, less ambient.
+    world.ambient = Math.max(0, Math.min(1, 1 - toNumber(a.amount)));
+  });
+
+  rt.define('set the light colour to $color', (a) => { world.lightColor = colourOf(a.color); });
+  rt.define('set the light color to $color', (a) => { world.lightColor = colourOf(a.color); });
+
+  rt.define('put a lamp at $x , $y , $z reaching $reach colored $color', (a) => {
+    const shade = colourOf(a.color);
+    world.lamp = {
+      x: toNumber(a.x), y: toNumber(a.y), z: toNumber(a.z),
+      reach: Math.max(0.01, toNumber(a.reach)),
+      r: shade.r, g: shade.g, b: shade.b
+    };
+  });
+
+  rt.define('move the lamp to $x , $y , $z', (a, ctx) => {
+    if (!world.lamp) ctx.fail('There is no lamp yet', 'put one somewhere first');
+    world.lamp.x = toNumber(a.x);
+    world.lamp.y = toNumber(a.y);
+    world.lamp.z = toNumber(a.z);
+  });
+
+  rt.define('take the lamp away', () => { world.lamp = null; });
+
+  // How much of the distance disappears into the sky. Fog is the cheapest
+  // way to make a world feel large, because it stops the far edge of it
+  // looking like an edge.
+  rt.define('set the haze to $amount', (a) => {
+    world.fog = Math.max(0, Math.min(1, toNumber(a.amount)));
+  });
+
   rt.define('set the light to $x , $y , $z', (a) => {
     world.light = { x: toNumber(a.x), y: toNumber(a.y), z: toNumber(a.z) };
   });
@@ -293,6 +361,69 @@ export function installWorld(rt, host = {}) {
   // ------------------------------------------------------------ asking
 
   rt.defineValue('ground level', () => world.ground ?? 0);
+  // --------------------------------------------------------------- picking
+  //
+  // "What is under the mouse" is the question a 3D program cannot answer
+  // without it, and it is the one every editor, every strategy game and
+  // every point-and-click needs. The answer is a line drawn out of the
+  // camera through the point on the screen, and whichever body it meets
+  // first.
+  const bodyUnder = (screenX, screenY) => {
+    const width = game.width || 800, height = game.height || 600;
+    // Where the camera is, and which way it faces.
+    const eye = world.camera;
+    const at = eye.follow
+      ? { x: eye.follow.x, y: eye.follow.y, z: eye.follow.z }
+      : (eye.at || { x: 0, y: 0, z: 0 });
+    const from = { x: eye.x, y: eye.y, z: eye.z };
+    const ahead = norm({ x: at.x - from.x, y: at.y - from.y, z: at.z - from.z });
+    const right = norm(cross(ahead, { x: 0, y: 1, z: 0 }));
+    const up = cross(right, ahead);
+
+    // A point on the screen, turned into a direction out of the camera.
+    const across = (screenX / width) * 2 - 1;
+    const down = 1 - (screenY / height) * 2;
+    const spread = Math.tan((60 * Math.PI / 180) / 2);
+    const wide = (width / height) * spread;
+    const way = norm({
+      x: ahead.x + right.x * across * wide + up.x * down * spread,
+      y: ahead.y + right.y * across * wide + up.y * down * spread,
+      z: ahead.z + right.z * across * wide + up.z * down * spread
+    });
+
+    // Whichever body that line meets first, treating each as a ball around
+    // its middle - near enough for picking, and it needs no mesh maths.
+    let best = null, nearest = Infinity;
+    for (const body of world.bodies) {
+      if (body.gone || body.hidden) continue;
+      const size = Math.max(body.width || 1, body.height || 1, body.depth || 1) / 2;
+      const towards = { x: body.x - from.x, y: body.y - from.y, z: body.z - from.z };
+      const along = towards.x * way.x + towards.y * way.y + towards.z * way.z;
+      if (along <= 0) continue;
+      const missX = towards.x - way.x * along;
+      const missY = towards.y - way.y * along;
+      const missZ = towards.z - way.z * along;
+      const miss = Math.sqrt(missX * missX + missY * missY + missZ * missZ);
+      if (miss > size) continue;
+      if (along < nearest) { nearest = along; best = body; }
+    }
+    return best;
+  };
+
+  const norm = (v) => {
+    const long = Math.hypot(v.x, v.y, v.z) || 1;
+    return { x: v.x / long, y: v.y / long, z: v.z / long };
+  };
+  const cross = (a, b) => ({
+    x: a.y * b.z - a.z * b.y,
+    y: a.z * b.x - a.x * b.z,
+    z: a.x * b.y - a.y * b.x
+  });
+
+  rt.defineValue('what is under the mouse', () => bodyUnder(game.mouse.x, game.mouse.y));
+  rt.defineValue('what is at $x , $y on the screen', (a) => bodyUnder(toNumber(a.x), toNumber(a.y)));
+  rt.defineValue('what the camera is looking at', () => bodyUnder((game.width || 800) / 2, (game.height || 600) / 2));
+
   rt.defineValue('camera x', () => world.camera.x);
   rt.defineValue('camera y', () => world.camera.y);
   rt.defineValue('camera z', () => world.camera.z);

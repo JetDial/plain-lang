@@ -11,11 +11,13 @@ uniform mat4 projection;
 uniform mat4 rotation;
 varying vec3 shadedNormal;
 varying float depthFade;
+varying vec3 worldPlace;
 void main() {
   vec4 world = model * vec4(position, 1.0);
   vec4 eye = view * world;
   gl_Position = projection * eye;
   shadedNormal = normalize((rotation * vec4(normal, 0.0)).xyz);
+  worldPlace = world.xyz;
   depthFade = clamp(-eye.z / 140.0, 0.0, 1.0);
 }`;
 
@@ -23,13 +25,33 @@ const FRAGMENT_SHADER = `
 precision mediump float;
 uniform vec3 color;
 uniform vec3 light;
+uniform vec3 lightColor;
 uniform vec3 sky;
+uniform float ambient;
+uniform vec3 lamp;          // where a lamp is, if there is one
+uniform vec3 lampColor;
+uniform float lampReach;    // 0 means there is no lamp
+uniform float fogFrom;      // how much of the distance fades into the sky
 varying vec3 shadedNormal;
 varying float depthFade;
+varying vec3 worldPlace;
 void main() {
-  float lit = max(dot(normalize(shadedNormal), normalize(light)), 0.0);
-  vec3 shaded = color * (0.42 + 0.58 * lit);
-  gl_FragColor = vec4(mix(shaded, sky, depthFade * 0.75), 1.0);
+  vec3 face = normalize(shadedNormal);
+  // The sun: one direction, the same everywhere.
+  float lit = max(dot(face, normalize(light)), 0.0);
+  vec3 shaded = color * (ambient + (1.0 - ambient) * lit) * lightColor;
+
+  // A lamp: a place rather than a direction, so it falls off with distance
+  // and lights the side of a thing that faces it.
+  if (lampReach > 0.0) {
+    vec3 towards = lamp - worldPlace;
+    float far = length(towards);
+    float near = max(1.0 - far / lampReach, 0.0);
+    float facing = max(dot(face, normalize(towards)), 0.0);
+    shaded += color * lampColor * facing * near * near;
+  }
+
+  gl_FragColor = vec4(mix(shaded, sky, depthFade * fogFrom), 1.0);
 }`;
 
 export function createRenderer(canvas) {
@@ -45,7 +67,7 @@ export function createRenderer(canvas) {
     normal: gl.getAttribLocation(program, 'normal')
   };
   const uniforms = {};
-  for (const name of ['model', 'view', 'projection', 'rotation', 'color', 'light', 'sky']) {
+  for (const name of ['model', 'view', 'projection', 'rotation', 'color', 'light', 'sky', 'lightColor', 'ambient', 'lamp', 'lampColor', 'lampReach', 'fogFrom']) {
     uniforms[name] = gl.getUniformLocation(program, name);
   }
 
@@ -80,6 +102,14 @@ export function createRenderer(canvas) {
       gl.uniformMatrix4fv(uniforms.projection, false, projection);
       gl.uniformMatrix4fv(uniforms.view, false, view);
       gl.uniform3f(uniforms.light, world.light.x, world.light.y, world.light.z);
+      const sun = world.lightColor || { r: 1, g: 1, b: 1 };
+      gl.uniform3f(uniforms.lightColor, sun.r, sun.g, sun.b);
+      gl.uniform1f(uniforms.ambient, world.ambient === undefined ? 0.42 : world.ambient);
+      const lamp = world.lamp;
+      gl.uniform3f(uniforms.lamp, lamp ? lamp.x : 0, lamp ? lamp.y : 0, lamp ? lamp.z : 0);
+      gl.uniform3f(uniforms.lampColor, lamp ? lamp.r : 0, lamp ? lamp.g : 0, lamp ? lamp.b : 0);
+      gl.uniform1f(uniforms.lampReach, lamp ? lamp.reach : 0);
+      gl.uniform1f(uniforms.fogFrom, world.fog === undefined ? 0.75 : world.fog);
       gl.uniform3f(uniforms.sky, sky[0], sky[1], sky[2]);
 
       for (const body of world.bodies) {
