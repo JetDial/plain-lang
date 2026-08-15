@@ -973,6 +973,21 @@ how every scrolling game you have ever played works.</p>
 <code>view bottom</code> tell you which part of the world is on screen, which
 is how a big game avoids drawing the parts of itself nobody can see.</p>
 <hr>
+<p>Four more the engine has, which turn a game that works into a game that
+feels made:</p>
+` + walk([
+      ['make a burst of 30 at 200 , 150 colored "#ff7a59"', 'An explosion, a splash, a puff of dust and a shower of sparks are all the same thing: bits thrown out from a point that move themselves and fade. Say it once.'],
+      ['slide door to 350 , 150 over 1 seconds', 'Moves it there over a second, eased at both ends, because nothing in the world starts and stops at full speed. Said once, then it happens on its own.'],
+      ['shake the view by 10 for 0.4 seconds', 'The whole picture knocked sideways and settling. The cheapest way to make something feel heavy.'],
+      ['draw an arc at 320 , 240 sized 90 from 120 to 240 thick 5 colored "#7ee787"', 'Part of a circle. A health bar curved round the thing it belongs to is read without looking away from it, which is why every game that has one draws it there.']
+    ]) + `
+<p>And when a game has more of something than it can name one by one:</p>
+` + walk([
+      ['put bullet in the group "shots"', 'This one belongs to that lot.'],
+      ['when anything in "shots" touches anything in "rocks" ...', 'One rule about two lots of things, rather than a rule for every possible pair. Forty bullets and thirty rocks is twelve hundred pairs and one sentence.'],
+      ['the one that touched', 'Inside that block, which two actually met - "the one that touched" and "the other one".']
+    ]) + `
+<hr>
 <p>Now the rule.</p>
 <p>Two things are moving about and nothing happens when they meet. A game
 is the rule about what happens when they meet.</p>
@@ -1054,7 +1069,27 @@ all.</p>
           ['move the camera to 0 , 12 , 20', 'Or place it by hand: twelve up and twenty back. Useful for a fixed view of a board or a scene.'],
           ['point the camera at hero', 'Look at that, from wherever the camera happens to be.']
         ]) + `<p>Following is what nearly every game does, because the alternative is
-walking your hero out of shot and having no idea where it went.</p>`,
+walking your hero out of shot and having no idea where it went.</p>
+<hr>
+<p>Two more views, and the difference between them is the difference between
+most games:</p>
+` + walk([
+      ['look over the shoulder of hero', 'Behind them and slightly above - what you have now.'],
+      ['look out of hero', 'Out of their own eyes, at eye height, looking the way they face. It is the same following seen from a different place, which is all a first person camera has ever been.']
+    ]) + `
+<p>And the light, which is what makes a world look like somewhere rather
+than like a diagram:</p>
+` + walk([
+      ['set the shadows to 0.8', 'How dark the unlit side of things is. 0 is flat and lifeless; 1 is black shadows.'],
+      ['put a lamp at 0 , 4 , 0 reaching 14 colored "#ffb347"', 'A light with a <b>place</b> rather than a direction. It falls off as you walk away and lights the side of a thing that faces it, which a sun cannot do.'],
+      ['set the haze to 0.4', 'How much of the distance fades into the sky. The cheapest way to make a world feel large, because it stops the far edge looking like an edge.']
+    ]) + `
+<p>Last, the question a 3D program cannot answer without help — and which
+every editor, strategy game and point-and-click needs:</p>
+` + walk([
+      ['what is under the mouse', 'Whichever body a line out of the camera through the mouse meets first, or nothing.'],
+      ['what the camera is looking at', 'The same question aimed at the middle of the screen.']
+    ]) + ``,
         task: 'Point the camera at your hero by following it.',
         check: ({ world }) => {
           if (!world.camera.follow) return 'Add: follow hero with the camera';
@@ -1157,7 +1192,18 @@ a second and looks deliberate, and it is one line.</p>
           ['put the words "somewhere in 1946" on the last clip', 'Words over the top of whatever that clip is, rather than a card of their own. This is how a caption over a picture is different from a title between pictures.']
         ]) + `<p>Fades are what makes a sequence of cards feel like a film. Try building
 the whole thing without them, watch it, then add them: it is the clearest
-before-and-after in this course.</p>`,
+before-and-after in this course.</p>
+<hr>
+<p>Four more, and these are what people actually buy an editor to get:</p>
+` + walk([
+      ['cross into the last clip over 1 seconds', 'A crossfade, which is not two fades that happen to meet - the clip before is still there while this one arrives. The film gets <b>shorter</b> by exactly the overlap, and Plain works that out rather than being told.'],
+      ['play the last clip at 0.5 speed', 'Slow motion. Half speed means it lasts twice as long, and the timeline knows.'],
+      ['split the last clip at 3 seconds', 'Two clips where there was one. The single most used action in any editor.'],
+      ['drift the last clip from 1 to 1.25', 'The slow push into a still picture that stops it looking like a slide. <code>drift the last clip left</code> moves across instead.']
+    ]) + `
+<p>Also <code>make the last clip 0.2 brighter</code>, <code>drain the colour
+from the last clip</code> and <code>tint the last clip "#4a6ea8"</code> —
+which between them are most of what "graded" means.</p>`,
         task: 'Fade the title in, and add two coloured cards after it with words over them.',
         check: ({ studio }) => {
           if (!studio.clips[0].fadeIn) return 'Add: fade the last clip in over 1 seconds';
