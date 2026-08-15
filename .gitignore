@@ -8,3 +8,7 @@ dist/
 .DS_Store
 Thumbs.db
 
+
+# What a running program remembers, and the lock it holds while it runs.
+*.busy
+*.memory.json
