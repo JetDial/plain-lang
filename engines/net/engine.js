@@ -389,6 +389,16 @@ export function installNet(rt, host = {}) {
     host.tell(server.who, a.bytes, true);
   });
 
+  rt.define('tell everyone the bytes $bytes', (a, ctx) => {
+    if (!host.tellAll) needTerminal(ctx, 'Talking to a connection');
+    host.tellAll(a.bytes, null, true);
+  });
+
+  rt.define('tell everyone else the bytes $bytes', (a, ctx) => {
+    if (!host.tellAll) needTerminal(ctx, 'Talking to a connection');
+    host.tellAll(a.bytes, server.who, true);
+  });
+
   // What just arrived, as bytes. Empty unless the other end spoke in bytes.
   // Not "what they sent" - that already means the body of a form somebody
   // posted, and two meanings for one sentence is how a language starts

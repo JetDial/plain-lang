@@ -172,7 +172,7 @@ function buildRuntime(onOutput, baseFile = process.cwd()) {
     ...netHost(runtime),
     putFile: keeping.putFile,
     tell: (who, words, raw) => (server.host ? server.host.tell(who, words, raw) : null),
-    tellAll: (words, except) => (server.host ? server.host.tellAll(words, except) : null),
+    tellAll: (words, except, raw) => (server.host ? server.host.tellAll(words, except, raw) : null),
     connected: () => (server.host ? server.host.connected() : 0),
     tellOne: (number, words, raw) => (server.host ? server.host.tellOne(number, words, raw) : null),
     whoIs: (who) => (server.host ? server.host.whoIs(who) : 0)
@@ -454,8 +454,8 @@ function netHost(runtime) {
           if (socket && talking.has(socket)) speak(socket, words, raw);
           else byNumber.delete(number);
         },
-        tellAll: (words, except) => {
-          for (const one of talking) if (one !== except) speak(one, words);
+        tellAll: (words, except, raw) => {
+          for (const one of talking) if (one !== except) speak(one, words, raw);
         },
         connected: () => talking.size
       };
