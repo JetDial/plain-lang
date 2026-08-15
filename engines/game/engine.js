@@ -149,6 +149,9 @@ export class Game {
     // inside "seen through the view" is moved by it; everything else stays
     // where it is put, which is what a score in a corner wants.
     this.view = { x: 0, y: 0, zoom: 1, through: false };
+    this.sparks = [];                 // little bits thrown out by an explosion
+    this.slides = [];                 // things on their way somewhere
+    this.lastStep = 1 / 60;           // how long the last frame took
     this.mouse = { x: 0, y: 0, down: false };
     this.clicks = [];                 // { run }
     this.drawQueue = [];
@@ -203,7 +206,36 @@ export class Game {
 
   // ------------------------------------------------------------- simulation
 
+  // Sparks and slides move themselves, which is the point of them: you say
+  // what should happen once and the engine keeps it happening.
+  advanceExtras(seconds) {
+    this.lastStep = seconds;
+    const living = [];
+    for (const spark of this.sparks) {
+      spark.life -= seconds;
+      if (spark.life <= 0) continue;
+      spark.x += spark.dx * seconds;
+      spark.y += spark.dy * seconds;
+      spark.dy += spark.pull * seconds;
+      living.push(spark);
+    }
+    this.sparks = living;
+
+    const going = [];
+    for (const slide of this.slides) {
+      slide.gone += seconds;
+      const part = Math.min(1, slide.gone / slide.seconds);
+      // Eased, because nothing in the world starts and stops at full speed.
+      const eased = part < 0.5 ? 2 * part * part : 1 - Math.pow(-2 * part + 2, 2) / 2;
+      slide.thing.x = slide.fromX + (slide.toX - slide.fromX) * eased;
+      slide.thing.y = slide.fromY + (slide.toY - slide.fromY) * eased;
+      if (part < 1) going.push(slide);
+    }
+    this.slides = going;
+  }
+
   step(seconds = 1 / 60) {
+    this.advanceExtras(seconds);
     if (this.over) return;
     this.frame++;
     this.time += seconds;
@@ -336,6 +368,22 @@ export class Game {
       } else {
         ctx.fillRect(-thing.width / 2, -thing.height / 2, thing.width, thing.height);
       }
+      ctx.restore();
+    }
+
+    // Sparks are drawn under the queue, so anything a program draws itself
+    // sits on top of the mess.
+    for (const spark of this.sparks) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, spark.life / spark.born));
+      ctx.fillStyle = spark.color;
+      const where = this.view.through
+        ? { x: (spark.x - this.view.x) * this.view.zoom + this.width / 2,
+            y: (spark.y - this.view.y) * this.view.zoom + this.height / 2 }
+        : { x: spark.x, y: spark.y };
+      ctx.beginPath();
+      ctx.arc(where.x, where.y, Math.max(0.5, spark.size / 2), 0, Math.PI * 2);
+      ctx.fill();
       ctx.restore();
     }
 
@@ -772,6 +820,51 @@ export function installGame(rt, host = {}) {
   // a rush of noise that dies away, a missile is noise that slides downwards,
   // a pickup is a short rise. All three are noise shaped by hand, which
   // takes no files, no downloads and no permission.
+  // ------------------------------------------------------------ bits and easing
+  //
+  // Two things every game engine has and this did not. Neither is hard; both
+  // are the difference between a game that works and a game that feels made.
+  //
+  // A burst is a handful of bits thrown out from a point, which is what an
+  // explosion, a splash, a puff of dust and a shower of sparks all are. They
+  // move themselves and fade out, so a program says it once.
+  rt.define('make a burst at $x , $y colored $color', (a) => {
+    burst(game, toNumber(a.x), toNumber(a.y), toText(a.color), 18, 220, 0.6);
+  });
+
+  rt.define('make a burst of $many at $x , $y colored $color', (a) => {
+    burst(game, toNumber(a.x), toNumber(a.y), toText(a.color), Math.round(toNumber(a.many)), 220, 0.6);
+  });
+
+  rt.define('make a slow burst of $many at $x , $y colored $color', (a) => {
+    burst(game, toNumber(a.x), toNumber(a.y), toText(a.color), Math.round(toNumber(a.many)), 70, 1.6);
+  });
+
+  rt.defineValue('bits still flying', () => game.sparks.length);
+
+  // Sliding something somewhere over time, eased at both ends, because
+  // nothing in the world starts and stops at full speed. Written once, and
+  // then it happens on its own.
+  rt.define('slide $thing to $x , $y over $seconds seconds', (a, ctx) => {
+    const thing = thingOf(a.thing, ctx);
+    game.slides = game.slides.filter(one => one.thing !== thing);
+    game.slides.push({
+      thing, fromX: thing.x, fromY: thing.y,
+      toX: toNumber(a.x), toY: toNumber(a.y),
+      seconds: Math.max(0.001, toNumber(a.seconds)), gone: 0
+    });
+  });
+
+  rt.defineInfix('$thing is still sliding', (a, ctx) => {
+    const thing = thingOf(a.thing, ctx);
+    return game.slides.some(one => one.thing === thing);
+  });
+
+  // How long the last frame actually took. A game that moves things by a
+  // fixed amount each frame runs at a different speed on a different
+  // machine; one that multiplies by this does not.
+  rt.defineValue('seconds since the last frame', () => game.lastStep);
+
   rt.define('play a bang', () => noise(host, { seconds: 0.45, from: 900, to: 60, level: 0.35 }));
   rt.define('play a thud', () => noise(host, { seconds: 0.18, from: 400, to: 40, level: 0.3 }));
   rt.define('play a whoosh', () => noise(host, { seconds: 0.25, from: 1800, to: 300, level: 0.12 }));
@@ -879,6 +972,24 @@ function tone(host, pitch, seconds, level, slideTo) {
     osc.start();
     osc.stop(audio.currentTime + seconds);
   } catch { /* sound is a nice-to-have */ }
+}
+
+// A handful of bits thrown out from a point, each with its own direction,
+// speed and lifetime, so they never look like a pattern.
+function burst(game, x, y, color, many, speed, life) {
+  for (let n = 0; n < many; n++) {
+    const way = Math.random() * Math.PI * 2;
+    const fast = speed * (0.35 + Math.random() * 0.65);
+    const born = life * (0.5 + Math.random() * 0.8);
+    game.sparks.push({
+      x, y, color,
+      dx: Math.cos(way) * fast,
+      dy: Math.sin(way) * fast,
+      pull: speed * 0.35,
+      size: 2 + Math.random() * 4,
+      life: born, born
+    });
+  }
 }
 
 function beep(host, frequency) {

@@ -379,6 +379,44 @@ check('lists answer the questions people ask of two lists', () => {
   assert.deepEqual(g.get('all'), [1, 2, 5]);
 });
 
+check('Plain can check its own work', () => {
+  const { rt } = runtimeFor([
+    'make score be 0',
+    'add 10 to score',
+    'check score is 10',
+    'check score is not 3',
+    'check that score is above 5',
+    'make good be how the checks went',
+    'check score is 99',
+    'make bad be how the checks went'
+  ].join('\n'));
+  const g = rt.interpreter.globals;
+  assert.equal(g.get('good'), 'all 3 checks passed');
+  // The failure has to say what was expected and what turned up, or it is
+  // no better than the program simply not working.
+  assert.match(String(g.get('bad')), /1 of 4 checks failed/);
+  assert.match(String(g.get('bad')), /expected 99 but got 10/);
+});
+
+check('bursts and slides move themselves', () => {
+  const { game, rt } = runtimeFor([
+    'start a game called "Feel" sized 400 by 300',
+    'make hero be a box at 50 , 150 sized 20 by 20 colored "#fff"',
+    'slide hero to 350 , 150 over 1 seconds',
+    'make a burst of 30 at 200 , 150 colored "#f00"',
+    'make flying be bits still flying'
+  ].join('\n'));
+  assert.equal(rt.interpreter.globals.get('flying'), 30);
+  game.simulate(30);                       // half a second
+  const half = game.things[0].x;
+  assert.ok(half > 60 && half < 340, `half way should be between, was ${half}`);
+  game.simulate(45);
+  // Eased at both ends, and it stops exactly where it was sent.
+  assert.equal(Math.round(game.things[0].x), 350);
+  // The bits die out on their own rather than piling up forever.
+  assert.ok(game.sparks.length < 30);
+});
+
 check('a block is memory with a size and no address', () => {
   const { rt } = runtimeFor([
     'make samples be room for 8 numbers',

@@ -865,6 +865,61 @@ what you use to skip drawing the rest of it.
 Also `draw a line from $x , $y to $x , $y thick $n colored $c`, which follows
 the same rule.
 
+## Checking your own work
+
+A language that can build a server and a game and cannot say whether they
+work is half a tool.
+
+```
+make score be 0
+add 10 to score
+
+check score is 10
+check score is not 3
+check that score is above 5
+check "the score adds up" : score is 10
+
+show how the checks went
+```
+
+Nothing is thrown. A failed check is written down and the program carries on,
+because the second failure is usually the one that explains the first. A
+failure says what it expected and what turned up:
+
+```
+1 of 4 checks failed
+  expected 99 but got 10
+```
+
+Also `checks that passed`, `checks that failed`, and `forget the checks so
+far`.
+
+## Bits, sliding, and time
+
+Three things every game engine has.
+
+```
+make a burst of 30 at 200 , 150 colored "#ff7a59"
+make a slow burst of 20 at x of ship , y of ship colored "#888"
+
+slide door to 350 , 150 over 1 seconds
+if door is still sliding
+    show "wait"
+end
+
+move ship by 90 times seconds since the last frame , 0
+```
+
+A **burst** is what an explosion, a splash, a puff of dust and a shower of
+sparks all are: bits thrown out from a point that move themselves and fade.
+Say it once.
+
+A **slide** eases at both ends, because nothing in the world starts and stops
+at full speed, and it happens on its own once said.
+
+**`seconds since the last frame`** is how a game runs at the same speed on a
+fast machine and a slow one. Multiply movement by it.
+
 ## Sounds a game actually needs
 
 A game with no sound files should still be able to make a noise. A beep is a

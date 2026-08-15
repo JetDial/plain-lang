@@ -249,6 +249,63 @@ export function installCore(rt) {
   rt.defineValue('time now', () => Date.now());
   rt.defineValue('today', () => new Date().toISOString().slice(0, 10));
 
+  // ---------------------------------------------------------- checking
+  //
+  // A language that can build a server and a game and cannot say whether
+  // they work is only half a tool. Every check on this language and on the
+  // things built with it has so far been written in another language, which
+  // is a strange thing to have to admit.
+  //
+  //     check that the score is 10
+  //     check that the door is open
+  //     show how the checks went
+  //
+  // Nothing is thrown. A failed check is written down and the program
+  // carries on, because the second failure is usually the one that explains
+  // the first.
+
+  const checks = { passed: 0, failed: 0, notes: [] };
+
+  const wrote = (value) => {
+    if (typeof value === 'string') return `"${value}"`;
+    return toText(value);
+  };
+
+  rt.define('check $value is $expected', (a, ctx) => {
+    if (equals(a.value, a.expected)) { checks.passed += 1; return; }
+    checks.failed += 1;
+    checks.notes.push(`expected ${wrote(a.expected)} but got ${wrote(a.value)}`);
+  });
+
+  rt.define('check $value is not $expected', (a, ctx) => {
+    if (!equals(a.value, a.expected)) { checks.passed += 1; return; }
+    checks.failed += 1;
+    checks.notes.push(`did not expect ${wrote(a.expected)}`);
+  });
+
+  rt.define('check that $question', (a) => {
+    if (truthy(a.question)) { checks.passed += 1; return; }
+    checks.failed += 1;
+    checks.notes.push('that was not so');
+  });
+
+  // The same, with a name, so a run of checks reads as a list of what the
+  // program is supposed to do.
+  rt.define('check $name : $value is $expected', (a) => {
+    if (equals(a.value, a.expected)) { checks.passed += 1; return; }
+    checks.failed += 1;
+    checks.notes.push(`${toText(a.name)}: expected ${wrote(a.expected)} but got ${wrote(a.value)}`);
+  });
+
+  rt.defineValue('how the checks went', () => {
+    if (checks.failed === 0) return `all ${checks.passed} checks passed`;
+    return `${checks.failed} of ${checks.passed + checks.failed} checks failed\n  ` + checks.notes.join('\n  ');
+  });
+
+  rt.defineValue('checks that failed', () => checks.failed);
+  rt.defineValue('checks that passed', () => checks.passed);
+  rt.define('forget the checks so far', () => { checks.passed = 0; checks.failed = 0; checks.notes = []; });
+
   // -------------------------------------------------------------- room
   //
   // Memory, said in a way that keeps the good half and refuses the bad one.
