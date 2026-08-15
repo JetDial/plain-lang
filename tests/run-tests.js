@@ -321,6 +321,29 @@ check('names that only hold numbers are found, and only those', () => {
   assert.ok(!found.has('sum'), 'an item of a list could be anything');
 });
 
+check('a name given text inside an if is not a number', () => {
+  // The analysis reads an "if" through its branches. When it did not, every
+  // assignment inside one was invisible and this name was called a number.
+  const rt = createRuntime({ onOutput: () => {} });
+  const found = numericNames(rt.parse([
+    'make a be 0',
+    'if a is above 1',
+    '    set a to "text"',
+    'end',
+    'make b be 0',
+    'otherwise_check',
+    'make c be 0',
+    'if a is above 1',
+    '    set c to 1',
+    'otherwise',
+    '    set c to "text"',
+    'end'
+  ].join('\n').replace('otherwise_check' + '\n', ''), 'ifs.plain'), []);
+  assert.ok(!found.has('a'), 'a is given text inside an if');
+  assert.ok(!found.has('c'), 'c is given text in the otherwise');
+  assert.ok(found.has('b'), 'b is only ever a number');
+});
+
 check('serving twice is one server, not a failed second one', () => {
   // A program that uses another one inherits its "start serving" line as
   // well as its own. That must not try to open the port twice: the second

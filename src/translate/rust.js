@@ -16,7 +16,7 @@
 
 import { Emitter } from './emitter.js';
 import { runtimeSource, PROGRAM_STARTS } from './runtimes.js';
-import { numericNames } from './numbers.js';
+import { numericNames, numericLists } from './numbers.js';
 
 const RESERVED = new Set([
   'as', 'async', 'await', 'break', 'const', 'continue', 'crate', 'dyn', 'else',
@@ -203,6 +203,13 @@ export class RustEmitter extends Emitter {
   // "name of me" has to hand out a share of `me` like any other read, or the
   // second thing an action looks at finds it already given away.
   readField(node) {
+    const field0 = String(node.name).toLowerCase();
+    if (node.object && node.object.type === 'Var' && this.isPlainList(node.object.name)) {
+      const list = this.variable(node.object.name);
+      if (['length', 'size', 'count'].includes(field0)) return `Value::Number(${list}.len() as f64)`;
+      if (field0 === 'first') return `Value::Number(*${list}.first().unwrap_or(&0.0))`;
+      if (field0 === 'last') return `Value::Number(*${list}.last().unwrap_or(&0.0))`;
+    }
     const object = this.expression(node.object);
     const field = String(node.name).toLowerCase();
     if (['length', 'size', 'count'].includes(field)) return `plain_length(${object})`;
@@ -294,6 +301,23 @@ export class RustEmitter extends Emitter {
     this.close();
   }
 
+  emitForEach(node) {
+    // Walking a run of plain numbers: no boxes, no shares handed out, and
+    // the shape a processor can do four or eight of at a time.
+    if (node.list && node.list.type === 'Var' && this.isPlainList(node.list.name)) {
+      const name = this.loopName(node.name);
+      this.open(`for &${name} in ${this.variable(node.list.name)}.iter() {`);
+      this.bindLoop(node.name, name);
+      const before = this.plainNumbers;
+      this.plainNumbers = new Set([...(before || []), String(node.name).toLowerCase()]);
+      this.block(node.block);
+      this.plainNumbers = before;
+      this.close();
+      return;
+    }
+    return super.emitForEach(node);
+  }
+
   emitCount(node) {
     const name = this.loopName(node.name);
 
@@ -341,17 +365,32 @@ export class RustEmitter extends Emitter {
   enterNumbers(block, params) {
     this.numberStack = this.numberStack || [];
     this.numberStack.push(this.plainNumbers);
+    this.listStack = this.listStack || [];
+    this.listStack.push(this.plainLists);
     try {
-      this.plainNumbers = numericNames(block, params);
+      this.plainLists = numericLists(block, params);
+      this.plainNumbers = numericNames(block, params, this.plainLists);
     } catch {
       // A shape this analysis has never seen is not a reason to fail to
       // translate. It is a reason to box everything, as before.
       this.plainNumbers = new Set();
+      this.plainLists = new Set();
     }
   }
 
   leaveNumbers() {
     this.plainNumbers = (this.numberStack || []).pop();
+    this.plainLists = (this.listStack || []).pop();
+  }
+
+  isPlainList(name) {
+    return !!(this.plainLists && this.plainLists.has(String(name).toLowerCase()));
+  }
+
+  // A number for a place that wants one, however it was written.
+  asNumber(node) {
+    if (this.isPlainNumber(node)) return this.bareNumber(node);
+    return `plain_number(${this.expression(node)})`;
   }
 
   // Making and changing a name that holds only numbers. The value has to be
@@ -367,6 +406,18 @@ export class RustEmitter extends Emitter {
           this.remember(name);
           return this.writeLine(line);
         }
+      }
+      if (node.type === 'Make' && this.isPlainList(node.name)) {
+        const items = (node.value && node.value.items) || [];
+        const written = items.map(one => this.asNumber(one)).join(', ');
+        const name = this.variable(node.name);
+        this.remember(name);
+        return this.writeLine(`let mut ${name}: Vec<f64> = vec![${written}]`);
+      }
+      if (node.type === 'Phrase' && node.spec === 'add $value to #name'
+          && this.isPlainList((node.args || {}).name)) {
+        const into = this.variable(node.args.name);
+        return this.writeLine(`${into}.push(${this.asNumber(node.args.value)})`);
       }
       if (node.type === 'Set' && node.target && node.target.type === 'Var'
           && this.plainNumbers.has(String(node.target.name).toLowerCase())) {

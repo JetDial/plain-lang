@@ -19,203 +19,284 @@
 // Reading these of a name is still reading a number.
 const NUMERIC_FIELDS = new Set(['length', 'size', 'count']);
 
-export function numericNames(block, params = []) {
-  const seen = new Map();     // name -> true while it still looks numeric
+export function numericNames(block, params = [], lists = null) {
+  // Walking a run of plain numbers hands out plain numbers, so the name in
+  // that loop is one too.
+  const numberLists = lists || new Set();
+
+  // The rule, and it took two goes to get right.
+  //
+  // The first version banned a name the moment it was *read* anywhere that
+  // wanted a real Value - inside a piece of text, handed to an action. That
+  // is far too strict, and it is strict for no reason: reading is always
+  // safe, because the translator can put the number in a box at that one
+  // spot and hand it over. A total that is added up as a number and then
+  // shown in a sentence is still a number the whole time it is being added.
+  //
+  // What actually matters is what a name is *given*. If every single thing
+  // ever put into it is a number, it is a number. If one of them might not
+  // be, it is not, and no amount of reading changes that either way.
+  const numeric = new Set();
   const banned = new Set();
-
   const lower = (name) => String(name).toLowerCase();
+  const ban = (name) => { if (name) banned.add(lower(name)); };
 
-  const ban = (name) => { banned.add(lower(name)); };
-
-  // Is this expression certainly a number, given what we believe so far?
-  // "Certainly" is doing a lot of work: a call might return anything, a
-  // field might hold anything, so neither counts.
   const isNumber = (node) => {
     if (!node) return false;
     switch (node.type) {
       case 'Number': return true;
-      case 'Var': return seen.has(lower(node.name)) && !banned.has(lower(node.name));
+      case 'Var': {
+        const name = lower(node.name);
+        return numeric.has(name) && !banned.has(name);
+      }
       case 'Negate': return isNumber(node.value);
-      case 'Math': return isNumber(node.left) && isNumber(node.right);
+      case 'Math':
+        // Plain joins text with the same word it adds numbers with, so this
+        // is only arithmetic when both sides are certainly numbers.
+        return isNumber(node.left) && isNumber(node.right);
       default: return false;
     }
   };
 
-  // Walking an expression: anything a name is used for that is not plain
-  // arithmetic or a comparison bans it, because at that point it has to be
-  // a real Value again and the translator would have to box it back up.
-  const walkValue = (node, numericPlace) => {
-    if (!node || typeof node !== 'object') return;
+  const give = (name, value) => {
+    const key = lower(name);
+    if (isNumber(value)) { if (!banned.has(key)) numeric.add(key); }
+    else ban(key);
+  };
+
+  const statements = (nodes) => { for (const one of nodes || []) statement(one); };
+
+  const statement = (node) => {
+    if (!node) return;
     switch (node.type) {
-      case 'Var':
-        if (!numericPlace) ban(node.name);
+      case 'Make': give(node.name, node.value); return;
+      case 'Set':
+        if (node.target && node.target.type === 'Var') give(node.target.name, node.value);
         return;
-      case 'Number': case 'Text': case 'Bool': case 'Nothing':
+      case 'If':
+        // An "if" keeps its parts in "branches", not in a block of its own.
+        // Reading that wrong made every assignment inside an if invisible,
+        // which is not a missed optimisation - it is a name being called a
+        // number because the line that made it text was never looked at.
+        for (const branch of node.branches || []) statements(branch.block && branch.block.body);
+        statements(node.otherwise && node.otherwise.body);
         return;
-      case 'Math':
-        walkValue(node.left, numericPlace);
-        walkValue(node.right, numericPlace);
+      case 'While':
+        statements(node.block && node.block.body);
         return;
-      case 'Negate':
-        walkValue(node.value, numericPlace);
+      case 'Count': {
+        // A counter is a number by the shape of the sentence.
+        const counter = lower(node.name);
+        if (!banned.has(counter)) numeric.add(counter);
+        statements(node.block && node.block.body);
         return;
-      case 'Compare':
-        // Both sides of a comparison are read as numbers when both sides
-        // look like numbers; otherwise it is a general comparison and the
-        // names in it have to stay boxed.
-        if (isNumber(node.left) && isNumber(node.right)) {
-          walkValue(node.left, true);
-          walkValue(node.right, true);
+      }
+      case 'Repeat':
+        if (!banned.has('count')) numeric.add('count');
+        statements(node.block && node.block.body);
+        return;
+      case 'ForEach': {
+        const each = lower(node.name);
+        if (node.list && node.list.type === 'Var' && numberLists.has(lower(node.list.name))) {
+          if (!banned.has(each)) numeric.add(each);
         } else {
-          walkValue(node.left, false);
-          walkValue(node.right, false);
+          ban(each);
         }
+        statements(node.block && node.block.body);
         return;
-      case 'Not':
-        walkValue(node.value, false);
+      }
+      case 'Phrase': {
+        // The sentences that put something into a name. Everything else
+        // only reads, and reading is always safe.
+        const spec = String(node.spec || '');
+        const args = node.args || {};
+        if (spec === 'add $value to #name') {
+          // This adds numbers and appends to lists, so it only keeps a name
+          // numeric when what is given is certainly a number.
+          give(args.name, args.value);
+          return;
+        }
+        if (spec === 'take $value from #name') { give(args.name, args.value); return; }
+        if (spec === 'put $value into #name') { give(args.name, args.value); return; }
+        if (args.name !== undefined && typeof args.name === 'string') ban(args.name);
         return;
-      case 'Logic':
-        walkValue(node.left, false);
-        walkValue(node.right, false);
+      }
+      case 'Try':
+        statements(node.block && node.block.body);
+        statements(node.rescue && node.rescue.body);
         return;
-      case 'Field':
-        // "length of x" reads a number out of x, but x itself is still a
-        // list or a piece of text and must stay one.
-        walkValue(node.object, false);
+      case 'Block':
+        statements(node.body);
         return;
-      case 'List':
-        for (const item of node.items || []) walkValue(item, false);
+      case 'Function': case 'Kind':
         return;
-      case 'Record':
-        for (const pair of node.pairs || []) walkValue(pair.value, false);
-        return;
-      case 'New':
-        for (const pair of node.pairs || []) walkValue(pair.value, false);
-        return;
-      default: {
-        // Anything else - a call, a phrase, something added later - is read
-        // as "this could do anything", so every name inside it is banned.
+      default:
+        // Anything with a block inside it still has to be walked, because a
+        // name can be given something in there.
         for (const key of Object.keys(node)) {
           const child = node[key];
-          if (Array.isArray(child)) for (const one of child) walkValue(one, false);
-          else if (child && typeof child === 'object' && child.type) walkValue(child, false);
+          if (child && typeof child === 'object' && Array.isArray(child.body)) statements(child.body);
         }
-      }
     }
   };
 
-  const walkStatements = (nodes) => {
-    for (const node of nodes || []) walkStatement(node);
+  // A parameter could be handed anything at all.
+  for (const param of params) ban(param);
+
+  // Twice, because a name can look like a number until a later line spoils
+  // it, and nothing may be trusted that the second pass takes back.
+  statements(block && block.body);
+  const first = new Set([...numeric].filter(name => !banned.has(name)));
+  numeric.clear();
+  banned.clear();
+  for (const param of params) ban(param);
+  statements(block && block.body);
+
+  const out = new Set();
+  for (const name of numeric) if (!banned.has(name) && first.has(name)) out.add(name);
+  return out;
+}
+
+
+// Which names hold a list of nothing but numbers.
+//
+// This is the same idea one step out, and it is what unlocks the two things
+// C++ is usually reached for. A list of boxed values is a list of pointers
+// to numbers scattered across memory; a list of plain numbers is one run of
+// memory, which is the only shape a processor can do several at a time, and
+// the only shape that can be handed to another thread without the counting
+// of shares going wrong.
+//
+// The rules are the same as for a single number, and just as timid: made
+// empty or from numbers, only ever added to with numbers, and only ever
+// used in ways a run of numbers can answer.
+export function numericLists(block, params = []) {
+  const made = new Set();
+  const banned = new Set();
+  const lower = (name) => String(name).toLowerCase();
+
+  const allNumbers = (node) => {
+    if (!node) return false;
+    if (node.type !== 'List') return false;
+    return (node.items || []).every(item => item.type === 'Number'
+      || (item.type === 'Negate' && item.value && item.value.type === 'Number'));
   };
 
-  const walkStatement = (node) => {
+  const walk = (node, listPlace, holder) => {
+    if (!node || typeof node !== 'object') return;
+    if (node.type === 'Var') {
+      // A list name read anywhere except the places below has to be a real
+      // list again, so it stops qualifying.
+      if (!listPlace) banned.add(lower(node.name));
+      return;
+    }
+    if (node.type === 'Field') {
+      const field = String(node.name || '').toLowerCase();
+      // Reading how long it is, or an item of it, is fine.
+      if (['length', 'size', 'count', 'first', 'last'].includes(field)
+          && node.object && node.object.type === 'Var') return;
+      walk(node.object, false);
+      return;
+    }
+    for (const key of Object.keys(node)) {
+      const child = node[key];
+      if (Array.isArray(child)) for (const one of child) walk(one, false);
+      else if (child && typeof child === 'object' && child.type) walk(child, false);
+    }
+  };
+
+  const statements = (nodes) => { for (const one of nodes || []) statement(one); };
+
+  const statement = (node) => {
     if (!node) return;
     switch (node.type) {
       case 'Make': {
         const name = lower(node.name);
-        if (isNumber(node.value) && !banned.has(name)) {
-          if (!seen.has(name)) seen.set(name, true);
-        } else {
-          ban(name);
-        }
-        walkValue(node.value, isNumber(node.value));
+        const value = node.value;
+        const empty = value && value.type === 'List' && (value.items || []).length === 0;
+        if (empty || allNumbers(value)) made.add(name);
+        else banned.add(name);
+        walk(value, false);
         return;
       }
-      case 'Set': {
-        // Only the simple form counts. Setting a field, or an item of a
-        // list, is not a name holding a number.
-        if (node.target && node.target.type === 'Var') {
-          const name = lower(node.target.name);
-          if (!isNumber(node.value)) ban(name);
-          walkValue(node.value, isNumber(node.value));
-        } else {
-          walkValue(node.target, false);
-          walkValue(node.value, false);
+      case 'Set':
+        if (node.target && node.target.type === 'Var') banned.add(lower(node.target.name));
+        walk(node.target, false);
+        walk(node.value, false);
+        return;
+      case 'ForEach':
+        // Walking one is exactly what a run of numbers is for.
+        if (node.list && node.list.type === 'Var') { /* allowed */ }
+        else walk(node.list, false);
+        statements(node.block && node.block.body);
+        return;
+      case 'Phrase': {
+        // "add 3 to numbers" keeps it a run of numbers; anything else that
+        // takes the name does not.
+        const spec = String(node.spec || '');
+        if (spec === 'add $value to #name') {
+          const value = (node.values || {}).value || (node.args || {}).value;
+          if (!value || !isPlainNumeric(value)) banned.add(lower(nameOf(node)));
+          return;
         }
+        for (const key of Object.keys(node)) {
+          const child = node[key];
+          if (child && typeof child === 'object') walk(child, false);
+        }
+        if (nameOf(node)) banned.add(lower(nameOf(node)));
         return;
       }
       case 'If':
-        walkValue(node.condition, false);
-        walkStatements(node.block && node.block.body);
+        walk(node.condition, false);
+        statements(node.block && node.block.body);
         for (const other of node.others || []) {
-          walkValue(other.condition, false);
-          walkStatements(other.block && other.block.body);
+          walk(other.condition, false);
+          statements(other.block && other.block.body);
         }
-        walkStatements(node.otherwise && node.otherwise.body);
+        statements(node.otherwise && node.otherwise.body);
         return;
       case 'While':
-        walkValue(node.condition, false);
-        walkStatements(node.block && node.block.body);
+        walk(node.condition, false);
+        statements(node.block && node.block.body);
         return;
-      case 'Count': {
-        // A counter is a number by the shape of the sentence - "from 1 to
-        // 20" cannot hold anything else - so it counts as one, and so does
-        // anything worked out from it.
-        const counter = lower(node.name);
-        if (!banned.has(counter)) seen.set(counter, true);
-        walkValue(node.from, isNumber(node.from));
-        walkValue(node.to, isNumber(node.to));
-        walkValue(node.step, isNumber(node.step));
-        walkStatements(node.block && node.block.body);
-        return;
-      }
-      case 'ForEach':
-        ban(node.name);
-        walkValue(node.list, false);
-        walkStatements(node.block && node.block.body);
-        return;
-      case 'Repeat': {
-        // "repeat 3 times" hands the block a name called count, which is a
-        // number for the same reason.
-        if (!banned.has('count')) seen.set('count', true);
-        walkValue(node.times, isNumber(node.times));
-        walkStatements(node.block && node.block.body);
-        return;
-      }
-      case 'Return':
-        // Giving a number back is allowed: the translator puts it in a box
-        // on the way out, once, rather than on every line.
-        if (node.value && node.value.type === 'Var' && isNumber(node.value)) return;
-        walkValue(node.value, false);
+      case 'Count': case 'Repeat':
+        walk(node.from, false); walk(node.to, false); walk(node.times, false);
+        statements(node.block && node.block.body);
         return;
       case 'Block':
-        walkStatements(node.body);
+        statements(node.body);
         return;
       case 'Function': case 'Kind':
-        // A nested one has its own names; nothing here can be trusted after
-        // it, so the simplest correct answer is to look no further.
         return;
-      default: {
+      default:
         for (const key of Object.keys(node)) {
           const child = node[key];
-          if (Array.isArray(child)) {
-            for (const one of child) {
-              if (one && one.type) (one.type in { Make: 1, Set: 1, If: 1, While: 1 }) ? walkStatement(one) : walkValue(one, false);
-            }
-          } else if (child && typeof child === 'object' && child.type) {
-            walkValue(child, false);
-          }
+          if (Array.isArray(child)) for (const one of child) walk(one, false);
+          else if (child && typeof child === 'object' && child.type) walk(child, false);
         }
-      }
     }
   };
 
-  // A parameter could be handed anything at all, so it never qualifies.
-  for (const param of params) ban(param);
+  const nameOf = (node) => {
+    const bag = node.names || node.args || node.values || {};
+    return bag.name || null;
+  };
 
-  // Twice, because a name can look numeric until a later line spoils it -
-  // and a name banned on the second pass must not have been trusted by
-  // anything on the first.
-  walkStatements(block && block.body);
-  const firstRound = new Set([...seen.keys()].filter(name => !banned.has(name)));
-  seen.clear();
-  banned.clear();
-  for (const param of params) ban(param);
-  walkStatements(block && block.body);
+  const isPlainNumeric = (node) => {
+    if (!node) return false;
+    switch (node.type) {
+      case 'Number': return true;
+      case 'Negate': return isPlainNumeric(node.value);
+      case 'Math': return isPlainNumeric(node.left) && isPlainNumeric(node.right);
+      case 'Var': return true;      // checked against the number analysis by the caller
+      default: return false;
+    }
+  };
+
+  for (const param of params) banned.add(lower(param));
+  statements(block && block.body);
 
   const out = new Set();
-  for (const name of seen.keys()) {
-    if (!banned.has(name) && firstRound.has(name)) out.add(name);
-  }
+  for (const name of made) if (!banned.has(name)) out.add(name);
   return out;
 }
