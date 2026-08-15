@@ -342,6 +342,48 @@ check('a list of things can be sorted by one of their values', () => {
   assert.deepEqual(rt.interpreter.globals.get('names'), ['Cy', 'Bo', 'Ada']);
 });
 
+check('the view moves the world without moving the screen', () => {
+  const { game } = runtimeFor([
+    'start a game called "Big" sized 800 by 600',
+    'point the view at 5000 , 3000',
+    'zoom the view to 0.5',
+    'every frame',
+    '    seen through the view',
+    '        draw a circle at 5000 , 3000 sized 100 colored "#fff"',
+    '        draw a circle at 5400 , 3000 sized 100 colored "#fff"',
+    '    end',
+    '    draw "score 3" at 20 , 20 sized 16 colored "#fff"',
+    'end'
+  ].join('\n'));
+  game.simulate(1);
+  const drawn = game.drawQueue;
+  const middle = drawn[0], along = drawn[1], hud = drawn[2];
+  // What the view is pointed at lands in the middle of the window.
+  assert.equal(middle.x, 400);
+  assert.equal(middle.y, 300);
+  // 400 further on, at half size, is 200 further across.
+  assert.equal(along.x, 600);
+  // And it is drawn half the size, because that is what zoom means.
+  assert.equal(middle.size, 50);
+  // The score is not in the world and does not move with it.
+  assert.equal(hud.x, 20);
+  assert.equal(hud.y, 20);
+  assert.equal(hud.size, 16);
+});
+
+check('what the view can see is a question a program can ask', () => {
+  const { rt } = runtimeFor([
+    'start a game called "Big" sized 800 by 600',
+    'point the view at 1000 , 1000',
+    'zoom the view to 2',
+    'make left be view left',
+    'make right be view right'
+  ].join('\n'));
+  // At twice the size, an 800-wide window shows 400 of the world.
+  assert.equal(rt.interpreter.globals.get('left'), 800);
+  assert.equal(rt.interpreter.globals.get('right'), 1200);
+});
+
 check('a program can ask which key was pressed', () => {
   const { rt, game } = runtimeFor([
     'start a game called "G"',

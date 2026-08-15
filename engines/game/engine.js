@@ -145,6 +145,10 @@ export class Game {
     this.leaving = [];                // { thing, run }
     this.keys = new Set();
     this.pressed = '';                // the key that set the last press going
+    // Where the view is looking, and how close it sits. Only drawing done
+    // inside "seen through the view" is moved by it; everything else stays
+    // where it is put, which is what a score in a corner wants.
+    this.view = { x: 0, y: 0, zoom: 1, through: false };
     this.mouse = { x: 0, y: 0, down: false };
     this.clicks = [];                 // { run }
     this.drawQueue = [];
@@ -347,6 +351,13 @@ export class Game {
         ctx.beginPath();
         ctx.arc(item.x, item.y, item.size / 2, 0, Math.PI * 2);
         ctx.fill();
+      } else if (item.kind === 'line') {
+        ctx.strokeStyle = item.color;
+        ctx.lineWidth = item.thick;
+        ctx.beginPath();
+        ctx.moveTo(item.x, item.y);
+        ctx.lineTo(item.tox, item.toy);
+        ctx.stroke();
       } else if (item.kind === 'triangle' || item.kind === 'arrow' || item.kind === 'plane') {
         // Drawn nose-first along nothing, then turned to where it points.
         const long = item.size / 2;
@@ -640,28 +651,90 @@ export function installGame(rt, host = {}) {
   // ------------------------------------------------------ drawing right now
 
   rt.define('draw $text at $x , $y', (a) => {
-    game.drawQueue.push({ kind: 'text', text: toText(a.text), x: toNumber(a.x), y: toNumber(a.y), size: 20, color: '#ffffff' });
+    { const at = seen(a.x, a.y);
+      game.drawQueue.push({ kind: 'text', text: toText(a.text), x: at.x, y: at.y, size: scaled(20), color: '#ffffff' }); }
   });
 
   rt.define('draw $text at $x , $y sized $size colored $color', (a) => {
-    game.drawQueue.push({ kind: 'text', text: toText(a.text), x: toNumber(a.x), y: toNumber(a.y), size: toNumber(a.size), color: toText(a.color) });
+    { const at = seen(a.x, a.y);
+      game.drawQueue.push({ kind: 'text', text: toText(a.text), x: at.x, y: at.y, size: scaled(a.size), color: toText(a.color) }); }
+  });
+
+  // --------------------------------------------------------------- the view
+  //
+  // A game bigger than its window needs to decide which part of it you are
+  // looking at, and every one of them ends up writing the same sum:
+  //
+  //     (x minus camx) times zoom plus half the width
+  //
+  // once for every single thing it draws. Get it wrong in one place and one
+  // kind of thing sits still while the rest of the world slides past it.
+  //
+  // So it is written once, here. Point the view somewhere, and anything
+  // drawn inside "seen through the view" is drawn where it belongs in the
+  // world. Anything drawn outside it is drawn on the screen, which is where
+  // a score, a health bar and a menu want to be.
+
+  const seen = (x, y) => (game.view.through
+    ? { x: (toNumber(x) - game.view.x) * game.view.zoom + game.width / 2,
+        y: (toNumber(y) - game.view.y) * game.view.zoom + game.height / 2 }
+    : { x: toNumber(x), y: toNumber(y) });
+
+  const scaled = (n) => (game.view.through ? toNumber(n) * game.view.zoom : toNumber(n));
+
+  rt.define('point the view at $x , $y', (a) => {
+    game.view.x = toNumber(a.x);
+    game.view.y = toNumber(a.y);
+  });
+
+  rt.define('zoom the view to $amount', (a) => {
+    game.view.zoom = Math.max(0.01, toNumber(a.amount));
+  });
+
+  rt.define('seen through the view ...', (a, ctx) => {
+    const before = game.view.through;
+    game.view.through = true;
+    try { ctx.block(); } finally { game.view.through = before; }
+  });
+
+  rt.defineValue('view x', () => game.view.x);
+  rt.defineValue('view y', () => game.view.y);
+  rt.defineValue('view zoom', () => game.view.zoom);
+
+  // Which part of the world is on the screen at all. Anything outside this
+  // does not need drawing, and in a big world that is most of it.
+  rt.defineValue('view left', () => game.view.x - (game.width / 2) / game.view.zoom);
+  rt.defineValue('view right', () => game.view.x + (game.width / 2) / game.view.zoom);
+  rt.defineValue('view top', () => game.view.y - (game.height / 2) / game.view.zoom);
+  rt.defineValue('view bottom', () => game.view.y + (game.height / 2) / game.view.zoom);
+
+  // A straight line, which every other drawing tool has and this did not.
+  rt.define('draw a line from $x , $y to $tox , $toy thick $thick colored $color', (a) => {
+    const from = seen(a.x, a.y), to = seen(a.tox, a.toy);
+    game.drawQueue.push({
+      kind: 'line', x: from.x, y: from.y, tox: to.x, toy: to.y,
+      thick: Math.max(0.2, scaled(a.thick)), color: toText(a.color)
+    });
   });
 
   rt.define('draw a box at $x , $y sized $width by $height colored $color', (a) => {
-    game.drawQueue.push({ kind: 'box', x: toNumber(a.x), y: toNumber(a.y), width: toNumber(a.width), height: toNumber(a.height), color: toText(a.color) });
+    { const at = seen(a.x, a.y);
+      game.drawQueue.push({ kind: 'box', x: at.x, y: at.y, width: scaled(a.width), height: scaled(a.height), color: toText(a.color) }); }
   });
 
   rt.define('draw a circle at $x , $y sized $size colored $color', (a) => {
-    game.drawQueue.push({ kind: 'circle', x: toNumber(a.x), y: toNumber(a.y), size: toNumber(a.size), color: toText(a.color) });
+    { const at = seen(a.x, a.y);
+      game.drawQueue.push({ kind: 'circle', x: at.x, y: at.y, size: scaled(a.size), color: toText(a.color) }); }
   });
 
   // Anything with a front to it - an aeroplane, an arrow, a fish - has to be
   // drawn pointing somewhere. Without this the only shapes a game can draw
   // are ones that look the same whichever way round they are.
   const turned = (kind) => (a) => {
+    const at = seen(a.x, a.y);
     game.drawQueue.push({
-      kind, x: toNumber(a.x), y: toNumber(a.y),
-      size: toNumber(a.size), angle: toNumber(a.degrees),
+      kind, x: at.x, y: at.y,
+      size: scaled(a.size), angle: toNumber(a.degrees),
       color: toText(a.color)
     });
   };

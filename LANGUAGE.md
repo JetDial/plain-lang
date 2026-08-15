@@ -835,6 +835,36 @@ when ball leaves the screen
 end
 ```
 
+## The view
+
+A game bigger than its window has to decide which part of it you are looking
+at. Without help, every game ends up writing the same sum beside every single
+thing it draws — `(x minus camx) times zoom plus half the width` — and getting
+it wrong in one place leaves one kind of thing standing still while the world
+slides past it.
+
+```
+point the view at x of hero , y of hero
+zoom the view to 0.5
+
+seen through the view
+    draw a circle at 5000 , 3000 sized 100 colored "#7ee787"
+end
+
+draw "score {score}" at 20 , 20 sized 16 colored "#ffffff"
+```
+
+Anything drawn **inside** `seen through the view` is drawn where it belongs in
+the world, at the size it is in the world. Anything drawn outside it is drawn
+on the screen, which is where a score, a health bar and a menu want to be.
+
+`view x`, `view y` and `view zoom` read it back. `view left`, `view right`,
+`view top` and `view bottom` are which part of the world is on screen at all —
+what you use to skip drawing the rest of it.
+
+Also `draw a line from $x , $y to $x , $y thick $n colored $c`, which follows
+the same rule.
+
 ## Bytes
 
 Most of what computers send each other is not writing. A picture, a sound, or

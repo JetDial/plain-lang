@@ -866,7 +866,31 @@ is what makes a game feel broken.</p>`,
         }
       },
       {
-        teach: `<p>Two things are moving about and nothing happens when they meet. A game
+        teach: `<p>One more thing before the rule, and it is the thing that separates a
+game the size of its window from a game with a world in it.</p>
+<p>Everything so far has been drawn where it sits on the screen: 320 across
+means 320 dots from the left, always. That is fine while the whole game
+fits. The moment the world is bigger than the window, you need to say
+<i>which part of it you are looking at</i> - and then every single thing you
+draw has to be shifted by however far the view has moved, and shrunk by
+however far out it is zoomed.</p>
+<p>Written by hand that is the same sum copied beside every drawing in the
+game, and if you get it wrong in one place, one kind of thing stands still
+while the world slides past it. So Plain does it for you.</p>
+` + walk([
+          ['point the view at x of basket , y of basket', 'Look at the basket, wherever it has got to. The view is now centred on it.'],
+          ['zoom the view to 0.5', 'Half size, so you see twice as much sky. Bigger than 1 is closer in.'],
+          ['seen through the view', 'Everything until the matching <code>end</code> is drawn <b>where it is in the world</b>, not where it lands on the screen.'],
+          ['end', 'And after this, drawing goes back to being on the screen - which is exactly where a score belongs, because a score should not slide away when you walk left.']
+        ]) + `<p>This game is small enough not to need it. Try it anyway: point the view
+at the basket and watch the whole world slide instead of the basket. That is
+how every scrolling game you have ever played works.</p>
+<p><code>view left</code>, <code>view right</code>, <code>view top</code> and
+<code>view bottom</code> tell you which part of the world is on screen, which
+is how a big game avoids drawing the parts of itself nobody can see.</p>
+<hr>
+<p>Now the rule.</p>
+<p>Two things are moving about and nothing happens when they meet. A game
 is the rule about what happens when they meet.</p>
 <pre>make score be 0
 
