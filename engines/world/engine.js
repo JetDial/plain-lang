@@ -159,7 +159,17 @@ export class World {
     this.bodies = this.bodies.filter(body => !body.gone);
 
     const follow = this.camera.follow;
-    if (follow && !follow.gone) {
+    if (follow && !follow.gone && this.camera.inside) {
+      // Looking out of somebody's own eyes: the camera sits where they are
+      // and looks the way they are facing, rather than hanging behind them.
+      const angle = follow.turnY * Math.PI / 180;
+      this.camera.x = follow.x;
+      this.camera.y = follow.y + this.camera.height;
+      this.camera.z = follow.z;
+      this.camera.atX = follow.x - Math.sin(angle) * 10;
+      this.camera.atY = follow.y + this.camera.height;
+      this.camera.atZ = follow.z - Math.cos(angle) * 10;
+    } else if (follow && !follow.gone) {
       const angle = follow.turnY * Math.PI / 180;
       this.camera.x = follow.x + Math.sin(angle) * this.camera.distance;
       this.camera.z = follow.z + Math.cos(angle) * this.camera.distance;
@@ -349,6 +359,21 @@ export function installWorld(rt, host = {}) {
     world.camera.atX = toNumber(a.x);
     world.camera.atY = toNumber(a.y);
     world.camera.atZ = toNumber(a.z);
+  });
+
+  // Out of their own eyes rather than over their shoulder. The same
+  // following, seen from a different place - which is all a first person
+  // camera has ever been.
+  rt.define('look out of $body', (a, ctx) => {
+    world.camera.follow = bodyOf(a.body, ctx);
+    world.camera.inside = true;
+    world.camera.height = 0.8;
+  });
+
+  rt.define('look over the shoulder of $body', (a, ctx) => {
+    world.camera.follow = bodyOf(a.body, ctx);
+    world.camera.inside = false;
+    world.camera.height = 6;
   });
 
   rt.define('follow $body with the camera', (a, ctx) => {

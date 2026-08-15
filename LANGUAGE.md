@@ -1047,6 +1047,17 @@ you walk away and lights the side of a thing that faces it. Haze is the
 cheapest way to make a world feel large, because it stops the far edge of it
 looking like an edge.
 
+Out of somebody's own eyes, rather than over their shoulder:
+
+```
+look out of hero
+look over the shoulder of hero
+```
+
+The camera sits where they are and looks the way they are facing. It is the
+same following seen from a different place, which is all a first person
+camera has ever been.
+
 And the question a 3D program cannot answer without help:
 
 ```
