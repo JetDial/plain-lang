@@ -249,6 +249,75 @@ export function installCore(rt) {
   rt.defineValue('time now', () => Date.now());
   rt.defineValue('today', () => new Date().toISOString().slice(0, 10));
 
+  // ----------------------------------------------------------- toolkits
+  //
+  // Code somebody else wrote in another language, called from Plain.
+  //
+  // This is the one thing C++ has that no amount of tidy design replaces:
+  // it can call the library that already exists. Thirty years of image
+  // decoders, compression, cryptography and physics are written in C, and a
+  // language that cannot reach them has to rewrite all of it or go without.
+  //
+  // The way in is WebAssembly, which is what a C library compiles to when it
+  // wants to be portable. It works in a terminal and on a page, it needs
+  // nothing installed, and - the part that matters for Plain - it cannot
+  // reach outside itself. A toolkit gets numbers in and gives numbers back.
+  // It cannot read your files or open a socket unless you hand it the means,
+  // which is exactly the bargain somebody choosing Plain has already made.
+  //
+  //     use the toolkit "maths.wasm" as sums
+  //     show ask sums for "add" with 2 and 3
+  //
+  // What it does not do is let Plain write a driver. That needs addresses,
+  // and addresses are the thing this language is for not having.
+
+  const toolkits = new Map();
+
+  const openToolkit = (bytes, ctx) => {
+    if (typeof WebAssembly === 'undefined') {
+      ctx.fail('This computer cannot open toolkits', 'WebAssembly is missing, which is very unusual');
+    }
+    try {
+      const code = Uint8Array.from(bytes.map(one => toNumber(one) & 0xff));
+      const shape = new WebAssembly.Module(code);
+      return new WebAssembly.Instance(shape, {});
+    } catch (problem) {
+      ctx.fail('That is not a toolkit I can open', String(problem.message || problem));
+    }
+  };
+
+  rt.define('use the toolkit $bytes as #name', (a, ctx) => {
+    const opened = openToolkit(list(a.bytes), ctx);
+    toolkits.set(String(a.name).toLowerCase(), opened);
+    const held = { toolkit: String(a.name).toLowerCase() };
+    ctx.exists(a.name) ? ctx.assign(a.name, held) : ctx.define(a.name, held);
+  });
+
+  const reach = (thing, name, ctx) => {
+    const key = isThing(thing) && thing.toolkit ? String(thing.toolkit) : String(thing).toLowerCase();
+    const opened = toolkits.get(key);
+    if (!opened) ctx.fail('That is not a toolkit', 'open one first with: use the toolkit ... as ...');
+    const found = opened.exports[toText(name)];
+    if (typeof found !== 'function') {
+      const offered = Object.keys(opened.exports).filter(one => typeof opened.exports[one] === 'function');
+      ctx.fail(`That toolkit has nothing called "${toText(name)}"`,
+               offered.length ? `it offers: ${offered.join(', ')}` : 'it offers nothing at all');
+    }
+    return found;
+  };
+
+  rt.defineValue('ask $toolkit for $name', (a, ctx) => reach(a.toolkit, a.name, ctx)());
+  rt.defineValue('ask $toolkit for $name with $one', (a, ctx) => reach(a.toolkit, a.name, ctx)(toNumber(a.one)));
+  rt.defineValue('ask $toolkit for $name with $one and $other', (a, ctx) =>
+    reach(a.toolkit, a.name, ctx)(toNumber(a.one), toNumber(a.other)));
+
+  rt.defineValue('what $toolkit offers', (a, ctx) => {
+    const key = isThing(a.toolkit) && a.toolkit.toolkit ? String(a.toolkit.toolkit) : String(a.toolkit).toLowerCase();
+    const opened = toolkits.get(key);
+    if (!opened) ctx.fail('That is not a toolkit');
+    return Object.keys(opened.exports).filter(one => typeof opened.exports[one] === 'function').sort();
+  });
+
   // ------------------------------------------------------------- days
   //
   // Plain could say what day it is and could not say anything else about

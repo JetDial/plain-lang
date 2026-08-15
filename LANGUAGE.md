@@ -865,6 +865,35 @@ what you use to skip drawing the rest of it.
 Also `draw a line from $x , $y to $x , $y thick $n colored $c`, which follows
 the same rule.
 
+## Toolkits — code written in another language
+
+The one thing C++ has that no amount of tidy design replaces: it can call the
+library that already exists. Thirty years of image decoders, compression,
+cryptography and physics are written in C, and a language that cannot reach
+them has to rewrite all of it or go without.
+
+The way in is WebAssembly, which is what a C library compiles to when it wants
+to be portable. It works in a terminal and on a page and needs nothing
+installed.
+
+```
+make sums be bytes of file "maths.wasm"
+use the toolkit sums as maths
+
+show what maths offers                    ["add", "multiply"]
+show ask maths for "add" with 40 and 2    42
+```
+
+`ask $toolkit for $name`, `... with $one`, and `... with $one and $other`.
+
+A toolkit takes numbers and gives numbers back. It cannot read your files or
+open a socket unless you hand it the means — which is the same bargain
+anybody choosing Plain has already made.
+
+What this does **not** do is let Plain write a driver. That needs addresses,
+and addresses are the thing this language is for not having. The answer there
+is the same as this one: let the C library do the pointer work, and call it.
+
 ## Asking without waiting
 
 Everything else Plain does over a wire stops the program until the answer

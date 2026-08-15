@@ -574,6 +574,10 @@ function storeHost(baseFile) {
         return fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null;
       },
       exists: (name, ctx) => fs.existsSync(inside(name, ctx)),
+      bytes: (name, ctx) => {
+        const where = inside(name, ctx);
+        return fs.existsSync(where) ? [...fs.readFileSync(where)] : null;
+      },
       write: (name, text, ctx) => fs.writeFileSync(inside(name, ctx), text, 'utf8'),
       append: (name, text, ctx) => fs.appendFileSync(inside(name, ctx), text, 'utf8')
     },

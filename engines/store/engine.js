@@ -209,6 +209,15 @@ export function installStore(rt, host = {}) {
     return String(found).replace(/\r\n?/g, '\n').split('\n').filter((line, at, all) => line !== '' || at < all.length - 1);
   });
 
+  // A file as bytes rather than as writing. A picture, a sound, a toolkit -
+  // none of those are text, and reading them as text ruins them.
+  rt.defineValue('bytes of file $name', (a, ctx) => {
+    const files = needFiles(ctx);
+    if (!files.bytes) ctx.fail('This program cannot read files as bytes here');
+    const found = files.bytes(toText(a.name), ctx);
+    return found === null ? [] : found;
+  });
+
   rt.defineValue('does file $name exist', (a, ctx) => needFiles(ctx).exists(toText(a.name), ctx));
 
   rt.define('write $value to file $name', (a, ctx) => {

@@ -379,6 +379,22 @@ check('lists answer the questions people ask of two lists', () => {
   assert.deepEqual(g.get('all'), [1, 2, 5]);
 });
 
+check('Plain can call code written in another language', () => {
+  // A toolkit is WebAssembly, which is what a C library compiles to when it
+  // wants to be portable. This one is written out by hand - it is the
+  // smallest possible module, exporting an add - so the test proves the
+  // door opens without needing a C compiler to hand.
+  const { rt } = runtimeFor([
+    'make maths be bytes from hex "00 61 73 6d 01 00 00 00 01 07 01 60 02 7f 7f 01 7f 03 02 01 00 07 07 01 03 61 64 64 00 00 0a 09 01 07 00 20 00 20 01 6a 0b"',
+    'use the toolkit maths as sums',
+    'make offered be what sums offers',
+    'make answer be ask sums for "add" with 40 and 2'
+  ].join('\n'));
+  const g = rt.interpreter.globals;
+  assert.deepEqual(g.get('offered'), ['add']);
+  assert.equal(g.get('answer'), 42);
+});
+
 check('serving twice is one server, not a failed second one', () => {
   // A program that uses another one inherits its "start serving" line as
   // well as its own. That must not try to open the port twice: the second
