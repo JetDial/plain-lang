@@ -133,6 +133,11 @@ export function runCourseChecks(check) {
       'show title of row 1 of notes'
     ].join('\n'),
 
+    tour: [
+      'start a game called "Mine" sized 640 by 480',
+      'make ball be a circle at 320 , 240 sized 20 colored "#ffd166"'
+    ].join('\n'),
+
     forms: [
       'when someone sends to "/hello"',
       '    sign this visitor in as the form field "name"',

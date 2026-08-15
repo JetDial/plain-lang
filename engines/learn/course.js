@@ -571,6 +571,45 @@ end
       if (!server.answer || server.answer.code !== 303) return 'Finish by sending them somewhere: send them to "/"';
       return true;
     }
+  },
+
+  {
+    id: 'tour',
+    title: 'Everything else Plain can do',
+    teach: `<p>The sentences you have learned - names, questions, repeating, lists,
+actions - are the whole language. Everything below is the <i>same</i>
+language with more sentences available, not a new thing to learn.</p>
+<p>Here is one line from each, so you know what exists and can go and find
+it. The projects further down build several of these properly.</p>
+` + walk([
+      ['start a game called "Catch" sized 640 by 480', '<b>A flat game.</b> Things, keys, sixty frames a second, and a rule for what happens when two things touch. <i>Project: catch the falling star.</i>'],
+      ['start a world called "Moon Walk" sized 900 by 600', '<b>A game in three dimensions.</b> The same sentences with one more number: across, up, and how far away. <i>Project: a world in three dimensions.</i>'],
+      ['make a video called "My Film" sized 1280 by 720', '<b>A film.</b> Clips one after another with a length each, fades, words over the top, music. Plain works out what happens when. <i>Project: a title sequence.</i>'],
+      ['make a site called "My Notes"', '<b>A website.</b> Pages, headings, pictures and links, written as sentences and saved as ordinary HTML and CSS you own.'],
+      ['when someone visits "/"', '<b>A server.</b> The program stops running top to bottom and starts waiting for people to arrive. <i>Project: a guest book.</i>'],
+      ['make notes be a table called "notes"', '<b>Somewhere to keep things.</b> Rows you can save, find, change and delete, that are still there tomorrow.'],
+      ['send an email to "ada@example.com" saying "hello"', '<b>Email.</b> The same sentence whether it goes out through a real mail server or is written to a file while you are testing.'],
+      ['connect to "ws://localhost:3040"', '<b>Two programs talking.</b> A page and a server sending messages back and forth, which is what a multiplayer game is made of.'],
+      ['this part needs "colours" version 1 from "./colours.plain"', '<b>Other people’s code.</b> Split a big program into parts, and use parts somebody else wrote - including packages from npm.'],
+      ['show the rust of this program', '<b>Eleven other languages.</b> The same program written out as JavaScript, Python, Java, Go, Rust, C and more, to run where Plain is not installed. <i>Project: the same program in eleven languages.</i>']
+    ]) + `
+<p>Two things worth knowing about all of them:</p>
+<p><b>They mix.</b> A server that keeps a table, sends an email and hands a
+page to a game is one program, not four. The multiplayer game in the Skyward
+project is a server and a browser game written in the same language.</p>
+<p><b>You do not need permission.</b> Nothing above is a paid add-on or a
+separate download. If you can write <code>show "hello"</code> you already
+have all of it.</p>`,
+    task: 'Pick one and try its first line. Start a game, or a world, or a video - whichever you would most like to make - and show something so you can see it ran.',
+    start: 'start a game called "Mine" sized 640 by 480\n',
+    check: ({ game, world, studio, site, source }) => {
+      const started = game.started || world.started || studio.started || (site && site.pages.length);
+      if (!started) return 'Begin one of them: start a game called "Mine" sized 640 by 480';
+      if (!has(source, 'show') && !has(source, 'make ') && !has(source, 'add ')) {
+        return 'Add one more line - something to put in it, so there is more than an empty window.';
+      }
+      return true;
+    }
   }
 ];
 
@@ -683,6 +722,19 @@ add text "Written in Plain."
     about: 'The 2D game engine: things, keys, frames and touching.',
     steps: [
       {
+        teach: `<p>A game is a drawing that changes very fast. Sixty times a second the
+computer wipes the screen, works out where everything has got to, and draws
+it all again. Each of those is called a <b>frame</b>. Nothing actually
+moves - it is redrawn somewhere slightly different, sixty times a second,
+and your eye does the rest. That is every video game ever made.</p>
+<p>So the first job is to say what exists.</p>
+` + walk([
+          ['start a game called "Catch" sized 640 by 480', 'Open a window 640 across and 480 down and start the sixty-times-a-second drawing. Nothing shows yet, because nothing is in it. 640 and 480 are just numbers of dots - about a third of a laptop screen.'],
+          ['set the background to "#141225"', 'What colour to wipe the screen with each time. The <code>#</code> word is a colour written as red, green and blue in that order - <code>#141225</code> is very dark blue. You never have to write one yourself: copy any of these and change a digit to see it change.'],
+          ['make basket be a box at 320 , 440 sized 90 by 18 colored "#ffd166"', 'Put a yellow box on the screen, and give it the name <b>basket</b> so you can talk about it later. <code>320 , 440</code> is where its middle sits: 320 across and 440 down. <b>Down</b>, not up - screens count downwards from the top, so 440 is near the bottom of a 480-tall window. <code>90 by 18</code> is its width and height, which is why it looks like a shelf rather than a block.']
+        ]) + `<p>Now do the same for the star, up at the top where it can fall from -
+somewhere like <code>320 , 30</code>. Make it small, and any colour you
+like.</p>`,
         task: 'Start a game, and make a basket near the bottom and a star at the top.',
         start: `start a game called "Catch" sized 640 by 480
 set the background to "#141225"
@@ -696,6 +748,17 @@ make basket be a box at 320 , 440 sized 90 by 18 colored "#ffd166"
         }
       },
       {
+        teach: `<p>Nothing in the window moves yet, because nothing has been told to. In
+Plain a thing has a <b>speed</b>: how far it shifts each frame, sideways and
+downwards. You set it once, and it keeps going by itself - like sliding
+something across a table rather than carrying it.</p>
+` + walk([
+          ['set the speed of star to 0 , 4', 'Every frame, add 0 to the across of the star, and add 4 to its down. So it does not drift sideways at all, and falls four dots a frame. Sixty frames a second means 240 dots a second - about half the window every second.'],
+          ['set the speed of star to 0 , 1', 'The same line with a smaller number: a slow, drifting fall.'],
+          ['set the speed of star to 2 , 4', 'Falling <i>and</i> drifting right, because now there is something in the first number too.']
+        ]) + `<p>Try 4 first. If it is too fast to catch, that is not a mistake to fix -
+it is the dial that decides whether your game is easy or hard, and you are
+the one who sets it.</p>`,
         task: 'Make the star fall, by setting its speed downwards.',
         check: ({ game }) => {
           const falling = game.things.some(thing => thing.dy > 0);
@@ -704,6 +767,28 @@ make basket be a box at 320 , 440 sized 90 by 18 colored "#ffd166"
         }
       },
       {
+        teach: `<p>The star falls on its own. The basket must not - it should do what a
+person tells it. That means asking, sixty times a second, whether a key is
+being held down.</p>
+<pre>every frame
+    if key "left" is held
+        move basket left by 6
+    end
+end</pre>
+` + walk([
+          ['every frame', 'Everything until the matching <code>end</code> happens once per frame - sixty times a second, forever. This is where a game actually lives.'],
+          ['if key "left" is held', 'Ask right now: is the left arrow down? Not "was it pressed" - <b>is it down this instant</b>. That is the difference between a key that nudges you once and a key you can lean on.'],
+          ['move basket left by 6', 'Take 6 off the across of the basket. Six dots a frame, sixty times a second, is a brisk walk across the screen. Two would be a crawl, twenty a teleport.'],
+          ['end', 'Closes the <code>if</code>. Plain uses <code>end</code> rather than brackets so you can see where things stop without counting punctuation.']
+        ]) + `<p>Add the right arrow the same way. Then keep it on the screen: after
+moving, ask whether the basket has gone too far and put it back.</p>
+<pre>if x of basket is below 45
+    move basket to 45 , 440
+end</pre>
+<p>Without those two lines a player can walk the basket clean out of the
+window and spend the rest of the game catching nothing. Every game has a
+handful of lines like this. They are not interesting, and leaving them out
+is what makes a game feel broken.</p>`,
         task: 'Every frame, move the basket with the left and right arrow keys, and keep it on the screen.',
         check: ({ game, runtime }) => {
           if (!game.everyFrame.length) return 'Add an "every frame" block.';
@@ -716,6 +801,27 @@ make basket be a box at 320 , 440 sized 90 by 18 colored "#ffd166"
         }
       },
       {
+        teach: `<p>Two things are moving about and nothing happens when they meet. A game
+is the rule about what happens when they meet.</p>
+<pre>make score be 0
+
+when star touches basket
+    add 1 to score
+    move star to random 30 to 610 , 20
+end</pre>
+` + walk([
+          ['make score be 0', 'A box with the name <b>score</b> and 0 in it. It has to exist before the game starts, or the first catch would be adding 1 to nothing.'],
+          ['when star touches basket', 'Plain watches those two, every frame, and runs this the moment they overlap. You never have to check distances yourself.'],
+          ['add 1 to score', 'One more than whatever was in the box. Not "score is 1" - <b>one more than before</b>, which is why it keeps climbing.'],
+          ['move star to random 30 to 610 , 20', 'Put the star back at the top, at a randomly chosen place across. <code>random 30 to 610</code> picks a fresh number each time, which is the whole reason the game does not become the same catch over and over.']
+        ]) + `<p>Last, the score has to be visible, or the player is being marked in
+secret. Inside <code>every frame</code>:</p>
+<pre>draw "score {score}" at 18 , 16 sized 16 colored "#ffffff"</pre>
+<p>The <code>{score}</code> in the middle of the words means "drop the
+number that is in that box in here" - so it reads <b>score 3</b>, and it
+changes the instant the box does. Drawing goes inside <code>every
+frame</code> because the screen is wiped sixty times a second; something
+drawn once is gone in a sixtieth of a second.</p>`,
         task: 'When the star touches the basket, add 1 to a score and send the star back to the top. Draw the score each frame.',
         check: ({ game, runtime, source }) => {
           if (!game.collisions.length) return 'Add: when star touches basket ... end';
@@ -733,6 +839,19 @@ make basket be a box at 320 , 440 sized 90 by 18 colored "#ffd166"
     about: 'The 3D engine. Same sentences, one more direction.',
     steps: [
       {
+        teach: `<p>Three dimensions sounds like a different subject. It is the same
+subject with one more number.</p>
+<p>In the 2D game a thing had an across and a down. Here it has an across, an
+<b>up</b>, and a <b>how far away</b> - written <code>x , y , z</code>. That
+is the entire difference. The sentences are the ones you already know.</p>
+` + walk([
+          ['start a world called "Moon Walk" sized 900 by 600', 'Open a window, same as a game, but what gets drawn in it has depth. The 900 by 600 is still just the size of the window on your screen - it says nothing about how big the world is.'],
+          ['set the sky to "#0b1020"', 'What colour is behind everything. The 3D version of the background.'],
+          ['set world gravity to 0.02', 'How hard things are pulled down. Small numbers feel like the moon and big ones feel like lead - 0.02 is a gentle drift downwards. Nothing falls until something is above the floor to fall.'],
+          ['make ground be a floor at 0 , 0 , 0 sized 60 by 60 colored "#2c3a4f"', 'A flat sheet 60 by 60 sitting at the middle of everything. <code>0 , 0 , 0</code> is the centre of the world - not a corner. Numbers go both ways from it, so -20 is as real a place as 20.'],
+          ['make hero be a cube at 0 , 1 , 0 sized 1.6 colored "#ffd166"', 'A yellow block standing on the floor. The <b>1</b> in the middle is how far up it is: put 0 there and it would be sunk halfway into the ground.']
+        ]) + `<p>The sizes here are small - 1.6, not 160 - because a world is measured in
+whatever unit you like, and it is easiest if that unit is roughly a metre.</p>`,
         task: 'Start a world with a floor and something to walk about as.',
         start: `start a world called "Moon Walk" sized 900 by 600
 set the sky to "#0b1020"
@@ -747,6 +866,16 @@ make ground be a floor at 0 , 0 , 0 sized 60 by 60 colored "#2c3a4f"
         }
       },
       {
+        teach: `<p>You cannot see your hero properly because the camera has no idea it
+exists. In three dimensions there is always a camera - somebody has to be
+standing somewhere, looking in some direction, or there is no picture at
+all.</p>
+` + walk([
+          ['follow hero with the camera', 'Stay behind the hero and keep it in view, wherever it goes. One line, and you never think about the camera again.'],
+          ['move the camera to 0 , 12 , 20', 'Or place it by hand: twelve up and twenty back. Useful for a fixed view of a board or a scene.'],
+          ['point the camera at hero', 'Look at that, from wherever the camera happens to be.']
+        ]) + `<p>Following is what nearly every game does, because the alternative is
+walking your hero out of shot and having no idea where it went.</p>`,
         task: 'Point the camera at your hero by following it.',
         check: ({ world }) => {
           if (!world.camera.follow) return 'Add: follow hero with the camera';
@@ -754,6 +883,26 @@ make ground be a floor at 0 , 0 , 0 sized 60 by 60 colored "#2c3a4f"
         }
       },
       {
+        teach: `<p>Now the part that is genuinely different from the 2D game. There, left
+meant left - a fixed direction on a flat screen. Here, left means
+<b>turn</b>, and forward means <b>whichever way the hero is now facing</b>.
+Those are two separate ideas and keeping them apart is what makes moving
+about in three dimensions feel right.</p>
+<pre>every frame
+    if key "left" is held
+        turn hero left by 3
+    end
+    if key "up" is held
+        move hero forward by 0.2
+    end
+end</pre>
+` + walk([
+          ['turn hero left by 3', 'Swing the hero three degrees anticlockwise on the spot. It does not move an inch - it is now pointing somewhere else.'],
+          ['move hero forward by 0.2', 'Move a fifth of a unit in whatever direction the hero is pointing <i>at this moment</i>. Turn first and this same line takes you somewhere completely different, which is exactly how walking works.'],
+          ['move hero up by 0.2', 'Straight up, regardless of facing. Some directions should ignore which way you are turned, and up is one of them.']
+        ]) + `<p>If you turned <i>and</i> moved in one line, you could never stand still
+and look around. Two ideas, two lines, and the player decides how to combine
+them.</p>`,
         task: 'Every frame, turn with the left and right keys and walk forward with the up key.',
         check: ({ game, world }) => {
           if (!game.everyFrame.length) return 'Add an "every frame" block.';
@@ -772,6 +921,13 @@ make ground be a floor at 0 , 0 , 0 sized 60 by 60 colored "#2c3a4f"
         }
       },
       {
+        teach: `<p>Same rule as the falling star, one dimension richer.</p>
+` + walk([
+          ['make prize be a ball at -6 , 1 , -8 sized 1.4 colored "#ef476f"', 'A red ball, six to the left and eight away. Minus is not an error - the middle of the world is 0, so half of everywhere is negative.'],
+          ['when hero touches prize', 'Plain watches those two and runs this the moment they meet. It is the same sentence as in the flat game; it is now measuring in three directions instead of two.'],
+          ['move prize to random -20 to 20 , 1 , random -20 to 20', 'Put it somewhere else on the floor: a random across, always 1 up so it does not sink, and a random how-far-away. Two randoms rather than one, because there are now two directions to be scattered across.']
+        ]) + `<p>Keep the <b>1</b> fixed. Randomising the up as well is the usual first
+mistake, and it leaves prizes buried in the floor and floating out of reach.</p>`,
         task: 'Add something to collect. When the hero touches it, count it and move it somewhere random.',
         check: ({ game, world, source }) => {
           if (world.bodies.length < 3) return 'Add a prize: make prize be a ball at -6 , 1 , -8 sized 1.4 colored "#ef476f"';
@@ -789,6 +945,19 @@ make ground be a floor at 0 , 0 , 0 sized 60 by 60 colored "#2c3a4f"
     about: 'The video engine: a timeline you can watch and export.',
     steps: [
       {
+        teach: `<p>Video editing sounds like a different kind of program altogether. It is
+a list.</p>
+<p>A film is clips, one after another, each with a length in seconds. Plain
+keeps that list, works out that the third clip starts at 5.5 seconds because
+the first two came to 5.5, and draws the right one at the right moment. You
+never work out a time yourself.</p>
+` + walk([
+          ['make a video called "My Film" sized 1280 by 720', 'Start an empty film, 1280 across by 720 down - the ordinary size for something people watch. Nothing is in it yet.'],
+          ['add a title "My Film" for 3 seconds', 'Put words on a plain background for three seconds and add it to the end of the list. Not "at 0 seconds" - <b>at the end</b>, wherever the end has got to. That is what makes a list of clips easier than a timeline: you add things in the order they happen.'],
+          ['add a background "#1b2a41" for 2 seconds', 'Two seconds of flat colour, again at the end. Now the film is five seconds long, and you did not have to say so.']
+        ]) + `<p>Everything else in this engine is a change to a clip that already
+exists - a fade, some words over the top - and it always means <i>the last
+one you added</i> unless you say otherwise.</p>`,
         task: 'Start a video and add a title card that lasts three seconds.',
         start: `make a video called "My Film" sized 1280 by 720
 
@@ -801,6 +970,15 @@ add a title "My Film" for 3 seconds
         }
       },
       {
+        teach: `<p>A cut straight from black to a title looks like a mistake. A fade takes
+a second and looks deliberate, and it is one line.</p>
+` + walk([
+          ['fade the last clip in over 1 seconds', 'Start the clip black and bring it up to full over its first second. <b>The last clip</b> means the one you most recently added, so this reads in the order you were already writing.'],
+          ['fade the last clip out over 1 seconds', 'The same at the other end. Used on the final clip so the film finishes instead of stopping.'],
+          ['put the words "somewhere in 1946" on the last clip', 'Words over the top of whatever that clip is, rather than a card of their own. This is how a caption over a picture is different from a title between pictures.']
+        ]) + `<p>Fades are what makes a sequence of cards feel like a film. Try building
+the whole thing without them, watch it, then add them: it is the clearest
+before-and-after in this course.</p>`,
         task: 'Fade the title in, and add two coloured cards after it with words over them.',
         check: ({ studio }) => {
           if (!studio.clips[0].fadeIn) return 'Add: fade the last clip in over 1 seconds';
@@ -810,6 +988,18 @@ add a title "My Film" for 3 seconds
         }
       },
       {
+        teach: `<p>One last thing, which is the point of the whole engine: a film that
+exists only on your screen is not a film yet.</p>
+` + walk([
+          ['show video length', 'How many seconds the whole thing has come to. Plain has been adding it up as you went.'],
+          ['show clip count', 'How many clips are in it. Both of these are worth showing while you build, so you can see the film growing.']
+        ]) + `<pre class="shell">plain edit titles.plain</pre>
+<p>opens the studio in a browser, where the film you have just written plays,
+and where there is a button to save it out as a real video file. The
+program is the film; the studio is a window onto it.</p>
+<p>Ten seconds is not an arbitrary target. Under about eight, a title
+sequence does not have time to establish anything, and you will feel that
+when you watch it back rather than being told it.</p>`,
         task: 'Finish with a closing title that fades out, and make the whole film at least ten seconds long.',
         check: ({ studio }) => {
           const last = studio.clips[studio.clips.length - 1];
