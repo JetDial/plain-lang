@@ -1,0 +1,195 @@
+# A website builder, written in Plain.
+#
+#     plain play site-builder.plain
+#
+# The fourth application written in this language rather than under it, and
+# the one that finishes the set: a game editor, a sprite editor, a film
+# editor and now a page builder, each writing its output as Plain.
+#
+# Click to add a piece, up and down to move it, T changes what it is, and S
+# writes the page out as the sentences the web engine reads.
+
+start a game called "Site Builder" sized 1000 by 640
+set the background to "#0a0e18"
+
+make sorts be ["title", "heading", "text", "card", "button"]
+make shades be ["#ffd166", "#8fa8ff", "#93a7c4", "#38d9d9", "#7ee787"]
+make sayings be ["Tides", "This morning", "High water at 06:12, three metres.",
+                 "Tomorrow: springs. Do not leave the boat out.", "The whole week"]
+
+make pieces be [
+    { sort: "title", wording: "Tides" },
+    { sort: "text", wording: "When the sea comes in, and when it goes out again." },
+    { sort: "heading", wording: "This morning" },
+    { sort: "text", wording: "High water at 06:12, three metres." }
+]
+
+make chosen be 1
+make told be "click a piece, up and down move it, T changes what it is, N adds one, backspace removes, S writes it out"
+make edgeleft be 60
+make edgetop be 150
+make tall be 46
+
+to pieceunder
+    repeat with n from 1 to number of items in pieces
+        make y be edgetop plus ((n minus 1) times tall)
+        if mouse y is at least y
+            if mouse y is at most (y plus tall)
+                if mouse x is at least edgeleft
+                    if mouse x is at most 700
+                        give back n
+                    end
+                end
+            end
+        end
+    end
+    give back 0
+end
+
+to swap with one and other
+    make a be item one of pieces
+    make b be item other of pieces
+    set item one of pieces to b
+    set item other of pieces to a
+end
+
+when the mouse is clicked
+    make which be pieceunder
+    if which is above 0
+        set chosen to which
+        make picked be item which of pieces
+        set told to "piece {which}: a {sort of picked}"
+    end
+end
+
+when any key is pressed
+    make pressing be the key pressed
+    make many be number of items in pieces
+
+    if pressing is "up"
+        if chosen is above 1
+            swap with chosen and (chosen minus 1)
+            set chosen to chosen minus 1
+            set told to "moved up"
+        end
+    end
+    if pressing is "down"
+        if chosen is below many
+            swap with chosen and (chosen plus 1)
+            set chosen to chosen plus 1
+            set told to "moved down"
+        end
+    end
+    if pressing is "t"
+        make picked be item chosen of pieces
+        make at be position of (sort of picked) in sorts
+        make nextone be at plus 1
+        if nextone is above number of items in sorts
+            set nextone to 1
+        end
+        set value "sort" of picked to item nextone of sorts
+        set told to "now a {sort of picked}"
+    end
+    if pressing is "n"
+        add { sort: "text", wording: random item of sayings } to pieces
+        set chosen to number of items in pieces
+        set told to "added one - {number of items in pieces} pieces"
+    end
+    if pressing is "backspace"
+        if many is above 1
+            make left be []
+            repeat with n from 1 to many
+                if n is not chosen
+                    add item n of pieces to left
+                end
+            end
+            set pieces to left
+            if chosen is above number of items in pieces
+                set chosen to number of items in pieces
+            end
+            set told to "removed one - {number of items in pieces} left"
+        end
+    end
+
+    if pressing is "s"
+        # The whole point, again: it writes the language it is written in.
+        make written be []
+        add "make a website called \"My Site\"" to written
+        add "describe this page as \"A page built by hand.\"" to written
+        make inrow be no
+        for each piece in pieces
+            make what be sort of piece
+            make saying be wording of piece
+            if what is "card"
+                if inrow is no
+                    add "start a row" to written
+                    set inrow to yes
+                end
+                add "    start a card" to written
+                add "        add text \"{saying}\"" to written
+                add "    end" to written
+            otherwise
+                if inrow
+                    add "end" to written
+                    set inrow to no
+                end
+                if what is "title"
+                    add "add a title \"{saying}\"" to written
+                end
+                if what is "heading"
+                    add "add a heading \"{saying}\"" to written
+                end
+                if what is "text"
+                    add "add text \"{saying}\"" to written
+                end
+                if what is "button"
+                    add "add a button \"{saying}\" going to \"/more\"" to written
+                end
+            end
+        end
+        if inrow
+            add "end" to written
+        end
+        show join written with "\n"
+        set told to "{number of items in written} lines written out - look in the console"
+    end
+end
+
+every frame
+    # The page, as a stack of pieces you can see the shape of.
+    repeat with n from 1 to number of items in pieces
+        make piece be item n of pieces
+        make y be edgetop plus ((n minus 1) times tall)
+        make middle be y plus (tall divided by 2)
+        make at be position of (sort of piece) in sorts
+        make paint be item at of shades
+
+        make back be "#0d1422"
+        if n is chosen
+            set back to "#16203a"
+        end
+        draw a box at 380 , middle sized 640 by (tall minus 6) colored back
+        draw a box at edgeleft , middle sized 6 by (tall minus 6) colored paint
+        draw sort of piece at (edgeleft plus 16) , (middle minus 16) sized 11 colored paint
+
+        make saying be wording of piece
+        if length of saying is above 52
+            set saying to "{part of saying from 1 to 50}..."
+        end
+        draw saying at (edgeleft plus 16) , (middle minus 2) sized 13 colored "#e8ecf4"
+    end
+
+    # What a piece can be, so the T key is not a guessing game.
+    make where be edgeleft
+    repeat with n from 1 to 5
+        draw a box at where plus 30 , 588 sized 60 by 4 colored item n of shades
+        draw item n of sorts at where , 600 sized 11 colored "#6f88b0"
+        set where to where plus 110
+    end
+
+    draw "Site Builder" at 20 , 20 sized 16 colored "#c3cfe2"
+    draw "written in Plain, and it writes Plain" at 20 , 42 sized 12 colored "#3f4d63"
+    draw "{number of items in pieces} pieces" at 20 , 66 sized 14 colored "#9fd0e6"
+    draw told at 20 , 92 sized 13 colored "#93a7c4"
+    draw "cards next to each other become a row, which is why they are worth having" at 60 , 620 sized 11 colored "#3f4d63"
+end

@@ -286,6 +286,8 @@ there is no file format to agree on and nothing to import.
 ```bash
 plain play examples/level-editor.plain    # click to place, S writes the level
 plain play examples/sprite-editor.plain   # paint 16x16, S writes the picture
+plain play examples/film-editor.plain     # a timeline, S writes the film
+plain play examples/site-builder.plain    # a page, S writes the site
 plain edit examples/site.plain           # the designer
 plain build examples/site.plain --out site
 ```

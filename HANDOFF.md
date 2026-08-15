@@ -16,6 +16,19 @@ rediscovered. Everything below was measured or run, not assumed.
 All three private on GitHub under JetDial. 420 checks pass
 (`node tests/run-tests.js`).
 
+## Four tools, written in Plain
+
+Not demonstrations - things you would use, written in the language they are
+for. Each writes its output **as Plain**, so there is no file format to agree
+on and nothing to import.
+
+```bash
+plain play examples/level-editor.plain    # click to place, S writes the level
+plain play examples/sprite-editor.plain   # paint 16x16, S writes the picture
+plain play examples/film-editor.plain     # a timeline, S writes the film
+plain play examples/site-builder.plain    # a page, S writes the site
+```
+
 ## Opening it
 
 ```bash
