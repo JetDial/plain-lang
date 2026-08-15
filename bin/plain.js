@@ -793,14 +793,71 @@ async function commandRun(file) {
   }
 }
 
+
+// Which names in a program collide with a phrase Plain already knows. Only
+// exact matches on a leading word, so this stays quiet unless it matters.
+function shadowedNames(runtime, tree) {
+  const words = new Map();
+  for (const kind of ['value', 'statement', 'infix']) {
+    const table = runtime.phrases[kind] && runtime.phrases[kind].byFirstWord;
+    if (!table) continue;
+    const entries = table instanceof Map ? [...table.entries()] : Object.entries(table);
+    for (const [word, held] of entries) {
+      if (words.has(word)) continue;
+      const specs = Array.isArray(held) ? held : (held && held.specs) || [];
+      const spec = specs.length && specs[0] && specs[0].spec ? specs[0].spec : `${word} ...`;
+      words.set(word, spec);
+    }
+  }
+
+  // Articles are not worth warning about: nobody means the phrase when they
+  // write "a", and saying so every time would teach people to ignore this.
+  for (const small of ['a', 'an', 'the']) words.delete(small);
+
+  const found = [];
+  const seen = new Set();
+  const note = (name, line) => {
+    const key = String(name || '').toLowerCase();
+    if (!key || seen.has(key) || !words.has(key)) return;
+    seen.add(key);
+    found.push({ name: key, line: line || 0, phrase: words.get(key) });
+  };
+
+  const walk = (node) => {
+    if (!node || typeof node !== 'object') return;
+    if (node.type === 'Make') note(node.name, node.line);
+    if (node.type === 'Function') for (const one of node.params || []) note(one, node.line);
+    for (const value of Object.values(node)) {
+      if (Array.isArray(value)) value.forEach(walk);
+      else if (value && typeof value === 'object') walk(value);
+    }
+  };
+  walk(tree);
+  return found;
+}
+
 // -------------------------------------------------------------------- check
 
 async function commandCheck(file) {
   const program = readProgram(file);
   const { runtime } = buildRuntime(() => {});
   try {
-    runtime.parse(program.source, path.basename(program.full));
+    const tree = runtime.parse(program.source, path.basename(program.full));
     console.log(`${file} looks fine.`);
+    // Names that are already words here. Plain accepts these and then the
+    // sentence that used to work quietly means something else - "keys of x"
+    // stops being your field and becomes the list of names inside x. Every
+    // one of these has cost somebody an afternoon, so they are said out
+    // loud rather than left to be found.
+    const shadowed = shadowedNames(runtime, tree);
+    if (shadowed.length) {
+      console.log('\nCareful - these names are already words in Plain:');
+      for (const one of shadowed) {
+        console.log(`  line ${one.line}: "${one.name}" is how you say "${one.phrase}"`);
+      }
+      console.log('  Nothing is broken yet. But a sentence using one of these');
+      console.log('  will mean the phrase, not your name.');
+    }
   } catch (error) {
     if (reportPlainError(error, program.source)) return;
     throw error;

@@ -948,6 +948,27 @@ which is up, `showing scene "x"` asks.
 Without this, a program ends up with `if the state is playing` wrapped around
 every single block — hard to read, and easy to get wrong in one place.
 
+## Names that are already words
+
+Plain has a lot of sentences, and some of them start with a word you might
+reasonably want as a name. Naming something `key` does not fail — and then
+`key "left" is held` stops meaning what it did. Naming a field `keys` does not
+fail either, and then `keys of thing` hands back the list of names inside it
+rather than your field.
+
+`plain check` says so:
+
+```
+Careful - these names are already words in Plain:
+  line 1: "key" is how you say "key $key is held"
+  line 3: "keys" is how you say "keys of $thing"
+  Nothing is broken yet. But a sentence using one of these
+  will mean the phrase, not your name.
+```
+
+It is a warning and not a refusal, because most of the time nothing goes
+wrong — the two only collide when you write the sentence as well as the name.
+
 ## Checking your own work
 
 A language that can build a server and a game and cannot say whether they
