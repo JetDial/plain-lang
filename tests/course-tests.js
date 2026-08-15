@@ -142,6 +142,14 @@ export function runCourseChecks(check) {
       'show the number in packet at 2 over 2 bytes'
     ].join('\n'),
 
+    rules: [
+      'make ship be { x: 12.5 }',
+      'make across be value "x" of ship',
+      'show "the ship is at {across}"',
+      'make squeezed be round (12.5 times 512)',
+      'show squeezed'
+    ].join('\n'),
+
     tour: [
       'start a game called "Mine" sized 640 by 480',
       'make ball be a circle at 320 , 240 sized 20 colored "#ffd166"'

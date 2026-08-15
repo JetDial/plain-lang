@@ -638,6 +638,83 @@ their list, and a way to count.</p>`,
   },
 
   {
+    id: 'rules',
+    title: 'The rules, and what actually goes wrong',
+    teach: `<p>Plain has few rules. Nearly every mistake people make comes from four of
+them, and all four are the same mistake underneath: <b>Plain reads a line as
+a sentence, and a sentence can be read more than one way</b>.</p>
+<p>Every example below is a real mistake, taken from building a multiplayer
+game in this language. Not one of them was a crash. That is the point - they
+all did something, quietly, and the something was wrong.</p>
+
+<h3>1. Every block ends with <code>end</code></h3>
+<p>This is the whole of the layout. Indenting is decoration; <code>end</code>
+is what decides where a block stops. Forget one and the error appears at the
+<i>bottom</i> of your program, because that is where Plain finally ran out of
+lines to close.</p>
+
+<h3>2. Some names are already words</h3>
+` + walk([
+      ['make key be 3', 'Fine on its own. But <code>key "left" is held</code> now means something else, and you will get errors on lines you never touched.'],
+      ['make keys be []', 'Worse, because it does not complain at all: <code>keys of thing</code> stops being your list and becomes the names inside a thing.'],
+      ['make kind be 2', 'Same again - <code>kind of x</code> is how you ask what sort of value something is.']
+    ]) + `
+<p><code>plain check</code> now warns about this and tells you the sentence
+you have collided with. If a name feels natural, that is often exactly why it
+is taken.</p>
+
+<h3>3. An argument at the end of a line swallows the rest</h3>
+` + walk([
+      ['if danger with plane is above 0', 'Reads as <b>danger with (plane is above 0)</b>. The action gets a yes or no where it wanted a plane, and the question you thought you asked never happens.'],
+      ['make soon be danger with plane', 'Work it out onto a name of its own first...'],
+      ['if soon is above 0', '...and then ask. Two lines, and no way to read it wrongly.']
+    ]) + `
+<p>This one cost more time than anything else in the game: a whole sky of
+aircraft had no terrain, because <code>if clearof with hill and base and
+(...) is no</code> quietly asked a different question and rejected every hill
+that was offered.</p>
+
+<h3>4. Some sums bind tighter than they look</h3>
+` + walk([
+      ['round 1234.5 times 512', 'Rounds first, then multiplies - so the fraction you were trying to keep is thrown away before the multiply happens.'],
+      ['round (1234.5 times 512)', 'The brackets are not decoration. When a line mixes <code>round</code> or <code>square root of</code> with arithmetic, say which happens first.']
+    ]) + `
+
+<h3>And one about text</h3>
+<p>A piece of text in double quotes cannot hold more double quotes inside its
+curly braces:</p>
+` + walk([
+      ['draw "{value "x" of thing}" at 10 , 10', 'Plain sees the text ending at the second quote. It will tell you it does not know how to start a line with "draw".'],
+      ['make across be value "x" of thing', 'Work it out first...'],
+      ['draw "{across}" at 10 , 10', '...and put the name in the braces.']
+    ]) + `
+<h3>How to find these</h3>
+<p>Three habits, in order of how much time they save:</p>
+<p><b>Run <code>plain check</code> after every few lines.</b> It parses
+without running, so it costs nothing, and it finds the missing
+<code>end</code> while you still remember what you were doing.</p>
+<p><b>Work things out onto names.</b> A line with three ideas in it can be
+read three ways. A line with one idea can be read one way, and the name you
+chose says what it is.</p>
+<p><b>Check the value, not the code.</b> Every one of the mistakes above
+looks right. What gives them away is <code>show</code>: print the thing you
+believe you have, and it will not be that.</p>`,
+    task: 'Two of these lines are traps. Rewrite them safely: work out <code>value "x" of ship</code> onto a name and show it inside a sentence, and work out a rounded multiplication with the brackets in the right place.',
+    start: 'make ship be { x: 12.5 }\n',
+    check: ({ lines, source }) => {
+      if (!has(source, 'make ship')) return 'Keep the ship: make ship be { x: 12.5 }';
+      if (!has(source, 'round (')) return 'Use brackets so the multiply happens first: round (12.5 times 512)';
+      if (!lines.some(line => String(line).includes('6400'))) {
+        return '12.5 times 512 rounded is 6400. If you got 6144, the round happened first.';
+      }
+      if (!lines.some(line => /[A-Za-z]/.test(String(line)) && String(line).includes('12.5'))) {
+        return 'Show the x inside a sentence too, with the value worked out onto a name first.';
+      }
+      return true;
+    }
+  },
+
+  {
     id: 'tour',
     title: 'Everything else Plain can do',
     teach: `<p>The sentences you have learned - names, questions, repeating, lists,
