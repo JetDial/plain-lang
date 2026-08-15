@@ -36,6 +36,8 @@ export class Thing {
     this.source = options.source ?? '';    // picture url
     this.hidden = false;
     this.gone = false;
+    this.facing = 1;                       // 1 looks right, -1 looks left
+    this.fade = 1;                         // 1 solid, 0 invisible
     this.data = {};                        // anything the program invents
     this._image = null;
 
@@ -94,6 +96,8 @@ export class Thing {
       case 'top': return this.top;
       case 'bottom': return this.bottom;
       case 'speed': return Math.hypot(this.dx, this.dy);
+      case 'facing': return this.facing;
+      case 'fade': return this.fade;
       case 'hidden': return this.hidden;
       case 'visible': return !this.hidden;
       case 'gone': return this.gone;
@@ -113,6 +117,8 @@ export class Thing {
       case 'size': this.width = toNumber(value); this.height = toNumber(value); return;
       case 'color': this.color = toText(value); return;
       case 'text': this.text = toText(value); return;
+      case 'facing': this.facing = toNumber(value) < 0 ? -1 : 1; return;
+      case 'fade': this.fade = Math.max(0, Math.min(1, toNumber(value))); return;
       case 'hidden': this.hidden = truthy(value); return;
       case 'visible': this.hidden = !truthy(value); return;
       case 'speed': {
@@ -357,8 +363,10 @@ export class Game {
       if (thing.hidden || thing.gone) continue;
       if (!this.showing(thing)) continue;
       ctx.save();
+      ctx.globalAlpha = thing.fade;
       ctx.translate(thing.x, thing.y);
       if (thing.angle) ctx.rotate(thing.angle * Math.PI / 180);
+      if (thing.facing < 0) ctx.scale(-1, 1);
       ctx.fillStyle = thing.color;
       if (thing.shape === 'circle') {
         ctx.beginPath();
@@ -613,6 +621,28 @@ export function installGame(rt, host = {}) {
     void makeThing(ctx, a.name, { shape: 'words', text: toText(a.text), x: a.x, y: a.y, width: toNumber(a.size) * 8, height: a.size, color: toText(a.color) }));
 
   rt.define('remove $thing from the game', (a, ctx) => { thingOf(a.thing, ctx).gone = true; });
+  // A drawing of somebody walking right is a drawing of them walking left,
+  // turned over. Every game with a person in it needs this and nothing else
+  // in the engine could do it.
+  rt.define('face $thing #where', (a, ctx) => {
+    const thing = thingOf(a.thing, ctx);
+    const which = String(a.where).toLowerCase();
+    if (which === 'left') thing.facing = -1;
+    else if (which === 'right') thing.facing = 1;
+    else ctx.fail(`"${a.where}" is not a way to face`, 'use left or right');
+  });
+
+  rt.define('turn $thing over', (a, ctx) => {
+    const thing = thingOf(a.thing, ctx);
+    thing.facing = thing.facing < 0 ? 1 : -1;
+  });
+
+  // How solid something is, which is how anything fades in, fades out, or
+  // flickers while it cannot be hurt.
+  rt.define('set the fade of $thing to $amount', (a, ctx) => {
+    thingOf(a.thing, ctx).fade = Math.max(0, Math.min(1, toNumber(a.amount)));
+  });
+
   rt.define('hide $thing', (a, ctx) => { thingOf(a.thing, ctx).hidden = true; });
   rt.define('reveal $thing', (a, ctx) => { thingOf(a.thing, ctx).hidden = false; });
 

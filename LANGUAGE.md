@@ -998,6 +998,18 @@ failure says what it expected and what turned up:
 Also `checks that passed`, `checks that failed`, and `forget the checks so
 far`.
 
+## Facing and fading
+
+```
+face hero left            a drawing of somebody walking right, turned over
+face hero right
+turn hero over
+set the fade of ghost to 0.4
+```
+
+`facing of hero` is 1 or -1, `fade of hero` runs from 0 to 1. Fading is how
+anything appears, disappears, or flickers while it cannot be hurt.
+
 ## Shaking, and text that centres itself
 
 ```
