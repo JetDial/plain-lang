@@ -152,6 +152,12 @@ export class Game {
     this.sparks = [];                 // little bits thrown out by an explosion
     this.slides = [];                 // things on their way somewhere
     this.lastStep = 1 / 60;           // how long the last frame took
+    // A game is usually several games: a title screen, the playing, and the
+    // bit at the end that says what happened. Each has its own things on
+    // screen and its own rules, and they must not run at once.
+    this.scene = '';                  // which one is showing; '' means "no scenes"
+    this.writingScene = '';           // which one is being described right now
+    this.sceneStarts = [];            // { scene, run }
     this.mouse = { x: 0, y: 0, down: false };
     this.clicks = [];                 // { run }
     this.drawQueue = [];
@@ -202,7 +208,25 @@ export class Game {
     this.music = null;
   }
 
-  add(thing) { this.things.push(thing); return thing; }
+  add(thing) {
+    thing.scene = this.writingScene;
+    this.things.push(thing);
+    return thing;
+  }
+
+  // Does this belong to what is showing? Anything made outside a scene
+  // belongs to all of them, which is what a score or a background is.
+  showing(item) {
+    const owner = item && item.scene;
+    return !owner || owner === this.scene;
+  }
+
+  goToScene(name) {
+    this.scene = String(name);
+    for (const start of this.sceneStarts) {
+      if (start.scene === this.scene) this.safely(start.run);
+    }
+  }
 
   // ------------------------------------------------------------- simulation
 
@@ -241,12 +265,14 @@ export class Game {
     this.time += seconds;
     this.drawQueue = [];
 
-    for (const run of this.everyFrame) this.safely(run);
+    for (const rule of this.everyFrame) {
+      if (this.showing(rule)) this.safely(rule.run || rule);
+    }
 
     for (const timer of this.timers) {
       // The small allowance keeps a "every 1 seconds" timer on the beat
       // instead of slipping a frame every time the clock lands just short.
-      if (timer.done) continue;
+      if (timer.done || !this.showing(timer)) continue;
       if (this.time >= timer.next - 1e-9) {
         timer.next += timer.every;
         if (timer.next < this.time) timer.next = this.time + timer.every;
@@ -304,6 +330,7 @@ export class Game {
     const name = String(key).toLowerCase();
     this.pressed = name;
     for (const rule of this.keyPress) {
+      if (!this.showing(rule)) continue;
       if (rule.key === name || rule.key === 'any') this.safely(rule.run);
     }
   }
@@ -326,6 +353,7 @@ export class Game {
   drawContents(ctx) {
     for (const thing of this.things) {
       if (thing.hidden || thing.gone) continue;
+      if (!this.showing(thing)) continue;
       ctx.save();
       ctx.translate(thing.x, thing.y);
       if (thing.angle) ctx.rotate(thing.angle * Math.PI / 180);
@@ -643,7 +671,9 @@ export function installGame(rt, host = {}) {
 
   // ----------------------------------------------------------------- events
 
-  rt.define('every frame ...', (a, ctx) => { game.everyFrame.push(ctx.block); });
+  rt.define('every frame ...', (a, ctx) => {
+    game.everyFrame.push({ run: ctx.block, scene: game.writingScene });
+  });
 
   rt.define('every $seconds seconds ...', (a, ctx) => {
     const every = Math.max(0.001, toNumber(a.seconds));
@@ -664,14 +694,16 @@ export function installGame(rt, host = {}) {
   });
 
   rt.define('when key $key is pressed ...', (a, ctx) => {
-    game.keyPress.push({ key: toText(a.key).toLowerCase(), run: ctx.block });
+    game.keyPress.push({ key: toText(a.key).toLowerCase(), run: ctx.block, scene: game.writingScene });
   });
 
   rt.define('when any key is pressed ...', (a, ctx) => {
-    game.keyPress.push({ key: 'any', run: ctx.block });
+    game.keyPress.push({ key: 'any', run: ctx.block, scene: game.writingScene });
   });
 
-  rt.define('when the mouse is clicked ...', (a, ctx) => { game.clicks.push({ run: ctx.block }); });
+  rt.define('when the mouse is clicked ...', (a, ctx) => {
+    game.clicks.push({ run: ctx.block, scene: game.writingScene });
+  });
 
   rt.define('when $thing leaves the screen ...', (a, ctx) => {
     game.leaving.push({ thing: thingOf(a.thing, ctx), run: ctx.block, outside: false });
@@ -820,6 +852,46 @@ export function installGame(rt, host = {}) {
   // a rush of noise that dies away, a missile is noise that slides downwards,
   // a pickup is a short rise. All three are noise shaped by hand, which
   // takes no files, no downloads and no permission.
+  // ---------------------------------------------------------------- scenes
+  //
+  // A game is nearly always several games. A title screen, the playing, and
+  // the bit at the end that says what happened - each with its own things on
+  // the screen and its own rules, and none of them allowed to run while
+  // another is showing.
+  //
+  // Without a word for this, a program ends up with "if the state is
+  // playing" wrapped round every single block, which is both hard to read
+  // and easy to get wrong in one place.
+  //
+  //     scene "title"
+  //         make words be words "PRESS SPACE" at 400 , 300 sized 40 colored "#fff"
+  //         when key "space" is pressed
+  //             go to scene "playing"
+  //         end
+  //     end
+  //
+  // Anything made or said inside a scene belongs to it: its things are
+  // drawn only while it is showing, and its blocks run only then. Anything
+  // outside every scene belongs to all of them, which is what a score, a
+  // background and a piece of music are.
+  rt.define('scene $name ...', (a, ctx) => {
+    const before = game.writingScene;
+    game.writingScene = toText(a.name);
+    try { ctx.block(); } finally { game.writingScene = before; }
+    // The first scene described is the one that shows, unless the program
+    // says otherwise - so a game with scenes is never staring at nothing.
+    if (!game.scene) game.scene = toText(a.name);
+  });
+
+  rt.define('go to scene $name', (a) => { game.goToScene(toText(a.name)); });
+
+  rt.define('when scene $name starts ...', (a, ctx) => {
+    game.sceneStarts.push({ scene: toText(a.name), run: ctx.block });
+  });
+
+  rt.defineValue('the scene now', () => game.scene);
+  rt.defineValue('showing scene $name', (a) => game.scene === toText(a.name));
+
   // ------------------------------------------------------------ bits and easing
   //
   // Two things every game engine has and this did not. Neither is hard; both

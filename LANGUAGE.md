@@ -865,6 +865,44 @@ what you use to skip drawing the rest of it.
 Also `draw a line from $x , $y to $x , $y thick $n colored $c`, which follows
 the same rule.
 
+## Scenes
+
+A game is nearly always several games: a title screen, the playing, and the
+bit at the end that says what happened. Each has its own things on screen and
+its own rules, and none may run while another is showing.
+
+```
+scene "title"
+    make banner be words "PRESS SPACE" at 400 , 300 sized 40 colored "#ffffff"
+    when key "space" is pressed
+        go to scene "playing"
+    end
+end
+
+scene "playing"
+    make ship be a plane at 400 , 300 sized 40 colored "#ffd166"
+    every frame
+        move ship right by 3
+    end
+end
+
+when scene "playing" starts
+    show "off we go"
+end
+```
+
+Anything made or said **inside** a scene belongs to it: its things are drawn
+only while it is showing, its blocks run only then. Anything **outside** every
+scene belongs to all of them — which is what a score, a background and a piece
+of music are.
+
+The first scene described is the one that shows, so a game with scenes is
+never staring at nothing. `go to scene "x"` switches, `the scene now` says
+which is up, `showing scene "x"` asks.
+
+Without this, a program ends up with `if the state is playing` wrapped around
+every single block — hard to read, and easy to get wrong in one place.
+
 ## Checking your own work
 
 A language that can build a server and a game and cannot say whether they

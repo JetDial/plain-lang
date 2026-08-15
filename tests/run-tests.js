@@ -379,6 +379,49 @@ check('lists answer the questions people ask of two lists', () => {
   assert.deepEqual(g.get('all'), [1, 2, 5]);
 });
 
+check('a scene shows its own things and runs its own rules', () => {
+  const { game, rt } = runtimeFor([
+    'start a game called "Two Games" sized 400 by 300',
+    'make score be 0',
+    'scene "title"',
+    '    make banner be words "PRESS SPACE" at 200 , 150 sized 20 colored "#fff"',
+    '    when key "space" is pressed',
+    '        go to scene "playing"',
+    '    end',
+    'end',
+    'scene "playing"',
+    '    make hero be a box at 50 , 150 sized 20 by 20 colored "#ffd166"',
+    '    every frame',
+    '        add 1 to score',
+    '    end',
+    'end',
+    'make first be the scene now'
+  ].join('\n'));
+  const g = rt.interpreter.globals;
+  // The first scene described is the one showing, so a game with scenes is
+  // never staring at nothing.
+  assert.equal(g.get('first'), 'title');
+
+  // The playing scene's rules must not run while the title is up.
+  game.simulate(10);
+  assert.equal(g.get('score'), 0);
+
+  // ...and its things must not be drawn either.
+  const drawn = () => { const seen = []; game.drawContents({
+    save(){}, restore(){}, translate(){}, rotate(){}, beginPath(){}, arc(){}, fill(){},
+    fillRect(){}, fillText(t){ seen.push(t); }, drawImage(){}, measureText(){ return { width: 0 }; },
+    set fillStyle(v){}, set font(v){}, set textAlign(v){}, set textBaseline(v){}
+  }); return seen; };
+  assert.deepEqual(drawn(), ['PRESS SPACE']);
+
+  game.press('space');
+  assert.equal(game.scene, 'playing');
+  game.simulate(10);
+  assert.equal(g.get('score'), 10);
+  // The title's words are gone now, without anything having removed them.
+  assert.deepEqual(drawn(), []);
+});
+
 check('Plain can check its own work', () => {
   const { rt } = runtimeFor([
     'make score be 0',
