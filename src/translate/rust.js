@@ -134,7 +134,9 @@ export class RustEmitter extends Emitter {
 
   // Is this expression one the machine can do on its own?
   isPlainNumber(node) {
-    if (!node || !this.plainNumbers || this.plainNumbers.size === 0) return false;
+    if (!node) return false;
+    if (node.type === 'Field') return this.isStructField(node);
+    if (!this.plainNumbers || this.plainNumbers.size === 0) return false;
     switch (node.type) {
       case 'Number': return true;
       case 'Var': return this.plainNumbers.has(String(node.name).toLowerCase());
@@ -142,6 +144,12 @@ export class RustEmitter extends Emitter {
       case 'Math': return this.isPlainNumber(node.left) && this.isPlainNumber(node.right);
       default: return false;
     }
+  }
+
+  isStructField(node) {
+    if (!this.structVars || !node.object || node.object.type !== 'Var') return false;
+    const found = this.structVars.get(String(node.object.name).toLowerCase());
+    return !!found && found.fields.has(String(node.name).toLowerCase());
   }
 
   // The bare arithmetic, with no Value anywhere in it.
@@ -152,6 +160,9 @@ export class RustEmitter extends Emitter {
         return written.includes('.') || written.includes('e') ? written : `${written}.0`;
       }
       case 'Var': return this.variable(node.name);
+      case 'Field': return this.isStructField(node)
+        ? `${this.variable(node.object.name)}.${this.structFieldName(node.name)}`
+        : null;
       case 'Negate': return `-(${this.bareNumber(node.value)})`;
       case 'Math': {
         const left = this.bareNumber(node.left);
@@ -203,6 +214,9 @@ export class RustEmitter extends Emitter {
   // "name of me" has to hand out a share of `me` like any other read, or the
   // second thing an action looks at finds it already given away.
   readField(node) {
+    if (this.isStructField(node)) {
+      return `Value::Number(${this.variable(node.object.name)}.${this.structFieldName(node.name)})`;
+    }
     const field0 = String(node.name).toLowerCase();
     if (node.object && node.object.type === 'Var' && this.isPlainList(node.object.name)) {
       const list = this.variable(node.object.name);
@@ -286,6 +300,22 @@ export class RustEmitter extends Emitter {
   // answer, it is a program rustc refuses to build - which is exactly what
   // happened the first day a rustc was on the machine to ask.
   phraseStatement(node) {
+    if (node.spec === 'set value $key of $thing to $value' && this.structVars) {
+      const args = node.args || {};
+      const thing = args.thing;
+      if (thing && thing.type === 'Var'
+          && this.structVars.has(String(thing.name).toLowerCase())
+          && args.key && args.key.type === 'Text') {
+        const found = this.structVars.get(String(thing.name).toLowerCase());
+        const field = String(args.key.value).toLowerCase();
+        if (found.fields.has(field)) {
+          const amount = this.isPlainNumber(args.value)
+            ? this.bareNumber(args.value)
+            : `plain_number(${this.expression(args.value)})`;
+          return `${this.variable(thing.name)}.${this.structFieldName(field)} = ${amount}`;
+        }
+      }
+    }
     const writes = ['add $value to #name', 'take $value from #name', 'put $value into #name'];
     if (writes.includes(node.spec)) {
       const name = this.variable(node.args.name);
@@ -336,6 +366,26 @@ export class RustEmitter extends Emitter {
   }
 
   emitForEach(node) {
+    // Walking a Vec of real structs: each pass hands out one struct to
+    // read and write as bare f64 fields.
+    if (node.list && node.list.type === 'Var' && this.structLists
+        && this.structLists.has(String(node.list.name).toLowerCase())) {
+      const kind = this.structLists.get(String(node.list.name).toLowerCase());
+      const info = this.structKindInfo(kind);
+      const name = this.loopName(node.name);
+      this.open(`for ${name} in ${this.variable(node.list.name)}.iter_mut() {`);
+      this.bindLoop(node.name, name);
+      this.structVars = this.structVars || new Map();
+      const before = this.structVars.get(String(node.name).toLowerCase());
+      this.structVars.set(String(node.name).toLowerCase(), {
+        kind, fields: new Set(info.fields.map(one => one.name))
+      });
+      this.block(node.block);
+      if (before === undefined) this.structVars.delete(String(node.name).toLowerCase());
+      else this.structVars.set(String(node.name).toLowerCase(), before);
+      this.close();
+      return;
+    }
     // Walking a run of plain numbers: no boxes, no shares handed out, and
     // the shape a processor can do four or eight of at a time.
     if (node.list && node.list.type === 'Var' && this.isPlainList(node.list.name)) {
@@ -404,23 +454,295 @@ export class RustEmitter extends Emitter {
   // Before writing a body, work out which of its names hold only numbers.
   // Bodies nest - an action inside a kind - so the answer is kept on a
   // stack and put back when the body is finished.
+
+  // ------------------------------------------------------------- structs
+  //
+  // The measured other half of the C++ gap. A list that provably holds
+  // things of ONE declared kind whose fields are all numbers becomes a
+  // Vec of a real Rust struct - fields side by side, read as one.f with
+  // no reference count, no borrow check and no name search. The proof is
+  // strict; anything unproven keeps the boxed shape and stays correct.
+  numericShape(node, structVar, structFields) {
+    if (!node) return false;
+    switch (node.type) {
+      case 'Number': return true;
+      case 'Negate': return this.numericShape(node.value, structVar, structFields);
+      case 'Math': return ['+', '-', '*', '/', '%'].includes(node.op)
+        && this.numericShape(node.left, structVar, structFields)
+        && this.numericShape(node.right, structVar, structFields);
+      case 'Var': return this.plainNumbers && this.plainNumbers.has(String(node.name).toLowerCase());
+      case 'Field':
+        return !!structVar && node.object && node.object.type === 'Var'
+          && String(node.object.name).toLowerCase() === structVar
+          && structFields.has(String(node.name).toLowerCase());
+      default: return false;
+    }
+  }
+
+  structKindInfo(kindLower) {
+    const kind = this.kinds && this.kinds.get(kindLower);
+    if (!kind || kind.base) return null;
+    if (!kind.fields || !kind.fields.length) return null;
+    if (kind.actions && kind.actions.length) return null;
+    const fields = [];
+    for (const field of kind.fields) {
+      const value = field.value;
+      if (!value || value.type !== 'Number') return null;
+      fields.push({ name: String(field.name).toLowerCase(), fallback: value.value });
+    }
+    return { fields };
+  }
+
+  findStructs(block) {
+    const lists = new Map();     // listLower -> kindLower, or null once rejected
+    const reject = (name) => { if (name) lists.set(String(name).toLowerCase(), null); };
+
+    // Any appearance of a candidate name outside the allowed shapes kills
+    // it. This walk marks the allowed spots and vetoes the rest.
+    const veto = (node) => {
+      if (!node || typeof node !== 'object') return;
+      if (node.type === 'Var' && lists.has(String(node.name).toLowerCase())) {
+        reject(node.name);
+        return;
+      }
+      for (const key of Object.keys(node)) {
+        const value = node[key];
+        if (Array.isArray(value)) value.forEach(veto);
+        else if (value && typeof value === 'object') veto(value);
+      }
+    };
+
+    const scanBody = (nodes) => {
+      for (const node of nodes || []) this.scanStructStatement(node, lists, veto, reject);
+    };
+    this.scanStructBody = scanBody;
+    scanBody(block && block.body);
+
+    const out = new Map();
+    for (const [name, kind] of lists) if (kind) out.set(name, kind);
+    return out;
+  }
+
+  scanStructStatement(node, lists, veto, reject) {
+    if (!node || typeof node !== 'object') return;
+    const lower = (name) => String(name).toLowerCase();
+    switch (node.type) {
+      case 'Make': {
+        if (node.value && node.value.type === 'List' && (node.value.items || []).length === 0) {
+          if (!lists.has(lower(node.name))) lists.set(lower(node.name), undefined);
+          return;
+        }
+        veto(node.value);
+        reject(lists.has(lower(node.name)) ? node.name : null);
+        return;
+      }
+      case 'Phrase': {
+        const args = node.args || {};
+        if (node.spec === 'add $value to #name' && lists.has(lower(args.name))) {
+          const state = lists.get(lower(args.name));
+          if (state === null) { veto(args.value); return; }
+          const made = args.value;
+          if (!made || made.type !== 'New') { veto(args.value); reject(args.name); return; }
+          const kindLower = lower(made.kind);
+          const info = this.structKindInfo(kindLower);
+          if (!info || (state !== undefined && state !== kindLower)) { veto(made); reject(args.name); return; }
+          const known = new Set(info.fields.map(one => one.name));
+          for (const pair of made.pairs || []) {
+            if (!known.has(lower(pair.key)) || !this.numericShape(pair.value, null, known)) {
+              veto(made); reject(args.name); return;
+            }
+          }
+          lists.set(lower(args.name), kindLower);
+          return;
+        }
+        veto(node);
+        return;
+      }
+      case 'ForEach': {
+        const over = node.list;
+        if (over && over.type === 'Var' && lists.get(lower(over.name))) {
+          const kindLower = lists.get(lower(over.name));
+          const info = this.structKindInfo(kindLower);
+          const fields = new Set(info.fields.map(one => one.name));
+          const eachLower = lower(node.name);
+          if (!this.structLoopBodyFits(node.block, eachLower, fields, veto)) reject(over.name);
+          // Whatever the verdict, other candidates inside still get vetoed.
+          for (const inner of (node.block && node.block.body) || []) {
+            this.scanStructStatement(inner, lists, veto, reject);
+          }
+          return;
+        }
+        veto(over);
+        this.scanStructBody((node.block && node.block.body) || []);
+        return;
+      }
+      case 'If': {
+        for (const branch of node.branches || []) {
+          veto(branch.condition);
+          this.scanStructBody((branch.block && branch.block.body) || []);
+        }
+        this.scanStructBody((node.otherwise && node.otherwise.body) || []);
+        return;
+      }
+      case 'Repeat': case 'Count': case 'While': {
+        veto(node.count); veto(node.from); veto(node.to); veto(node.step); veto(node.condition);
+        this.scanStructBody((node.block && node.block.body) || []);
+        return;
+      }
+      default:
+        veto(node);
+    }
+  }
+
+  // Inside "for each one in motes", the loop name may be read as fields,
+  // written as fields with numbers, and nothing else.
+  structLoopBodyFits(block, eachLower, fields, veto) {
+    const usesEachBadly = (node) => {
+      if (!node || typeof node !== 'object') return false;
+      if (node.type === 'Var' && String(node.name).toLowerCase() === eachLower) return true;
+      if (node.type === 'Field' && node.object && node.object.type === 'Var'
+          && String(node.object.name).toLowerCase() === eachLower) {
+        return !fields.has(String(node.name).toLowerCase());
+      }
+      for (const key of Object.keys(node)) {
+        const value = node[key];
+        if (Array.isArray(value)) { if (value.some(usesEachBadly)) return true; }
+        else if (value && typeof value === 'object' && usesEachBadly(value)) return true;
+      }
+      return false;
+    };
+    const fits = (nodes) => {
+      for (const node of nodes || []) {
+        if (node.type === 'Phrase' && node.spec === 'set value $key of $thing to $value') {
+          const args = node.args || {};
+          const thing = args.thing, key = args.key;
+          if (thing && thing.type === 'Var' && String(thing.name).toLowerCase() === eachLower) {
+            if (!key || key.type !== 'Text' || !fields.has(String(key.value).toLowerCase())) return false;
+            if (!this.numericShape(args.value, eachLower, fields)) return false;
+            continue;
+          }
+        }
+        if (node.type === 'Set' && node.target && node.target.type === 'Var') {
+          // Writing a plain number from struct fields is fine.
+          if (this.plainNumbers && this.plainNumbers.has(String(node.target.name).toLowerCase())
+              && this.numericShape(node.value, eachLower, fields)) continue;
+        }
+        if (node.type === 'If') {
+          let good = true;
+          for (const branch of node.branches || []) {
+            if (usesEachBadly(branch.condition) && !this.numericShape(branch.condition, eachLower, fields)) good = false;
+            if (!fits((branch.block && branch.block.body) || [])) good = false;
+          }
+          if (!fits((node.otherwise && node.otherwise.body) || [])) good = false;
+          if (!good) return false;
+          continue;
+        }
+        if (usesEachBadly(node)) return false;
+      }
+      return true;
+    };
+    return fits((block && block.body) || []);
+  }
+
+  // Arithmetic over numbers and struct fields, with no Value anywhere.
+  structBare(node, eachLower, fields) {
+    switch (node.type) {
+      case 'Number': {
+        const written = String(node.value);
+        return written.includes('.') || written.includes('e') ? written : `${written}.0`;
+      }
+      case 'Var': return this.variable(node.name);
+      case 'Negate': return `-(${this.structBare(node.value, eachLower, fields)})`;
+      case 'Field': return `${this.variable(node.object.name)}.${this.structFieldName(node.name)}`;
+      case 'Math': {
+        const left = this.structBare(node.left, eachLower, fields);
+        const right = this.structBare(node.right, eachLower, fields);
+        const sign = ['+', '-', '*', '/', '%'].includes(node.op) ? node.op : '+';
+        return `(${left} ${sign} ${right})`;
+      }
+      default: return '0.0';
+    }
+  }
+
+  structTypeName(kindLower) {
+    return 'PlainStruct' + kindLower.replace(/[^a-z0-9]/g, '_');
+  }
+
+  emitStructTypes() {
+    const wanted = new Set();
+    const gather = (map) => { for (const kind of (map || new Map()).values()) wanted.add(kind); };
+    gather(this.structLists);
+    if (!wanted.size) return;
+    for (const kindLower of wanted) {
+      const info = this.structKindInfo(kindLower);
+      const fields = info.fields.map(one => `${this.structFieldName(one.name)}: f64`).join(', ');
+      this.writeLine(`#[derive(Clone, Copy)] struct ${this.structTypeName(kindLower)} { ${fields} }`);
+    }
+  }
+
+  structFieldName(name) {
+    const cleaned = String(name).toLowerCase().replace(/[^a-z0-9]/g, '_');
+    return 'f_' + cleaned;
+  }
+
   enterNumbers(block, params) {
     this.numberStack = this.numberStack || [];
     this.numberStack.push(this.plainNumbers);
     this.listStack = this.listStack || [];
     this.listStack.push(this.plainLists);
+    this.structStack = this.structStack || [];
+    this.structStack.push(this.structLists);
     try {
       this.plainLists = numericLists(block, params);
       this.plainNumbers = numericNames(block, params, this.plainLists);
+      this.structLists = this.findStructs(block);
+      if (this.structLists.size) {
+        // Struct fields are numbers, and knowing that widens what else is:
+        // "set swept to swept plus x of one" keeps swept bare. One more
+        // pass with that knowledge, then the structs re-proved against the
+        // wider answer, until nothing changes - two rounds in practice.
+        for (let round = 0; round < 3; round++) {
+          const loopFields = new Map();
+          const gather = (nodes) => {
+            for (const node of nodes || []) {
+              if (!node || typeof node !== 'object') continue;
+              if (node.type === 'ForEach' && node.list && node.list.type === 'Var') {
+                const kind = this.structLists.get(String(node.list.name).toLowerCase());
+                if (kind) {
+                  const info = this.structKindInfo(kind);
+                  loopFields.set(String(node.name).toLowerCase(), new Set(info.fields.map(one => one.name)));
+                }
+              }
+              for (const key of Object.keys(node)) {
+                const value = node[key];
+                if (Array.isArray(value)) gather(value);
+                else if (value && typeof value === 'object' && value.type) gather([value]);
+              }
+            }
+          };
+          gather(block && block.body);
+          const fieldNumeric = (node) => {
+            if (!node.object || node.object.type !== 'Var') return false;
+            const fields = loopFields.get(String(node.object.name).toLowerCase());
+            return !!fields && fields.has(String(node.name).toLowerCase());
+          };
+          const before = this.plainNumbers.size + this.structLists.size;
+          this.plainNumbers = numericNames(block, params, this.plainLists, fieldNumeric);
+          this.structLists = this.findStructs(block);
+          if (this.plainNumbers.size + this.structLists.size === before) break;
+        }
+      }
     } catch {
       // A shape this analysis has never seen is not a reason to fail to
       // translate. It is a reason to box everything, as before.
       this.plainNumbers = new Set();
       this.plainLists = new Set();
+      this.structLists = new Map();
     }
   }
 
   leaveNumbers() {
+    if (this.structStack) this.structLists = this.structStack.pop();
     this.plainNumbers = (this.numberStack || []).pop();
     this.plainLists = (this.listStack || []).pop();
   }
@@ -448,6 +770,24 @@ export class RustEmitter extends Emitter {
           this.remember(name);
           return this.writeLine(line);
         }
+      }
+      if (node.type === 'Make' && this.structLists && this.structLists.has(String(node.name).toLowerCase())) {
+        const kind = this.structLists.get(String(node.name).toLowerCase());
+        const name = this.variable(node.name);
+        this.remember(name);
+        return this.writeLine(`let mut ${name}: Vec<${this.structTypeName(kind)}> = Vec::new()`);
+      }
+      if (node.type === 'Phrase' && node.spec === 'add $value to #name'
+          && this.structLists && this.structLists.get(String((node.args || {}).name || '').toLowerCase())) {
+        const kind = this.structLists.get(String(node.args.name).toLowerCase());
+        const info = this.structKindInfo(kind);
+        const given = new Map((node.args.value.pairs || []).map(pair => [String(pair.key).toLowerCase(), pair.value]));
+        const parts = info.fields.map(field => {
+          const value = given.get(field.name);
+          const written = value ? this.structBare(value, null, null) : `${field.fallback}${Number.isInteger(field.fallback) ? '.0' : ''}`;
+          return `${this.structFieldName(field.name)}: ${written}`;
+        });
+        return this.writeLine(`${this.variable(node.args.name)}.push(${this.structTypeName(kind)} { ${parts.join(', ')} })`);
       }
       if (node.type === 'Make' && this.isPlainList(node.name)) {
         const items = (node.value && node.value.items) || [];
@@ -550,6 +890,7 @@ export class RustEmitter extends Emitter {
     this.depth = 1;
     const main = this.capture(() => {
       this.enterNumbers({ body: program.body.filter(one => one.type !== 'Kind' && one.type !== 'Function') }, []);
+      this.emitStructTypes();
       for (const node of program.body) {
         if (node.type === 'Kind' || node.type === 'Function') continue;
         this.statement(node);

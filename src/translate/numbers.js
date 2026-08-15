@@ -19,7 +19,7 @@
 // Reading these of a name is still reading a number.
 const NUMERIC_FIELDS = new Set(['length', 'size', 'count']);
 
-export function numericNames(block, params = [], lists = null) {
+export function numericNames(block, params = [], lists = null, fieldNumeric = null) {
   // Walking a run of plain numbers hands out plain numbers, so the name in
   // that loop is one too.
   const numberLists = lists || new Set();
@@ -50,6 +50,10 @@ export function numericNames(block, params = [], lists = null) {
         return numeric.has(name) && !banned.has(name);
       }
       case 'Negate': return isNumber(node.value);
+      case 'Field':
+        // A field the caller has proved numeric - a struct field inside
+        // its own loop. The proof lives with the caller, not here.
+        return !!(fieldNumeric && fieldNumeric(node));
       case 'Math':
         // Plain joins text with the same word it adds numbers with, so this
         // is only arithmetic when both sides are certainly numbers.

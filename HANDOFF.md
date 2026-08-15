@@ -118,19 +118,16 @@ see `INTEROP.md` for exactly what crosses it and what does not.
 
 ## Still open, in the order worth taking
 
-1. **Struct layout** - the only performance item the measurements support
-   (things-with-fields work sits 7.8x off hand-written Rust because
-   plain_field walks the field list). Deep change to the Rust runtime's
-   Value::Thing plus the emitter; measure before and after, and read
-   `PERFORMANCE.md` first for what was already measured and rejected.
+1. **Struct layout - done.** Things-with-fields went from 129x off
+   hand-written Rust (on a field-dense loop) to 1.05x: a proven list of
+   one kind becomes a Vec of a real struct. `PERFORMANCE.md` has the
+   numbers and the shape of the proof.
 2. **Generators as lazy lists · workers · the embedded runtime** - the
    remaining language items, each a real piece of design work.
-3. **Skyward's old names** - the checker flags 21 names in the verified
-   server and client (`turn`, `kind`, `key`, `who`...) that are words now.
-   The code works because its sentences happen not to collide; renaming is
-   a careful line-at-a-time job with a full game re-verification after -
-   the notes-app blanket rename broke the very sentence it cleaned, and
-   that lesson stands.
+3. **Skyward's old names - done.** All twenty-one renamed scope by scope;
+   the game-run gate caught three breaks the parse check could not see
+   (a straggler line past a range, a phrase caught by a local's rename,
+   an interpolation inside a string). Zero warnings, zero errors now.
 4. **The Unity project's one open piece** - wrapping-map collisions (ghost
    objects in the broadphase). A different repository, the hottest loop in
    that server, and by its own handoff note it deserves a full session.

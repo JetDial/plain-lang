@@ -10,7 +10,12 @@ in Rust — which for this kind of work is the same speed class as C++.
 |---|---|---|---|
 | numbers in a row (arrays) | 0.033 s | 0.048 s | **1.45×** |
 | mixed arithmetic and lists | 0.035 s | 0.517 s | 13× |
-| things with named fields | 0.025 s | 0.195 s | **7.8×** |
+| things with named fields | 62 ms | 66 ms | **1.05×** |
+
+The things row used to read 7.8×, and on a field-dense loop (a million
+things, forty sweeps, reading and writing fields every pass) it measured
+**129×** - 6474 ms against 50. Struct layout took that same loop to 66 ms.
+Same program, same answer to the digit.
 
 Interpreted — which is what `plain run` and any live server does — is roughly
 160× slower than compiled. None of the compiler work below changes that.
@@ -73,8 +78,18 @@ cloning and lookup — and both pointed the same way when they failed. What is
 left is the representation itself: a thing is a reference-counted, borrow-
 checked bag holding boxed values, and every read pays for all three.
 
-So the next piece of work is **struct layout**: `a kind called Plane has x,
-has y` already declares a struct, and the translator can emit a real Rust
-struct with `one.score` instead of a name-value bag searched by string. That
-is the other half of the C++ gap, and it is the only item here the numbers
-support.
+**Struct layout - done, and it was the whole gap.** A list that provably
+holds things of one declared kind, whose fields are all numbers, becomes a
+`Vec` of a real Rust struct: fields side by side, read as `one.f_x` with no
+reference count, no borrow check and no name search. The proof is strict -
+one kind per list, adds only of `a new` that kind, the loop name used only
+as field reads and numeric field writes - and anything unproven keeps the
+boxed shape and stays correct. The proof runs to a fixpoint with the
+numeric-names pass, because knowing fields are numbers is what lets a sum
+over them stay bare.
+
+Measured on the field-dense loop: 6474 ms boxed, 503 ms with structs alone
+(the sum still boxed), **66 ms with both** - against 62 ms written by hand.
+The three steps are worth keeping: the representation was the cost, the
+lookup and the clones never were, exactly as the failed experiments above
+said.

@@ -1870,6 +1870,34 @@ sameEverywhere('translated: choosing', [
   'end'
 ].join('\n'));
 
+sameEverywhere('translated: a herd of things with numeric fields', [
+  // The struct-layout shape: in Rust this list becomes a Vec of a real
+  // struct read as bare f64 fields. Every other target keeps the boxed
+  // shape. Same answers required, to the digit.
+  'a kind called mote',
+  '    has x be 0',
+  '    has y be 0',
+  '    has fall be 0.5',
+  'end',
+  'make motes be []',
+  'repeat with n from 1 to 50',
+  '    add a new mote with x n and y n plus 1 to motes',
+  'end',
+  'make swept be 0',
+  'repeat 3 times',
+  '    for each one in motes',
+  '        set value "y" of one to y of one plus fall of one',
+  '        set swept to swept plus x of one',
+  '    end',
+  'end',
+  'show round swept',
+  'make tally be 0',
+  'for each one in motes',
+  '    set tally to tally plus y of one',
+  'end',
+  'show round tally'
+].join(String.fromCharCode(10)));
+
 sameEverywhere('translated: loops', [
   'repeat 3 times',
   '    show count',
