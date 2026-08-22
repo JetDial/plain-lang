@@ -49,9 +49,7 @@ you one folder to copy to a server.
 | **A course** | 22 lessons and 10 projects in the browser, every step checked by running what you wrote - including a neural network built from nothing |
 | **Six human languages besides English** | Spanish, French, German, Portuguese, Italian and Dutch, per file, one dictionary each - adding another is adding words |
 
-Made with it: **[Skyward](https://github.com/JetDial/skyward)**, a multiplayer
-flying game whose whole server is one file of Plain sentences - and
-**Stonefall** (`plain play examples/stonefall`), a textured, shadowed
+Made with it: **Stonefall** (`plain play examples/stonefall`), a textured, shadowed
 3D game in one file, played from title screen to victory.
 
 Made *in* it: a level editor, a sprite editor, a film editor and a site
